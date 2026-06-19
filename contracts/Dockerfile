@@ -10,10 +10,6 @@ ENV PATH="/root/go/bin:${PATH}"
 WORKDIR /app
 
 CMD sh -c '\
-  if [ ! -f go.mod ]; then go mod init github.com/tumlumtala/contracts; fi && \
-  go get google.golang.org/grpc && \
-  go get google.golang.org/protobuf && \
-  go mod tidy && \
   rm -rf generated/* && \
   protoc \
     --proto_path=. \
@@ -22,6 +18,5 @@ CMD sh -c '\
     --go_opt=module=github.com/tumlumtala/contracts \
     --go-grpc_opt=module=github.com/tumlumtala/contracts \
     grpc/auth.proto \
-    grpc/user.proto && \
-  go mod tidy \
+    grpc/user.proto \
 '
