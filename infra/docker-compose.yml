@@ -1,0 +1,19 @@
+services:
+  redis:
+    image: redis:8.8-alpine
+    container_name: tumlumtala-redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - redis_data:/data
+    networks:
+      - tumlumtala-net
+
+volumes:
+  redis_data:
+
+networks:
+  tumlumtala-net:
+    external: true
