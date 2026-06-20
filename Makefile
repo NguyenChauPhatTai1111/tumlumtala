@@ -61,7 +61,11 @@ down: down-auth down-user down-infra
 
 up: network up-infra up-auth up-user
 
-start: start-infra start-auth start-user
+start: start-infra start-auth start-user start-gateway
+	@echo "✅ All services started"
+
+start-gateway:
+	@docker compose -f gateway/docker-compose.yml up -d
 
 network:
 	@docker network inspect tumlumtala-net >/dev/null 2>&1 || docker network create tumlumtala-net
