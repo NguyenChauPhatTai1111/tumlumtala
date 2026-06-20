@@ -10,7 +10,7 @@ import (
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
-	authdomain "github.com/tumlumtala/gateway/internal/domain/auth"
+	authdomain "github.com/tumlumtala/gateway/internal/modules/auth/domain"
 	apperrors "github.com/tumlumtala/gateway/internal/shared/errors"
 )
 
@@ -89,7 +89,7 @@ func (v *Verifier) Verify(accessToken string) (authdomain.AccessClaims, error) {
 		}
 	}
 
-	// check token_version: nếu version trong token < version hiện tại → đã bị kick
+	// check token_version: version trong token < version hiện tại → đã bị kick
 	currentVersion, err := v.getTokenVersion(ctx, userID)
 	if err != nil {
 		return authdomain.AccessClaims{}, apperrors.New(apperrors.CodeUnauthorized, "unauthorized", err)

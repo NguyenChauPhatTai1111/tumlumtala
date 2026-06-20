@@ -1,4 +1,4 @@
-package handler
+package http
 
 import (
 	"context"
@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	authdomain "github.com/tumlumtala/gateway/internal/domain/auth"
-	"github.com/tumlumtala/gateway/internal/interfaces/http/request"
 	"github.com/tumlumtala/gateway/internal/interfaces/http/response"
+	"github.com/tumlumtala/gateway/internal/modules/auth/domain"
 	"github.com/tumlumtala/gateway/internal/shared/contextx"
 	"github.com/tumlumtala/gateway/internal/shared/validator"
 )
@@ -19,9 +18,9 @@ const (
 )
 
 type AuthService interface {
-	Login(context.Context, authdomain.LoginInput) (authdomain.TokenPair, error)
-	RefreshToken(context.Context, authdomain.RefreshInput) (authdomain.TokenPair, error)
-	Logout(context.Context, authdomain.LogoutInput) error
+	Login(context.Context, domain.LoginInput) (domain.TokenPair, error)
+	RefreshToken(context.Context, domain.RefreshInput) (domain.TokenPair, error)
+	Logout(context.Context, domain.LogoutInput) error
 }
 
 type AuthHandler struct {
@@ -33,13 +32,13 @@ func NewAuthHandler(service AuthService) *AuthHandler {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req request.LoginRequest
+	var req LoginRequest
 	if err := validator.BindJSON(c, &req); err != nil {
 		response.Error(c, err)
 		return
 	}
 
-	pair, err := h.service.Login(c.Request.Context(), authdomain.LoginInput{
+	pair, err := h.service.Login(c.Request.Context(), domain.LoginInput{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -59,7 +58,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	pair, err := h.service.RefreshToken(c.Request.Context(), authdomain.RefreshInput{RefreshToken: refreshToken})
+	pair, err := h.service.RefreshToken(c.Request.Context(), domain.RefreshInput{RefreshToken: refreshToken})
 	if err != nil {
 		clearRefreshCookie(c)
 		response.Error(c, err)
@@ -78,7 +77,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Logout(c.Request.Context(), authdomain.LogoutInput{RefreshToken: refreshToken}); err != nil {
+	if err := h.service.Logout(c.Request.Context(), domain.LogoutInput{RefreshToken: refreshToken}); err != nil {
 		response.Error(c, err)
 		return
 	}

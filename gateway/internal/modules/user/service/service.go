@@ -5,12 +5,13 @@ import (
 	"errors"
 	"strings"
 
-	userdomain "github.com/tumlumtala/gateway/internal/domain/user"
+	"github.com/tumlumtala/gateway/internal/modules/user/domain"
 	apperrors "github.com/tumlumtala/gateway/internal/shared/errors"
 )
 
 type UserClient interface {
-	CreateUser(context.Context, userdomain.CreateUserInput) (userdomain.User, error)
+	CreateUser(context.Context, domain.CreateUserInput) (domain.User, error)
+	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
 	GetMe(context.Context, string) (map[string]any, error)
 }
 
@@ -22,13 +23,26 @@ func NewUserService(userClient UserClient) *UserService {
 	return &UserService{userClient: userClient}
 }
 
-func (s *UserService) CreateUser(ctx context.Context, input userdomain.CreateUserInput) (userdomain.User, error) {
+func (s *UserService) CreateUser(ctx context.Context, input domain.CreateUserInput) (domain.User, error) {
 	input.Email = strings.TrimSpace(input.Email)
 	input.Fullname = strings.TrimSpace(input.Fullname)
 	if input.Email == "" || input.Password == "" || input.Fullname == "" {
-		return userdomain.User{}, apperrors.New(apperrors.CodeBadRequest, "email, password and fullname are required", errors.New("missing create user fields"))
+		return domain.User{}, apperrors.New(apperrors.CodeBadRequest, "email, password and fullname are required", errors.New("missing create user fields"))
 	}
 	return s.userClient.CreateUser(ctx, input)
+}
+
+func (s *UserService) ListUsers(ctx context.Context, input domain.ListUsersInput) (domain.ListUsersResult, error) {
+	if input.Limit <= 0 {
+		input.Limit = 10
+	}
+	if input.Limit > 100 {
+		input.Limit = 100
+	}
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
+	return s.userClient.ListUsers(ctx, input)
 }
 
 func (s *UserService) GetMe(ctx context.Context, userID string) (map[string]any, error) {

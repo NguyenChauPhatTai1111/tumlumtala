@@ -20,6 +20,7 @@ type Config struct {
 	HostPort          string
 	Environment       string
 	LogLevel          string
+	LogOutput         string
 	JWTSecret         string
 	JWTPublicKeyPath  string
 	JWTAlgorithm      string
@@ -38,6 +39,7 @@ func Load() Config {
 		HostPort:          getEnv("HOST_PORT", "8888"),
 		Environment:       getEnv("APP_ENV", "local"),
 		LogLevel:          getEnv("LOG_LEVEL", "INFO"),
+		LogOutput:         getEnv("LOG_OUTPUT", "json"),
 		JWTSecret:         getEnv("JWT_SECRET", "change-me"),
 		JWTPublicKeyPath:  getEnv("JWT_PUBLIC_KEY_PATH", ""),
 		JWTAlgorithm:      getEnv("JWT_ALGORITHM", "HS256"),

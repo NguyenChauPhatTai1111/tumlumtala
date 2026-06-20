@@ -3,7 +3,7 @@ package contextx
 import (
 	"context"
 
-	authdomain "github.com/tumlumtala/gateway/internal/domain/auth"
+	authdomain "github.com/tumlumtala/gateway/internal/modules/auth/domain"
 )
 
 type key string
