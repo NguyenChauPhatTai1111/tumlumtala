@@ -1,4 +1,24 @@
 services:
+  users-mysql:
+    image: mysql:8.4
+    container_name: tumlumtala-users-mysql
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-tumlumtala_users}
+      MYSQL_USER: ${DB_USER:-tumlum}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-tala}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    ports:
+      - "${MYSQL_HOST_PORT:-23306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - tumlumtala-net
+
   users-service:
     build:
       context: ..
@@ -7,15 +27,21 @@ services:
     environment:
       PORT: ${PORT:-25052}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
-      DB_HOST: tumlumtala-mysql
+      DB_HOST: tumlumtala-users-mysql
       DB_PORT: "3306"
       DB_USER: ${DB_USER:-tumlum}
       DB_PASSWORD: ${DB_PASSWORD:-tala}
       DB_NAME: ${DB_NAME:-tumlumtala_users}
     ports:
       - "${PORT:-25052}:${PORT:-25052}"
+    depends_on:
+      users-mysql:
+        condition: service_healthy
     networks:
       - tumlumtala-net
+
+volumes:
+  mysql_data:
 
 networks:
   tumlumtala-net:

@@ -1,8 +1,7 @@
 COMPOSE := docker compose
 PORT ?= 25052
 export PORT
-INFRA_COMPOSE := docker compose -f ../infra/docker-compose.yml
-MYSQL_CONTAINER := tumlumtala-mysql
+MYSQL_CONTAINER := tumlumtala-users-mysql
 DATABASE_NAME ?= tumlumtala_users
 DATABASE_USER ?= tumlum
 DATABASE_PASSWORD ?= tala
@@ -32,7 +31,7 @@ down:
 wait-db:
 	@docker network inspect tumlumtala-net >/dev/null 2>&1 || docker network create tumlumtala-net
 	@docker volume inspect users-service_mysql_data >/dev/null 2>&1 || docker volume create users-service_mysql_data
-	@$(INFRA_COMPOSE) up -d --wait mysql
+	@$(COMPOSE) up -d --wait users-mysql
 
 ensure-db: wait-db
 	@docker exec -i \

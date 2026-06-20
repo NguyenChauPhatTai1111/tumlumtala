@@ -13,6 +13,7 @@ type GetUserUseCase struct{ queries queryservice.UserQueryService }
 func NewGetUserUseCase(queries queryservice.UserQueryService) *GetUserUseCase {
 	return &GetUserUseCase{queries: queries}
 }
+
 func (uc *GetUserUseCase) Execute(ctx context.Context, uuid string) (*dto.UserDTO, error) {
 	if err := validateUUID(uuid); err != nil {
 		return nil, err

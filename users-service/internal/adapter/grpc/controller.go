@@ -21,7 +21,13 @@ type UserController struct {
 	delete *usecase.DeleteUserUseCase
 }
 
-func NewUserController(create *usecase.CreateUserUseCase, get *usecase.GetUserUseCase, list *usecase.ListUsersUseCase, update *usecase.UpdateUserUseCase, deleteUC *usecase.DeleteUserUseCase) *UserController {
+func NewUserController(
+	create *usecase.CreateUserUseCase,
+	get *usecase.GetUserUseCase,
+	list *usecase.ListUsersUseCase,
+	update *usecase.UpdateUserUseCase,
+	deleteUC *usecase.DeleteUserUseCase,
+) *UserController {
 	return &UserController{create: create, get: get, list: list, update: update, delete: deleteUC}
 }
 

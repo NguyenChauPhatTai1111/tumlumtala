@@ -14,6 +14,7 @@ type ListUsersUseCase struct{ queries queryservice.UserQueryService }
 func NewListUsersUseCase(queries queryservice.UserQueryService) *ListUsersUseCase {
 	return &ListUsersUseCase{queries: queries}
 }
+
 func (uc *ListUsersUseCase) Execute(ctx context.Context, limit, offset int32) (*dto.UserListDTO, error) {
 	if limit <= 0 {
 		limit = 20

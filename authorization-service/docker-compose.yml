@@ -1,4 +1,22 @@
 services:
+  authorization-mysql:
+    image: mysql:8.4
+    container_name: tumlumtala-authorization-mysql
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-tumlumtala_authorization}
+      MYSQL_USER: ${DB_USER:-tumlum}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-tala}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - tumlumtala-net
+
   authorization-service:
     build:
       context: ..
@@ -7,9 +25,17 @@ services:
     env_file: .env
     environment:
       PORT: "${PORT:-25054}"
+      DB_HOST: tumlumtala-authorization-mysql
+      DB_PORT: "3306"
     networks:
       - tumlumtala-net
+    depends_on:
+      authorization-mysql:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  mysql_data:
 
 networks:
   tumlumtala-net:

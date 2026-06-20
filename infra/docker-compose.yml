@@ -1,24 +1,4 @@
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: tumlumtala-mysql
-    environment:
-      MYSQL_DATABASE: ${USERS_DB_NAME:-tumlumtala_users}
-      MYSQL_USER: ${USERS_DB_USER:-tumlum}
-      MYSQL_PASSWORD: ${USERS_DB_PASSWORD:-tala}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
-    ports:
-      - "${MYSQL_HOST_PORT:-23306}:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
-    networks:
-      - tumlumtala-net
-
   redis:
     image: redis:8.4-alpine
     container_name: tumlumtala-redis
@@ -32,11 +12,6 @@ services:
       - tumlumtala-net
 
 volumes:
-  mysql_data:
-    # Reuse the existing users-service volume while moving container ownership
-    # to shared infrastructure. No data is deleted during this transition.
-    name: users-service_mysql_data
-    external: true
   redis_data:
 
 networks:

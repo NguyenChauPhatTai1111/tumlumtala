@@ -17,8 +17,8 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-authz up-authz build-authz down-authz \
 	start-user up-user build-user down-user \
 	start-gateway up-gateway build-gateway down-gateway \
-	migrate-up migrate-auth migrate-authz migrate-user \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user seed-user-roles flush-cache \
+	migrate-up migrate-auth migrate-authz migrate-user migrate-movie \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie seed-user-roles flush-cache \
 	proto build-proto run-proto \
 	test \
 	frontend down-frontend
@@ -43,6 +43,8 @@ help:
 	@echo "  make migrate-fresh-seeder-auth        Fresh/seed auth-service"
 	@echo "  make migrate-fresh-seeder-authz       Fresh/seed authorization-service"
 	@echo "  make migrate-fresh-seeder-user        Fresh/seed users-service"
+	@echo "  make migrate-movie                    Migrate movies-service"
+	@echo "  make migrate-fresh-seeder-movie       Fresh/seed movies-service"
 	@echo "Ports:"
 	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT)"
 
@@ -145,7 +147,7 @@ down-gateway:
 frontend:
 	@cd frontend && npm run dev
 
-migrate-up: migrate-auth migrate-authz migrate-user
+migrate-up: migrate-auth migrate-authz migrate-user migrate-movie
 	@echo "✅ All migrations completed"
 
 migrate-auth:
@@ -157,15 +159,19 @@ migrate-authz:
 migrate-user:
 	@$(MAKE) -C users-service migrate-up
 
-migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user seed-user-roles flush-cache
+migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie seed-user-roles flush-cache
 	@echo "✅ All databases recreated and seeded"
 
 seed-user-roles:
 	@echo "→ seeding user_roles from tumlumtala_users..."
-	@docker exec tumlumtala-mysql mysql -utumlum -ptala -e "\
-		INSERT IGNORE INTO tumlumtala_authorization.user_roles (user_uuid, role_id) \
-		SELECT u.uuid, CASE u.role WHEN 'administrator' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END \
-		FROM tumlumtala_users.users u;" 2>/dev/null
+	@docker exec tumlumtala-users-mysql \
+		sh -c 'MYSQL_PWD=tala mysql -utumlum tumlumtala_users -sNe \
+		"SELECT CONCAT(uuid, \",\", CASE role WHEN \"administrator\" THEN 1 WHEN \"manager\" THEN 2 ELSE 3 END) FROM users;"' \
+	| while IFS=, read uuid role_id; do \
+		docker exec tumlumtala-authorization-mysql \
+			sh -c "MYSQL_PWD=tala mysql -utumlum tumlumtala_authorization -e \
+			\"INSERT IGNORE INTO user_roles (user_uuid, role_id) VALUES ('$$uuid', $$role_id);\""; \
+	done
 	@echo "✅ user_roles seeded"
 
 flush-cache:
@@ -180,6 +186,12 @@ migrate-fresh-seeder-authz:
 
 migrate-fresh-seeder-user:
 	@$(MAKE) -C users-service migrate-fresh-seeder
+
+migrate-movie:
+	@$(MAKE) -C movies-service migrate-up
+
+migrate-fresh-seeder-movie:
+	@$(MAKE) -C movies-service migrate-fresh
 
 build-proto:
 	@$(MAKE) -C contracts build-proto
