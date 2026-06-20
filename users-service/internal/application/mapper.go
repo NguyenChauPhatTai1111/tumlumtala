@@ -1,0 +1,13 @@
+package application
+
+import (
+	"github.com/tumlumtala/users-service/internal/application/dto"
+	"github.com/tumlumtala/users-service/internal/domain/entity"
+)
+
+func ToUserDTO(user *entity.User) *dto.UserDTO {
+	if user == nil {
+		return nil
+	}
+	return &dto.UserDTO{ID: user.ID, Email: user.Email, Fullname: user.Fullname, Role: string(user.Role), CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt}
+}

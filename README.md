@@ -1,5 +1,32 @@
 # tumlumtala
 
+## Development commands
+
+Mỗi service sở hữu Makefile riêng; Makefile root chỉ điều phối:
+
+```bash
+make dev                         # down → up → start toàn bộ hệ thống
+make start-auth                  # start auth-service
+make start-user                  # start users-service
+make migrate-up                  # migrate tất cả service
+make migrate-auth                # migrate auth-service
+make migrate-user                # migrate users-service
+make migrate-fresh-seeder        # fresh + seed tất cả database
+make migrate-fresh-seeder-auth   # fresh + seed auth database
+make migrate-fresh-seeder-user   # fresh + seed users database
+```
+
+`migrate-fresh-seeder*` recreate database tương ứng và chỉ nên dùng trong môi trường development. Hiện `auth-service` chưa có source/Compose nên Makefile auth báo skip rõ ràng; interface target đã sẵn sàng cho lúc service được triển khai.
+
+## Database convention
+
+Hệ thống dùng một MySQL server thuộc infrastructure `tumlumtala`, sau đó tách database theo bounded context:
+
+- `tumlumtala_users`: các bảng do users-service sở hữu.
+- `tumlumtala_products`: dành cho products-service trong tương lai.
+
+Migration và seeder vẫn nằm trong từng service. `make migrate-fresh-seeder-user` chỉ drop/recreate `tumlumtala_users`, không xóa MySQL volume hoặc database của service khác.
+
 
 
 ## Getting started

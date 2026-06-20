@@ -1,0 +1,22 @@
+services:
+  users-service:
+    build:
+      context: ..
+      dockerfile: users-service/Dockerfile
+    container_name: tumlumtala-users-service
+    environment:
+      PORT: ${PORT:-25052}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      DB_HOST: tumlumtala-mysql
+      DB_PORT: "3306"
+      DB_USER: ${DB_USER:-tumlum}
+      DB_PASSWORD: ${DB_PASSWORD:-tala}
+      DB_NAME: ${DB_NAME:-tumlumtala_users}
+    ports:
+      - "${PORT:-25052}:${PORT:-25052}"
+    networks:
+      - tumlumtala-net
+
+networks:
+  tumlumtala-net:
+    external: true
