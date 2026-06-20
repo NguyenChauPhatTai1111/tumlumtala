@@ -21,7 +21,11 @@ func NewUserRoutes(userController *UserHandler, authz AuthorizationChecker) *Use
 }
 
 func (r *UserRoutes) RegisterPublic(router *gin.RouterGroup) {
-	router.POST("/users", r.userController.CreateUser)
+	users := router.Group("/users")
+	{
+		users.GET("", r.userController.ListUsers)
+		users.POST("", r.userController.CreateUser)
+	}
 }
 
 func (r *UserRoutes) Register(router *gin.RouterGroup) {
@@ -33,7 +37,6 @@ func (r *UserRoutes) Register(router *gin.RouterGroup) {
 
 	users := router.Group("/users")
 	{
-		users.GET("", canRead, r.userController.ListUsers)
 		users.GET("/:uuid", canRead, r.userController.GetUser)
 		users.PUT("/:uuid", canUpdate, r.userController.UpdateUser)
 		users.DELETE("/:uuid", canDelete, r.userController.DeleteUser)
