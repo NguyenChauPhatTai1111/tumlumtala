@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
+}
+
+func (r RedisConfig) Addr() string { return r.Host + ":" + r.Port }
+
 type Config struct {
 	AppPort           string
 	HostPort          string
@@ -20,6 +29,7 @@ type Config struct {
 	OrderServiceAddr  string
 	RequestTimeout    time.Duration
 	RateLimitPerMin   int
+	Redis             RedisConfig
 }
 
 func Load() Config {
@@ -37,6 +47,12 @@ func Load() Config {
 		OrderServiceAddr:  getEnv("ORDER_SERVICE_ADDR", "localhost:250055"),
 		RequestTimeout:    time.Duration(getEnvInt("REQUEST_TIMEOUT_SECONDS", 5)) * time.Second,
 		RateLimitPerMin:   getEnvInt("RATE_LIMIT_PER_MINUTE", 120),
+		Redis: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", "redis_password"),
+			DB:       getEnvInt("REDIS_DB", 0),
+		},
 	}
 }
 

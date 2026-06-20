@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	authdomain "github.com/tumlumtala/gateway/internal/domain/auth"
@@ -10,6 +11,11 @@ import (
 	"github.com/tumlumtala/gateway/internal/interfaces/http/response"
 	"github.com/tumlumtala/gateway/internal/shared/contextx"
 	"github.com/tumlumtala/gateway/internal/shared/validator"
+)
+
+const (
+	refreshCookieName = "refresh_token"
+	refreshCookieTTL  = 7 * 24 * time.Hour
 )
 
 type AuthService interface {
@@ -33,7 +39,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.service.Login(c.Request.Context(), authdomain.LoginInput{
+	pair, err := h.service.Login(c.Request.Context(), authdomain.LoginInput{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -42,43 +48,42 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, http.StatusOK, gin.H{
-		"access_token":  token.AccessToken,
-		"refresh_token": token.RefreshToken,
-	})
+	setRefreshCookie(c, pair.RefreshToken)
+	response.OK(c, http.StatusOK, gin.H{"access_token": pair.AccessToken})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var req request.RefreshTokenRequest
-	if err := validator.BindJSON(c, &req); err != nil {
-		response.Error(c, err)
+	refreshToken, err := c.Cookie(refreshCookieName)
+	if err != nil || refreshToken == "" {
+		response.ErrorCode(c, http.StatusUnauthorized, "UNAUTHORIZED", "refresh token cookie missing")
 		return
 	}
 
-	token, err := h.service.RefreshToken(c.Request.Context(), authdomain.RefreshInput{RefreshToken: req.RefreshToken})
+	pair, err := h.service.RefreshToken(c.Request.Context(), authdomain.RefreshInput{RefreshToken: refreshToken})
 	if err != nil {
+		clearRefreshCookie(c)
 		response.Error(c, err)
 		return
 	}
 
-	response.OK(c, http.StatusOK, gin.H{
-		"access_token":  token.AccessToken,
-		"refresh_token": token.RefreshToken,
-	})
+	setRefreshCookie(c, pair.RefreshToken)
+	response.OK(c, http.StatusOK, gin.H{"access_token": pair.AccessToken})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	var req request.LogoutRequest
-	if err := validator.BindJSON(c, &req); err != nil {
+	refreshToken, _ := c.Cookie(refreshCookieName)
+	if refreshToken == "" {
+		clearRefreshCookie(c)
+		response.OK(c, http.StatusOK, gin.H{"logged_out": true})
+		return
+	}
+
+	if err := h.service.Logout(c.Request.Context(), authdomain.LogoutInput{RefreshToken: refreshToken}); err != nil {
 		response.Error(c, err)
 		return
 	}
 
-	if err := h.service.Logout(c.Request.Context(), authdomain.LogoutInput{RefreshToken: req.RefreshToken}); err != nil {
-		response.Error(c, err)
-		return
-	}
-
+	clearRefreshCookie(c)
 	response.OK(c, http.StatusOK, gin.H{"logged_out": true})
 }
 
@@ -88,10 +93,19 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		response.ErrorCode(c, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
 		return
 	}
-
 	response.OK(c, http.StatusOK, gin.H{
 		"user_id": claims.UserID,
 		"email":   claims.Email,
 		"role":    claims.Role,
 	})
+}
+
+func setRefreshCookie(c *gin.Context, token string) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(refreshCookieName, token, int(refreshCookieTTL.Seconds()), "/", "", false, true)
+}
+
+func clearRefreshCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(refreshCookieName, "", -1, "/", "", false, true)
 }

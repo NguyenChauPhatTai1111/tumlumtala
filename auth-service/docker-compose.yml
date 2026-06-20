@@ -1,0 +1,15 @@
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      PORT: "${PORT:-25053}"
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+networks:
+  tumlumtala-net:
+    external: true

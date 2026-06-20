@@ -18,7 +18,8 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(PRODUCTS_SERVICE_PO
 	start-gateway up-gateway down-gateway \
 	migrate-up migrate-auth migrate-user \
 	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-user \
-	proto build-proto run-proto
+	proto build-proto run-proto \
+	test
 
 help:
 	@echo "Development:"
@@ -132,3 +133,35 @@ run-proto:
 	@$(MAKE) -C contracts proto
 
 proto: build-proto run-proto
+
+# Usage:
+#   make test SERVICE=<service> [FILE=<testfile>]
+#
+#   make test SERVICE=users-service
+#   make test SERVICE=users-service FILE=get_user_test
+#
+# FILE is the stem of the test file (without _test.go).
+# It is converted to a Go -run pattern: get_user_test → -run TestGetUser
+SERVICE ?=
+FILE    ?=
+
+# Convert snake_case stem to PascalCase: get_user → GetUser
+_to_pascal = $(shell echo "$(patsubst %_test,%,$(FILE))" | awk -F_ '{for(i=1;i<=NF;i++) $$i=toupper(substr($$i,1,1)) substr($$i,2); print}' OFS='')
+
+test:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "Usage: make test SERVICE=<service> [FILE=<testfile>]"; \
+		echo "  Example: make test SERVICE=users-service"; \
+		echo "  Example: make test SERVICE=users-service FILE=get_user_test"; \
+		exit 1; \
+	fi
+	@if [ ! -d "$(SERVICE)" ]; then \
+		echo "Service not found: $(SERVICE)"; exit 1; \
+	fi
+	@if [ -n "$(FILE)" ]; then \
+		echo "→ Running tests matching Test$(_to_pascal) in $(SERVICE)"; \
+		cd "$(SERVICE)" && go test -v -run "Test$(_to_pascal)" ./...; \
+	else \
+		echo "→ Running all tests in $(SERVICE)"; \
+		cd "$(SERVICE)" && go test ./...; \
+	fi

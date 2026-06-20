@@ -7,12 +7,6 @@ import (
 	authdomain "github.com/tumlumtala/gateway/internal/domain/auth"
 	apperrors "github.com/tumlumtala/gateway/internal/shared/errors"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
-)
-
-const (
-	refreshTokenMethod = "/auth.AuthService/RefreshToken"
-	logoutMethod       = "/auth.AuthService/Logout"
 )
 
 type AuthClient interface {
@@ -22,19 +16,15 @@ type AuthClient interface {
 }
 
 type authClient struct {
-	conn   *grpc.ClientConn
 	client authpb.AuthServiceClient
 }
 
 func NewAuthClient(conn *grpc.ClientConn) AuthClient {
-	return &authClient{
-		conn:   conn,
-		client: authpb.NewAuthServiceClient(conn),
-	}
+	return &authClient{client: authpb.NewAuthServiceClient(conn)}
 }
 
 func (c *authClient) Login(ctx context.Context, input authdomain.LoginInput) (authdomain.TokenPair, error) {
-	response, err := c.client.Login(ctx, &authpb.LoginRequest{
+	resp, err := c.client.Login(ctx, &authpb.LoginRequest{
 		Email:    input.Email,
 		Password: input.Password,
 	})
@@ -42,27 +32,28 @@ func (c *authClient) Login(ctx context.Context, input authdomain.LoginInput) (au
 		return authdomain.TokenPair{}, apperrors.FromGRPC(err)
 	}
 	return authdomain.TokenPair{
-		AccessToken:  response.GetAccessToken(),
-		RefreshToken: response.GetRefreshToken(),
+		AccessToken:  resp.GetAccessToken(),
+		RefreshToken: resp.GetRefreshToken(),
 	}, nil
 }
 
 func (c *authClient) RefreshToken(ctx context.Context, input authdomain.RefreshInput) (authdomain.TokenPair, error) {
-	request := &authpb.LoginRequest{Email: input.RefreshToken}
-	response := &authpb.LoginResponse{}
-	if err := c.conn.Invoke(ctx, refreshTokenMethod, request, response); err != nil {
+	resp, err := c.client.RefreshToken(ctx, &authpb.RefreshTokenRequest{
+		RefreshToken: input.RefreshToken,
+	})
+	if err != nil {
 		return authdomain.TokenPair{}, apperrors.FromGRPC(err)
 	}
 	return authdomain.TokenPair{
-		AccessToken:  response.GetAccessToken(),
-		RefreshToken: response.GetRefreshToken(),
+		AccessToken:  resp.GetAccessToken(),
+		RefreshToken: resp.GetRefreshToken(),
 	}, nil
 }
 
 func (c *authClient) Logout(ctx context.Context, input authdomain.LogoutInput) error {
-	request := &authpb.LoginRequest{Email: input.RefreshToken}
-	response := &emptypb.Empty{}
-	if err := c.conn.Invoke(ctx, logoutMethod, request, response); err != nil {
+	if _, err := c.client.Logout(ctx, &authpb.LogoutRequest{
+		RefreshToken: input.RefreshToken,
+	}); err != nil {
 		return apperrors.FromGRPC(err)
 	}
 	return nil

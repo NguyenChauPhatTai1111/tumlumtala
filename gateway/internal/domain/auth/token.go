@@ -21,10 +21,12 @@ type TokenPair struct {
 }
 
 type AccessClaims struct {
-	UserID    string
-	Email     string
-	Role      string
-	TokenType string
-	IssuedAt  time.Time
-	ExpiresAt time.Time
+	UserID       string
+	Email        string
+	Role         string
+	TokenType    string
+	JTI          string
+	TokenVersion int64
+	IssuedAt     time.Time
+	ExpiresAt    time.Time
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/tumlumtala/gateway/internal/config"
 	"github.com/tumlumtala/gateway/internal/infrastructure/grpcclient"
 	jwtinfra "github.com/tumlumtala/gateway/internal/infrastructure/jwt"
+	redisinfra "github.com/tumlumtala/gateway/internal/infrastructure/redis"
 	healthhandler "github.com/tumlumtala/gateway/internal/interfaces/health"
 	httphandler "github.com/tumlumtala/gateway/internal/interfaces/http/handler"
 	httpmodule "github.com/tumlumtala/gateway/internal/interfaces/http/module"
@@ -45,7 +46,14 @@ func main() {
 
 	userClient := grpcclient.NewUserClient(connections[grpcclient.UserService])
 
-	jwtVerifier, err := jwtinfra.NewVerifier(cfg.JWTSecret, cfg.JWTPublicKeyPath, cfg.JWTAlgorithm)
+	redisClient, err := redisinfra.NewClient(cfg.Redis.Addr(), cfg.Redis.Password, cfg.Redis.DB)
+	if err != nil {
+		log.Error("connect redis failed", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer func() { _ = redisClient.Close() }()
+
+	jwtVerifier, err := jwtinfra.NewVerifier(cfg.JWTSecret, cfg.JWTPublicKeyPath, cfg.JWTAlgorithm, redisClient)
 	if err != nil {
 		log.Error("initialize jwt verifier failed", slog.Any("error", err))
 		os.Exit(1)

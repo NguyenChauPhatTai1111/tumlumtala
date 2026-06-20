@@ -34,7 +34,7 @@ func (s *AuthService) Login(ctx context.Context, input authdomain.LoginInput) (a
 func (s *AuthService) RefreshToken(ctx context.Context, input authdomain.RefreshInput) (authdomain.TokenPair, error) {
 	input.RefreshToken = strings.TrimSpace(input.RefreshToken)
 	if input.RefreshToken == "" {
-		return authdomain.TokenPair{}, apperrors.New(apperrors.CodeBadRequest, "refresh_token is required", errors.New("missing refresh_token"))
+		return authdomain.TokenPair{}, apperrors.New(apperrors.CodeUnauthorized, "refresh token missing", errors.New("missing refresh token"))
 	}
 	return s.authClient.RefreshToken(ctx, input)
 }
@@ -42,7 +42,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, input authdomain.Refresh
 func (s *AuthService) Logout(ctx context.Context, input authdomain.LogoutInput) error {
 	input.RefreshToken = strings.TrimSpace(input.RefreshToken)
 	if input.RefreshToken == "" {
-		return apperrors.New(apperrors.CodeBadRequest, "refresh_token is required", errors.New("missing refresh_token"))
+		return nil
 	}
 	return s.authClient.Logout(ctx, input)
 }
