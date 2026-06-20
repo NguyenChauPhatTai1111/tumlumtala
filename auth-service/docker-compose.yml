@@ -3,6 +3,7 @@ services:
     build:
       context: ..
       dockerfile: auth-service/Dockerfile
+    container_name: tumlumtala-auth-service
     env_file: .env
     environment:
       PORT: "${PORT:-25053}"

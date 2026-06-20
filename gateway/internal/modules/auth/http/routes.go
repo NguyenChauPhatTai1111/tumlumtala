@@ -19,8 +19,6 @@ func (r *AuthRoutes) RegisterPublic(router *gin.RouterGroup) {
 	}
 }
 
-func (r *AuthRoutes) Register(router *gin.RouterGroup) {
-	router.GET("/me", r.authController.Me)
-}
+func (r *AuthRoutes) Register(_ *gin.RouterGroup) {}
 
 func (r *AuthRoutes) RegisterInternal(_ *gin.RouterGroup) {}

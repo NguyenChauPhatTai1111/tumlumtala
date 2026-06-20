@@ -1,9 +1,10 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
-  CircularProgress,
   FormControl,
+  IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
@@ -11,23 +12,32 @@ import {
   Select,
   Stack,
   TextField,
+  Tooltip,
   Typography,
-  Alert,
 } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
+import NavigateNextIcon from "@mui/icons-material/NavigateNext";
+import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import SearchIcon from "@mui/icons-material/Search";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  createUser,
-  deleteUser,
-  listUsers,
-  updateUser,
-} from "@api/userApi";
+  DataGrid,
+  type GridColDef,
+  type GridPaginationModel,
+  gridPageCountSelector,
+  useGridApiContext,
+  useGridSelector,
+} from "@mui/x-data-grid";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createUser, deleteUser, listUsers, updateUser } from "@api/userApi";
 import type { IUser } from "@/types";
-import { UserFormDialog, type UserFormData } from "@components/user/dialog/UserFormDialog";
+import {
+  UserFormDialog,
+  type UserFormData,
+} from "@components/user/dialog/UserFormDialog";
 import { ConfirmDeleteDialog } from "@components/user/dialog/ConfirmDeleteDialog";
 
 const ROLE_COLOR: Record<string, "error" | "warning" | "default"> = {
@@ -42,14 +52,65 @@ const ROLE_LABEL: Record<string, string> = {
   member: "Member",
 };
 
+function CustomPagination() {
+  const apiRef = useGridApiContext();
+  const pageCount = useGridSelector(apiRef, gridPageCountSelector);
+  const { page, pageSize } = apiRef.current.state.pagination.paginationModel;
+  const rowCount = apiRef.current.state.pagination.rowCount;
+
+  const rangeStart = rowCount > 0 ? page * pageSize + 1 : 0;
+  const rangeEnd = Math.min((page + 1) * pageSize, rowCount);
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 2,
+        px: 2,
+        py: 1,
+        width: "100%",
+        justifyContent: "flex-end",
+        flexWrap: "wrap",
+      }}
+    >
+      <Typography variant="body2" color="text.secondary">
+        {rangeStart}–{rangeEnd} / {rowCount}
+      </Typography>
+
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <IconButton
+          size="small"
+          disabled={page === 0}
+          onClick={() => apiRef.current.setPage(page - 1)}
+        >
+          <NavigateBeforeIcon fontSize="small" />
+        </IconButton>
+        <Typography variant="body2" sx={{ minWidth: 60, textAlign: "center" }}>
+          {page + 1} / {pageCount || 1}
+        </Typography>
+        <IconButton
+          size="small"
+          disabled={page >= (pageCount || 1) - 1}
+          onClick={() => apiRef.current.setPage(page + 1)}
+        >
+          <NavigateNextIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    </Box>
+  );
+}
+
 export const UsersPage = () => {
   const [users, setUsers] = useState<IUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 10,
+  });
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("");
 
@@ -65,7 +126,10 @@ export const UsersPage = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await listUsers(pageSize, page * pageSize);
+      const res = await listUsers(
+        paginationModel.pageSize,
+        paginationModel.page * paginationModel.pageSize,
+      );
       setUsers(res.users ?? []);
       setTotal(res.total ?? 0);
     } catch {
@@ -73,9 +137,11 @@ export const UsersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [paginationModel.page, paginationModel.pageSize]);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -148,7 +214,17 @@ export const UsersPage = () => {
   };
 
   const columns: GridColDef<IUser>[] = [
-    { field: "fullname", headerName: "Họ tên", flex: 1, minWidth: 150 },
+    {
+      field: "fullname",
+      headerName: "Họ tên",
+      flex: 1,
+      minWidth: 150,
+      renderCell: ({ value }) => (
+        <Typography variant="body2" fontWeight={500}>
+          {value}
+        </Typography>
+      ),
+    },
     { field: "email", headerName: "Email", flex: 1.5, minWidth: 200 },
     {
       field: "role",
@@ -160,39 +236,35 @@ export const UsersPage = () => {
           color={ROLE_COLOR[value] ?? "default"}
           size="small"
           variant="outlined"
+          sx={{ fontWeight: 600 }}
         />
       ),
     },
     {
       field: "created_at",
       headerName: "Ngày tạo",
-      width: 170,
+      width: 160,
       renderCell: ({ value }) =>
-        value ? new Date(value).toLocaleString("vi-VN") : "-",
+        value ? new Date(value).toLocaleDateString("vi-VN") : "-",
     },
     {
       field: "actions",
       headerName: "Thao tác",
-      width: 140,
+      width: 110,
       sortable: false,
       filterable: false,
       renderCell: ({ row }) => (
         <Stack direction="row" spacing={0.5} alignItems="center" height="100%">
-          <Button
-            size="small"
-            startIcon={<EditIcon />}
-            onClick={() => handleOpenEdit(row)}
-          >
-            Sửa
-          </Button>
-          <Button
-            size="small"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => handleOpenDelete(row)}
-          >
-            Xóa
-          </Button>
+          <Tooltip title="Chỉnh sửa">
+            <IconButton size="small" color="primary" onClick={() => handleOpenEdit(row)}>
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Xóa">
+            <IconButton size="small" color="error" onClick={() => handleOpenDelete(row)}>
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Stack>
       ),
     },
@@ -200,20 +272,50 @@ export const UsersPage = () => {
 
   return (
     <Box>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
+      {/* Page heading */}
+      <Box
+        sx={{
+          mb: 3,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: { xs: "flex-start", sm: "center" },
+          flexDirection: { xs: "column", sm: "row" },
+          gap: 2,
+        }}
+      >
         <Box>
-          <Typography variant="h5" fontWeight={700}>
-            Quản lý Người Dùng
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Tổng cộng {total} người dùng
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
+            <Box
+              sx={(theme) => ({
+                width: 36,
+                height: 36,
+                borderRadius: 2,
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              })}
+            >
+              <PeopleOutlinedIcon sx={{ fontSize: 20, color: "#fff" }} />
+            </Box>
+            <Typography variant="h5" fontWeight={700}>
+              Quản lý Người Dùng
+            </Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ ml: 6.5 }}>
+            Tổng cộng {total} người dùng trong hệ thống
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
+
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleOpenCreate}
+          sx={{ textTransform: "none", borderRadius: 2, px: 2.5, py: 1 }}
+        >
           Thêm người dùng
         </Button>
-      </Stack>
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
@@ -222,8 +324,18 @@ export const UsersPage = () => {
       )}
 
       {/* Filters */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+      <Paper
+        elevation={0}
+        sx={(theme) => ({
+          p: 2,
+          mb: 2,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 3,
+          bgcolor: alpha(theme.palette.background.paper, 0.8),
+        })}
+      >
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
           <TextField
             size="small"
             placeholder="Tìm theo tên hoặc email..."
@@ -232,11 +344,11 @@ export const UsersPage = () => {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
+                  <SearchIcon fontSize="small" color="action" />
                 </InputAdornment>
               ),
             }}
-            sx={{ minWidth: 260 }}
+            sx={{ flex: 1, minWidth: 220 }}
           />
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Vai trò</InputLabel>
@@ -251,32 +363,64 @@ export const UsersPage = () => {
               <MenuItem value="administrator">Administrator</MenuItem>
             </Select>
           </FormControl>
+          {(search || filterRole) && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => { setSearch(""); setFilterRole(""); }}
+              sx={{ textTransform: "none", borderRadius: 2 }}
+            >
+              Xóa bộ lọc
+            </Button>
+          )}
         </Stack>
       </Paper>
 
       {/* Table */}
-      <Paper sx={{ height: "calc(100vh - 320px)", minHeight: 400 }}>
-        {loading ? (
-          <Box display="flex" alignItems="center" justifyContent="center" height="100%">
-            <CircularProgress />
-          </Box>
-        ) : (
+      <Paper
+        elevation={0}
+        sx={{
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 3,
+          overflow: "hidden",
+          width: "100%",
+        }}
+      >
+        <Box sx={{ width: "100%", overflowX: "auto" }}>
           <DataGrid
             rows={filteredUsers}
             columns={columns}
             getRowId={(row) => row.uuid}
-            rowCount={total}
+            loading={loading}
             paginationMode="server"
-            paginationModel={{ page, pageSize }}
-            onPaginationModelChange={({ page: p, pageSize: ps }) => {
-              setPage(p);
-              setPageSize(ps);
-            }}
+            rowCount={total}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
             pageSizeOptions={[10, 25, 50]}
+            autoHeight
             disableRowSelectionOnClick
-            sx={{ border: 0 }}
+            slots={{ pagination: CustomPagination }}
+            sx={{
+              border: 0,
+              "& .MuiDataGrid-columnHeaders": {
+                bgcolor: "action.hover",
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-row:hover": {
+                bgcolor: "action.hover",
+              },
+              "& .MuiDataGrid-cell:focus": {
+                outline: "none",
+              },
+              "& .MuiDataGrid-cell:focus-within": {
+                outline: "none",
+              },
+              minWidth: 600,
+            }}
           />
-        )}
+        </Box>
       </Paper>
 
       {/* Dialogs */}

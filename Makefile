@@ -18,7 +18,7 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-user up-user build-user down-user \
 	start-gateway up-gateway build-gateway down-gateway \
 	migrate-up migrate-auth migrate-authz migrate-user \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user seed-user-roles flush-cache \
 	proto build-proto run-proto \
 	test \
 	frontend down-frontend
@@ -157,8 +157,20 @@ migrate-authz:
 migrate-user:
 	@$(MAKE) -C users-service migrate-up
 
-migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user
+migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user seed-user-roles flush-cache
 	@echo "✅ All databases recreated and seeded"
+
+seed-user-roles:
+	@echo "→ seeding user_roles from tumlumtala_users..."
+	@docker exec tumlumtala-mysql mysql -utumlum -ptala -e "\
+		INSERT IGNORE INTO tumlumtala_authorization.user_roles (user_uuid, role_id) \
+		SELECT u.uuid, CASE u.role WHEN 'administrator' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END \
+		FROM tumlumtala_users.users u;" 2>/dev/null
+	@echo "✅ user_roles seeded"
+
+flush-cache:
+	@docker exec tumlumtala-redis redis-cli -a redis_password FLUSHDB 2>/dev/null || true
+	@echo "✅ Redis cache flushed"
 
 migrate-fresh-seeder-auth:
 	@$(MAKE) -C auth-service migrate-fresh-seeder

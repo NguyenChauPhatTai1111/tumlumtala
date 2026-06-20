@@ -15,11 +15,14 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+const AUTH_SKIP_PATHS = ["/auth/login", "/auth/refresh", "/auth/logout"];
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
+    const isAuthPath = AUTH_SKIP_PATHS.some((p) => original?.url?.includes(p));
+    if (error.response?.status === 401 && !original._retry && !isAuthPath) {
       original._retry = true;
       try {
         const res = await apiClient.post("/auth/refresh");

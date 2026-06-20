@@ -2,10 +2,10 @@ import {
   AppBar,
   Avatar,
   Box,
+  Divider,
   Drawer,
   IconButton,
   List,
-  ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
@@ -14,113 +14,296 @@ import {
   Toolbar,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
-import MenuIcon from "@mui/icons-material/Menu";
-import PeopleIcon from "@mui/icons-material/People";
+import { alpha } from "@mui/material/styles";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { useState } from "react";
+import PeopleIcon from "@mui/icons-material/People";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import LightModeIcon from "@mui/icons-material/LightMode";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
+import { Suspense, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { logout } from "@api/authApi";
 import { authStore } from "@store/authStore";
+import { useThemeMode } from "@store/themeStore";
 
 const DRAWER_WIDTH = 240;
+const DRAWER_COLLAPSED = 64;
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: <DashboardIcon />, path: "/" },
   { label: "Người dùng", icon: <PeopleIcon />, path: "/users" },
 ];
 
+const SiderContent = ({
+  collapsed,
+  onClose,
+  onNavigate,
+  activePath,
+}: {
+  collapsed: boolean;
+  onClose?: () => void;
+  onNavigate: (path: string) => void;
+  activePath: string;
+}) => {
+  const theme = useTheme();
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        bgcolor: "background.paper",
+      }}
+    >
+      {/* Logo toolbar */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: collapsed ? "center" : "space-between",
+          px: 2,
+          py: 1.5,
+          minHeight: 64,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, overflow: "hidden" }}>
+          <Box
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: 2,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Typography variant="caption" sx={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>
+              T
+            </Typography>
+          </Box>
+          {!collapsed && (
+            <Typography variant="h6" fontWeight={700} color="primary" noWrap>
+              TumLumTala
+            </Typography>
+          )}
+        </Box>
+
+        {onClose && !collapsed && (
+          <IconButton size="small" onClick={onClose}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        )}
+      </Box>
+
+      <Divider />
+
+      {/* Nav items */}
+      <List sx={{ flexGrow: 1, pt: 1 }}>
+        {NAV_ITEMS.map((item) => {
+          const isActive = activePath === item.path || (item.path !== "/" && activePath.startsWith(item.path));
+          return (
+            <Tooltip
+              key={item.path}
+              title={collapsed ? item.label : ""}
+              placement="right"
+              arrow
+              disableHoverListener={!collapsed}
+            >
+              <ListItemButton
+                selected={isActive}
+                onClick={() => {
+                  onNavigate(item.path);
+                  onClose?.();
+                }}
+                sx={{
+                  mx: 1,
+                  mb: 0.5,
+                  borderRadius: 2,
+                  justifyContent: collapsed ? "center" : "flex-start",
+                  px: collapsed ? 1 : 2,
+                  "&.Mui-selected": {
+                    bgcolor: alpha(theme.palette.primary.main, 0.12),
+                    color: "primary.main",
+                    "& .MuiListItemIcon-root": { color: "primary.main" },
+                    "&:hover": { bgcolor: alpha(theme.palette.primary.main, 0.18) },
+                  },
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: collapsed ? 0 : 2,
+                    justifyContent: "center",
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                {!collapsed && <ListItemText primary={item.label} />}
+              </ListItemButton>
+            </Tooltip>
+          );
+        })}
+      </List>
+    </Box>
+  );
+};
+
 export const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("md"));
+  const { mode, toggleMode } = useThemeMode();
+
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleLogout = async () => {
-    try { await logout(); } catch { /* ignore */ }
+    setAnchorEl(null);
+    try {
+      await logout();
+    } catch {
+      /* ignore */
+    }
     authStore.clearToken();
     navigate("/login", { replace: true });
   };
 
-  const drawer = (
-    <Box>
-      <Toolbar>
-        <Typography variant="h6" fontWeight={700} color="primary">
-          TumLumTala
-        </Typography>
-      </Toolbar>
-      <List>
-        {NAV_ITEMS.map((item) => (
-          <ListItem key={item.path} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => navigate(item.path)}
-              sx={{ borderRadius: 1, mx: 1 }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-    </Box>
-  );
+  const siderWidth = isMobile ? 0 : collapsed ? DRAWER_COLLAPSED : DRAWER_WIDTH;
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
-      {/* Sidebar */}
-      <Drawer
-        variant="persistent"
-        open={drawerOpen}
-        sx={{
-          width: DRAWER_WIDTH,
-          flexShrink: 0,
-          "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
-        }}
-      >
-        {drawer}
-      </Drawer>
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* Mobile Drawer */}
+      {isMobile && (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            "& .MuiDrawer-paper": {
+              width: DRAWER_WIDTH,
+              boxSizing: "border-box",
+            },
+          }}
+        >
+          <SiderContent
+            collapsed={false}
+            onClose={() => setMobileOpen(false)}
+            onNavigate={navigate}
+            activePath={location.pathname}
+          />
+        </Drawer>
+      )}
 
-      {/* Main area */}
+      {/* Desktop Sidebar */}
+      {!isMobile && (
+        <Box
+          sx={{
+            width: collapsed ? DRAWER_COLLAPSED : DRAWER_WIDTH,
+            flexShrink: 0,
+            transition: "width 0.3s ease",
+            overflow: "hidden",
+            borderRight: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <SiderContent
+            collapsed={collapsed}
+            onNavigate={navigate}
+            activePath={location.pathname}
+          />
+        </Box>
+      )}
+
+      {/* Main content */}
       <Box
-        component="main"
         sx={{
-          flexGrow: 1,
-          ml: drawerOpen ? `${DRAWER_WIDTH}px` : 0,
-          transition: "margin 0.2s",
+          flex: 1,
           display: "flex",
           flexDirection: "column",
+          minWidth: 0,
+          overflow: "hidden",
         }}
       >
-        <AppBar position="sticky" color="default" elevation={1} sx={{ zIndex: 1 }}>
-          <Toolbar>
-            <IconButton edge="start" onClick={() => setDrawerOpen((o) => !o)} sx={{ mr: 2 }}>
-              <MenuIcon />
-            </IconButton>
-            <Box flexGrow={1} />
-            <Tooltip title="Tài khoản">
-              <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
-                <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main" }}>A</Avatar>
-              </IconButton>
-            </Tooltip>
-            <Menu
-              anchorEl={anchorEl}
-              open={!!anchorEl}
-              onClose={() => setAnchorEl(null)}
-              transformOrigin={{ horizontal: "right", vertical: "top" }}
-              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-            >
-              <MenuItem onClick={handleLogout}>
-                <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
-                Đăng xuất
-              </MenuItem>
-            </Menu>
+        {/* AppBar */}
+        <AppBar position="static" color="default" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
+          <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              {isMobile ? (
+                <IconButton color="inherit" onClick={() => setMobileOpen(true)} sx={{ mr: 1 }}>
+                  <MenuIcon />
+                </IconButton>
+              ) : (
+                <IconButton color="inherit" onClick={() => setCollapsed((c) => !c)} sx={{ mr: 2 }}>
+                  {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+                </IconButton>
+              )}
+              <Typography
+                variant="h6"
+                sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}
+              >
+                Xin chào, Admin
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              {/* Theme toggle */}
+              <Tooltip title={mode === "light" ? "Chế độ tối" : "Chế độ sáng"}>
+                <IconButton color="inherit" onClick={toggleMode}>
+                  {mode === "light" ? <DarkModeIcon /> : <LightModeIcon />}
+                </IconButton>
+              </Tooltip>
+
+              {/* User menu */}
+              <Box
+                onClick={(e) => setAnchorEl(e.currentTarget)}
+                sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", ml: 1 }}
+              >
+                <Typography sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}>
+                  Admin
+                </Typography>
+                <Avatar sx={{ width: 34, height: 34, bgcolor: "primary.main" }}>A</Avatar>
+              </Box>
+
+              <Menu
+                anchorEl={anchorEl}
+                open={!!anchorEl}
+                onClose={() => setAnchorEl(null)}
+                transformOrigin={{ horizontal: "right", vertical: "top" }}
+                anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+              >
+                <MenuItem onClick={handleLogout}>
+                  <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+                  Đăng xuất
+                </MenuItem>
+              </Menu>
+            </Box>
           </Toolbar>
         </AppBar>
 
-        <Box sx={{ p: 3, flexGrow: 1 }}>
-          <Outlet />
+        {/* Page content */}
+        <Box
+          sx={{
+            flex: 1,
+            overflow: "auto",
+            p: { xs: 1.5, sm: 2, md: 3 },
+          }}
+        >
+          <Suspense fallback={null}>
+            <Outlet />
+          </Suspense>
         </Box>
       </Box>
     </Box>
