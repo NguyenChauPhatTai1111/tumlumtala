@@ -33,6 +33,8 @@ func Load() Config {
 		JWTAlgorithm:      getEnv("JWT_ALGORITHM", "HS256"),
 		AuthServiceAddr:   getEnv("AUTH_SERVICE_ADDR", "localhost:250053"),
 		UserServiceAddr:   getEnv("USER_SERVICE_ADDR", "localhost:250052"),
+		CourseServiceAddr: getEnv("COURSE_SERVICE_ADDR", "localhost:250054"),
+		OrderServiceAddr:  getEnv("ORDER_SERVICE_ADDR", "localhost:250055"),
 		RequestTimeout:    time.Duration(getEnvInt("REQUEST_TIMEOUT_SECONDS", 5)) * time.Second,
 		RateLimitPerMin:   getEnvInt("RATE_LIMIT_PER_MINUTE", 120),
 	}

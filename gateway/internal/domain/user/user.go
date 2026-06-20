@@ -7,7 +7,7 @@ type CreateUserInput struct {
 }
 
 type User struct {
-	ID       string
+	ID       uint64
 	Email    string
 	Fullname string
 }

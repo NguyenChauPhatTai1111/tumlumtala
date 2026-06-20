@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tumlumtala/gateway/internal/application/service"
+	applicationservice "github.com/tumlumtala/gateway/internal/application/service"
 	"github.com/tumlumtala/gateway/internal/config"
 	"github.com/tumlumtala/gateway/internal/infrastructure/grpcclient"
 	jwtinfra "github.com/tumlumtala/gateway/internal/infrastructure/jwt"
@@ -28,37 +28,22 @@ func main() {
 	log := logger.New(cfg.LogLevel)
 	metrics.Register()
 
-	authConn, err := grpcclient.NewConnection(cfg.AuthServiceAddr, log)
+	userServiceAddr := grpcclient.ConnectionConfig{Service: grpcclient.UserService, Target: cfg.UserServiceAddr}
+	authServiceAddr := grpcclient.ConnectionConfig{Service: grpcclient.AuthService, Target: cfg.AuthServiceAddr}
+
+	serviceConfigs := []grpcclient.ConnectionConfig{
+		authServiceAddr,
+		userServiceAddr,
+	}
+
+	connections, err := grpcclient.NewConnections(serviceConfigs, log)
 	if err != nil {
-		log.Error("connect auth service failed", slog.Any("error", err))
+		log.Error("connect gRPC services failed", slog.Any("error", err))
 		os.Exit(1)
 	}
-	defer authConn.Close()
+	defer connections.Close()
 
-	userConn, err := grpcclient.NewConnection(cfg.UserServiceAddr, log)
-	if err != nil {
-		log.Error("connect user service failed", slog.Any("error", err))
-		os.Exit(1)
-	}
-	defer userConn.Close()
-
-	courseConn, err := grpcclient.NewConnection(cfg.CourseServiceAddr, log)
-	if err != nil {
-		log.Error("connect course service failed", slog.Any("error", err))
-		os.Exit(1)
-	}
-	defer courseConn.Close()
-
-	orderConn, err := grpcclient.NewConnection(cfg.OrderServiceAddr, log)
-	if err != nil {
-		log.Error("connect order service failed", slog.Any("error", err))
-		os.Exit(1)
-	}
-	defer orderConn.Close()
-
-	userClient := grpcclient.NewUserClient(userConn)
-	_ = grpcclient.NewCourseClient(courseConn)
-	_ = grpcclient.NewOrderClient(orderConn)
+	userClient := grpcclient.NewUserClient(connections[grpcclient.UserService])
 
 	jwtVerifier, err := jwtinfra.NewVerifier(cfg.JWTSecret, cfg.JWTPublicKeyPath, cfg.JWTAlgorithm)
 	if err != nil {
@@ -66,8 +51,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	authService := service.NewAuthService(grpcclient.NewAuthClient(authConn))
-	userService := service.NewUserService(userClient)
+	authService := applicationservice.NewAuthService(grpcclient.NewAuthClient(connections[grpcclient.AuthService]))
+	userService := applicationservice.NewUserService(userClient)
 	authHandler := httphandler.NewAuthHandler(authService)
 	userHandler := httphandler.NewUserHandler(userService)
 	healthHandler := healthhandler.NewHandler()
