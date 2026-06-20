@@ -57,7 +57,8 @@ validate-ports:
 dev: validate-ports down up start
 	@echo "✅ Development environment is ready"
 
-down: down-auth down-user down-infra
+down: down-auth down-user down-infra down-gateway
+	@echo "✅ All services stopped"
 
 up: network up-infra up-auth up-user
 
@@ -93,6 +94,9 @@ start-user: validate-ports
 
 down-user:
 	@$(MAKE) -C users-service down
+
+down-gateway:
+	@docker compose -f gateway/docker-compose.yml down --remove-orphans
 
 migrate-up: migrate-auth migrate-user
 	@echo "✅ All migrations completed"
