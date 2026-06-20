@@ -9,10 +9,10 @@ services:
     env_file:
       - .env
     networks:
-      - tumlumtala-network
+      - tumlumtala-net
     restart: unless-stopped
 
 networks:
-  tumlumtala-network:
+  tumlumtala-net:
     driver: bridge
     external: true

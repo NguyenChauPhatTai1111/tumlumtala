@@ -1,6 +1,6 @@
 -include .env
 
-SERVICES := auth-service users-service
+SERVICES := auth-service users-service gateway
 
 # Service port registry. Every new service must reserve one unique TCP port
 # here before being added to the orchestration targets.
@@ -15,6 +15,7 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(PRODUCTS_SERVICE_PO
 	start-infra up-infra down-infra \
 	start-auth up-auth down-auth \
 	start-user up-user down-user \
+	start-gateway up-gateway down-gateway \
 	migrate-up migrate-auth migrate-user \
 	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-user \
 	proto build-proto run-proto
@@ -24,6 +25,7 @@ help:
 	@echo "  make dev                         Down, up và start toàn bộ hệ thống"
 	@echo "  make start-auth                  Start auth-service"
 	@echo "  make start-user                  Start users-service"
+	@echo "  make start-gateway               Start gateway"
 	@echo "  make down                        Stop toàn bộ hệ thống"
 	@echo "Migrations:"
 	@echo "  make migrate-up                  Migrate tất cả service"
@@ -60,13 +62,10 @@ dev: validate-ports down up start
 down: down-auth down-user down-infra down-gateway
 	@echo "✅ All services stopped"
 
-up: network up-infra up-auth up-user
+up: network up-infra up-auth up-user up-gateway
 
 start: start-infra start-auth start-user start-gateway
 	@echo "✅ All services started"
-
-start-gateway:
-	@docker compose -f gateway/docker-compose.yml up -d
 
 network:
 	@docker network inspect tumlumtala-net >/dev/null 2>&1 || docker network create tumlumtala-net
@@ -99,8 +98,14 @@ start-user: validate-ports
 down-user:
 	@$(MAKE) -C users-service down
 
+up-gateway:
+	@$(MAKE) -C gateway up
+
+start-gateway:
+	@$(MAKE) -C gateway start
+
 down-gateway:
-	@docker compose -f gateway/docker-compose.yml down --remove-orphans
+	@$(MAKE) -C gateway down
 
 migrate-up: migrate-auth migrate-user
 	@echo "✅ All migrations completed"
