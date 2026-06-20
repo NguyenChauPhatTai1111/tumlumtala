@@ -4,19 +4,14 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	healthhandler "github.com/tumlumtala/gateway/internal/interfaces/health"
-	httphandler "github.com/tumlumtala/gateway/internal/interfaces/http/handler"
 	"github.com/tumlumtala/gateway/internal/middleware"
 )
 
 type Config struct {
-	Logger         *slog.Logger
-	AuthHandler    *httphandler.AuthHandler
-	HealthHandler  *healthhandler.Handler
-	AuthMiddleware gin.HandlerFunc
-	Timeout        gin.HandlerFunc
-	RateLimit      gin.HandlerFunc
+	Logger    *slog.Logger
+	Timeout   gin.HandlerFunc
+	RateLimit gin.HandlerFunc
+	Modules   []Module
 }
 
 func New(cfg Config) *gin.Engine {
@@ -32,20 +27,9 @@ func New(cfg Config) *gin.Engine {
 		cfg.RateLimit,
 	)
 
-	engine.GET("/health", cfg.HealthHandler.Health)
-	engine.GET("/ready", cfg.HealthHandler.Ready)
-	engine.GET("/live", cfg.HealthHandler.Live)
-	engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
-
-	v1 := engine.Group("/api/v1")
-	{
-		authGroup := v1.Group("/auth")
-		authGroup.POST("/login", cfg.AuthHandler.Login)
-		authGroup.POST("/refresh", cfg.AuthHandler.Refresh)
-		authGroup.POST("/logout", cfg.AuthHandler.Logout)
-
-		v1.GET("/me", cfg.AuthMiddleware, cfg.AuthHandler.Me)
-	}
+	public := engine.Group("/api/v1")
+	internal := engine.Group("")
+	RegisterModules(public, internal, cfg.Modules...)
 
 	return engine
 }

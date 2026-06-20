@@ -31,10 +31,8 @@ func Load() Config {
 		JWTSecret:         getEnv("JWT_SECRET", "change-me"),
 		JWTPublicKeyPath:  getEnv("JWT_PUBLIC_KEY_PATH", ""),
 		JWTAlgorithm:      getEnv("JWT_ALGORITHM", "HS256"),
-		AuthServiceAddr:   getEnv("AUTH_SERVICE_ADDR", "localhost:50052"),
-		UserServiceAddr:   getEnv("USER_SERVICE_ADDR", "localhost:50051"),
-		CourseServiceAddr: getEnv("COURSE_SERVICE_ADDR", "localhost:50053"),
-		OrderServiceAddr:  getEnv("ORDER_SERVICE_ADDR", "localhost:50054"),
+		AuthServiceAddr:   getEnv("AUTH_SERVICE_ADDR", "localhost:250053"),
+		UserServiceAddr:   getEnv("USER_SERVICE_ADDR", "localhost:250052"),
 		RequestTimeout:    time.Duration(getEnvInt("REQUEST_TIMEOUT_SECONDS", 5)) * time.Second,
 		RateLimitPerMin:   getEnvInt("RATE_LIMIT_PER_MINUTE", 120),
 	}
