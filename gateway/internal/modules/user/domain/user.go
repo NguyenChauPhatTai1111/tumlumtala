@@ -6,12 +6,21 @@ type CreateUserInput struct {
 	Fullname string
 }
 
-type User struct {
-	ID       string
+type UpdateUserInput struct {
 	UUID     string
 	Email    string
 	Fullname string
 	Role     string
+}
+
+type User struct {
+	ID        string
+	UUID      string
+	Email     string
+	Fullname  string
+	Role      string
+	CreatedAt string
+	UpdatedAt string
 }
 
 type ListUsersInput struct {

@@ -11,8 +11,10 @@ import (
 
 type UserClient interface {
 	CreateUser(context.Context, domain.CreateUserInput) (domain.User, error)
+	GetUser(context.Context, string) (domain.User, error)
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
-	GetMe(context.Context, string) (map[string]any, error)
+	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
+	DeleteUser(context.Context, string) error
 }
 
 type UserService struct {
@@ -32,6 +34,13 @@ func (s *UserService) CreateUser(ctx context.Context, input domain.CreateUserInp
 	return s.userClient.CreateUser(ctx, input)
 }
 
+func (s *UserService) GetUser(ctx context.Context, uuid string) (domain.User, error) {
+	if strings.TrimSpace(uuid) == "" {
+		return domain.User{}, apperrors.New(apperrors.CodeBadRequest, "uuid is required", errors.New("missing uuid"))
+	}
+	return s.userClient.GetUser(ctx, uuid)
+}
+
 func (s *UserService) ListUsers(ctx context.Context, input domain.ListUsersInput) (domain.ListUsersResult, error) {
 	if input.Limit <= 0 {
 		input.Limit = 10
@@ -45,9 +54,18 @@ func (s *UserService) ListUsers(ctx context.Context, input domain.ListUsersInput
 	return s.userClient.ListUsers(ctx, input)
 }
 
-func (s *UserService) GetMe(ctx context.Context, userID string) (map[string]any, error) {
-	if userID == "" {
-		return nil, apperrors.New(apperrors.CodeBadRequest, "user_id is required", errors.New("missing user_id"))
+func (s *UserService) UpdateUser(ctx context.Context, input domain.UpdateUserInput) (domain.User, error) {
+	if strings.TrimSpace(input.UUID) == "" {
+		return domain.User{}, apperrors.New(apperrors.CodeBadRequest, "uuid is required", errors.New("missing uuid"))
 	}
-	return s.userClient.GetMe(ctx, userID)
+	input.Email = strings.TrimSpace(input.Email)
+	input.Fullname = strings.TrimSpace(input.Fullname)
+	return s.userClient.UpdateUser(ctx, input)
+}
+
+func (s *UserService) DeleteUser(ctx context.Context, uuid string) error {
+	if strings.TrimSpace(uuid) == "" {
+		return apperrors.New(apperrors.CodeBadRequest, "uuid is required", errors.New("missing uuid"))
+	}
+	return s.userClient.DeleteUser(ctx, uuid)
 }

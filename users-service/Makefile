@@ -23,7 +23,7 @@ help:
 up: migrate-up
 	@$(COMPOSE) up -d --build
 
-start: migrate-up
+start:
 	@$(COMPOSE) up -d
 
 down:

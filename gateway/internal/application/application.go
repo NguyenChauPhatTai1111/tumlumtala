@@ -22,6 +22,7 @@ import (
 	authgrpc "github.com/tumlumtala/gateway/internal/modules/auth/grpcclient"
 	authhttp "github.com/tumlumtala/gateway/internal/modules/auth/http"
 	authservice "github.com/tumlumtala/gateway/internal/modules/auth/service"
+	authzgrpc "github.com/tumlumtala/gateway/internal/modules/authorization/grpcclient"
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
@@ -47,6 +48,7 @@ func New(cfg config.Config) (*Application, error) {
 
 	connections, err := sharedgrpc.NewConnections([]sharedgrpc.ConnectionConfig{
 		{Service: sharedgrpc.AuthService, Target: cfg.AuthServiceAddr},
+		{Service: sharedgrpc.AuthorizationService, Target: cfg.AuthorizationServiceAddr},
 		{Service: sharedgrpc.UserService, Target: cfg.UserServiceAddr},
 	}, log)
 	if err != nil {
@@ -116,6 +118,8 @@ func buildRouter(cfg config.Config, log *slog.Logger, connections sharedgrpc.Con
 		return nil, err
 	}
 
+	authzClient := authzgrpc.NewAuthorizationClient(connections[sharedgrpc.AuthorizationService])
+
 	authService := authservice.NewAuthService(authgrpc.NewAuthClient(connections[sharedgrpc.AuthService]))
 	userService := userservice.NewUserService(usergrpc.NewUserClient(connections[sharedgrpc.UserService]))
 	authHandler := authhttp.NewAuthHandler(authService)
@@ -131,7 +135,7 @@ func buildRouter(cfg config.Config, log *slog.Logger, connections sharedgrpc.Con
 		RateLimit: middleware.RateLimit(cfg.RateLimitPerMin),
 	},
 		authhttp.NewAuthRoutes(authHandler),
-		userhttp.NewUserRoutes(userHandler),
+		userhttp.NewUserRoutes(userHandler, authzClient),
 		httproutes.NewHealthRoutes(healthHandler),
 		httproutes.NewMetricsRoutes(),
 	)

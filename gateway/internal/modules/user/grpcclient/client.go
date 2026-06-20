@@ -12,24 +12,22 @@ import (
 
 type UserClient interface {
 	CreateUser(context.Context, domain.CreateUserInput) (domain.User, error)
+	GetUser(context.Context, string) (domain.User, error)
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
-	GetMe(context.Context, string) (map[string]any, error)
+	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
+	DeleteUser(context.Context, string) error
 }
 
 type userClient struct {
-	conn   *grpc.ClientConn
 	client userpb.UserServiceClient
 }
 
 func NewUserClient(conn *grpc.ClientConn) UserClient {
-	return &userClient{
-		conn:   conn,
-		client: userpb.NewUserServiceClient(conn),
-	}
+	return &userClient{client: userpb.NewUserServiceClient(conn)}
 }
 
 func (c *userClient) CreateUser(ctx context.Context, input domain.CreateUserInput) (domain.User, error) {
-	response, err := c.client.CreateUser(ctx, &userpb.CreateUserRequest{
+	resp, err := c.client.CreateUser(ctx, &userpb.CreateUserRequest{
 		Email:    input.Email,
 		Password: input.Password,
 		Fullname: input.Fullname,
@@ -37,17 +35,19 @@ func (c *userClient) CreateUser(ctx context.Context, input domain.CreateUserInpu
 	if err != nil {
 		return domain.User{}, apperrors.FromGRPC(err)
 	}
-	return domain.User{
-		ID:       strconv.FormatUint(response.GetId(), 10),
-		UUID:     response.GetUuid(),
-		Email:    response.GetEmail(),
-		Fullname: response.GetFullname(),
-		Role:     response.GetRole(),
-	}, nil
+	return mapCreateResponse(resp), nil
+}
+
+func (c *userClient) GetUser(ctx context.Context, uuid string) (domain.User, error) {
+	resp, err := c.client.GetUser(ctx, &userpb.GetUserRequest{Uuid: uuid})
+	if err != nil {
+		return domain.User{}, apperrors.FromGRPC(err)
+	}
+	return mapUser(resp), nil
 }
 
 func (c *userClient) ListUsers(ctx context.Context, input domain.ListUsersInput) (domain.ListUsersResult, error) {
-	response, err := c.client.ListUsers(ctx, &userpb.ListUsersRequest{
+	resp, err := c.client.ListUsers(ctx, &userpb.ListUsersRequest{
 		Limit:  input.Limit,
 		Offset: input.Offset,
 	})
@@ -55,23 +55,52 @@ func (c *userClient) ListUsers(ctx context.Context, input domain.ListUsersInput)
 		return domain.ListUsersResult{}, apperrors.FromGRPC(err)
 	}
 
-	users := make([]domain.User, 0, len(response.GetUsers()))
-	for _, item := range response.GetUsers() {
-		users = append(users, domain.User{
-			ID:       strconv.FormatUint(item.GetId(), 10),
-			UUID:     item.GetUuid(),
-			Email:    item.GetEmail(),
-			Fullname: item.GetFullname(),
-			Role:     item.GetRole(),
-		})
+	users := make([]domain.User, 0, len(resp.GetUsers()))
+	for _, item := range resp.GetUsers() {
+		users = append(users, mapUser(item))
 	}
-
-	return domain.ListUsersResult{
-		Users: users,
-		Total: response.GetTotal(),
-	}, nil
+	return domain.ListUsersResult{Users: users, Total: resp.GetTotal()}, nil
 }
 
-func (c *userClient) GetMe(_ context.Context, _ string) (map[string]any, error) {
-	return nil, apperrors.New(apperrors.CodeUnavailable, "UserService.GetMe contract is not generated yet", nil)
+func (c *userClient) UpdateUser(ctx context.Context, input domain.UpdateUserInput) (domain.User, error) {
+	resp, err := c.client.UpdateUser(ctx, &userpb.UpdateUserRequest{
+		Uuid:     input.UUID,
+		Email:    input.Email,
+		Fullname: input.Fullname,
+		Role:     input.Role,
+	})
+	if err != nil {
+		return domain.User{}, apperrors.FromGRPC(err)
+	}
+	return mapUser(resp), nil
+}
+
+func (c *userClient) DeleteUser(ctx context.Context, uuid string) error {
+	_, err := c.client.DeleteUser(ctx, &userpb.DeleteUserRequest{Uuid: uuid})
+	if err != nil {
+		return apperrors.FromGRPC(err)
+	}
+	return nil
+}
+
+func mapCreateResponse(r *userpb.CreateUserResponse) domain.User {
+	return domain.User{
+		ID:       strconv.FormatUint(r.GetId(), 10),
+		UUID:     r.GetUuid(),
+		Email:    r.GetEmail(),
+		Fullname: r.GetFullname(),
+		Role:     r.GetRole(),
+	}
+}
+
+func mapUser(u *userpb.User) domain.User {
+	return domain.User{
+		ID:        strconv.FormatUint(u.GetId(), 10),
+		UUID:      u.GetUuid(),
+		Email:     u.GetEmail(),
+		Fullname:  u.GetFullname(),
+		Role:      u.GetRole(),
+		CreatedAt: u.GetCreatedAt(),
+		UpdatedAt: u.GetUpdatedAt(),
+	}
 }

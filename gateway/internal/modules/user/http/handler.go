@@ -14,8 +14,10 @@ import (
 
 type UserService interface {
 	CreateUser(context.Context, domain.CreateUserInput) (domain.User, error)
+	GetUser(context.Context, string) (domain.User, error)
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
-	GetMe(context.Context, string) (map[string]any, error)
+	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
+	DeleteUser(context.Context, string) error
 }
 
 type UserHandler struct {
@@ -33,7 +35,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	createdUser, err := h.service.CreateUser(c.Request.Context(), domain.CreateUserInput{
+	user, err := h.service.CreateUser(c.Request.Context(), domain.CreateUserInput{
 		Email:    req.Email,
 		Password: req.Password,
 		Fullname: req.Fullname,
@@ -43,13 +45,19 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, http.StatusCreated, gin.H{
-		"id":       createdUser.ID,
-		"uuid":     createdUser.UUID,
-		"email":    createdUser.Email,
-		"fullname": createdUser.Fullname,
-		"role":     createdUser.Role,
-	})
+	response.OK(c, http.StatusCreated, mapUser(user))
+}
+
+func (h *UserHandler) GetUser(c *gin.Context) {
+	uuid := c.Param("uuid")
+
+	user, err := h.service.GetUser(c.Request.Context(), uuid)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, http.StatusOK, mapUser(user))
 }
 
 func (h *UserHandler) ListUsers(c *gin.Context) {
@@ -67,13 +75,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 
 	users := make([]gin.H, 0, len(result.Users))
 	for _, item := range result.Users {
-		users = append(users, gin.H{
-			"id":       item.ID,
-			"uuid":     item.UUID,
-			"email":    item.Email,
-			"fullname": item.Fullname,
-			"role":     item.Role,
-		})
+		users = append(users, mapUser(item))
 	}
 
 	response.OK(c, http.StatusOK, gin.H{
@@ -84,18 +86,63 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 	})
 }
 
+func (h *UserHandler) UpdateUser(c *gin.Context) {
+	uuid := c.Param("uuid")
+
+	var req UpdateUserRequest
+	if err := validator.BindJSON(c, &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	user, err := h.service.UpdateUser(c.Request.Context(), domain.UpdateUserInput{
+		UUID:     uuid,
+		Email:    req.Email,
+		Fullname: req.Fullname,
+		Role:     req.Role,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, http.StatusOK, mapUser(user))
+}
+
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	uuid := c.Param("uuid")
+
+	if err := h.service.DeleteUser(c.Request.Context(), uuid); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, http.StatusOK, gin.H{"deleted": true})
+}
+
 func (h *UserHandler) Me(c *gin.Context) {
 	claims, ok := contextx.Claims(c.Request.Context())
 	if !ok {
 		response.ErrorCode(c, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
 		return
 	}
-
 	response.OK(c, http.StatusOK, gin.H{
 		"user_id": claims.UserID,
 		"email":   claims.Email,
 		"role":    claims.Role,
 	})
+}
+
+func mapUser(u domain.User) gin.H {
+	return gin.H{
+		"id":         u.ID,
+		"uuid":       u.UUID,
+		"email":      u.Email,
+		"fullname":   u.Fullname,
+		"role":       u.Role,
+		"created_at": u.CreatedAt,
+		"updated_at": u.UpdatedAt,
+	}
 }
 
 func parseQueryInt32(c *gin.Context, key string, fallback int32) int32 {

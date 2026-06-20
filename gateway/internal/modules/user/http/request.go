@@ -5,3 +5,9 @@ type CreateUserRequest struct {
 	Password string `json:"password" binding:"required"`
 	Fullname string `json:"fullname" binding:"required"`
 }
+
+type UpdateUserRequest struct {
+	Email    string `json:"email" binding:"omitempty,email"`
+	Fullname string `json:"fullname"`
+	Role     string `json:"role"`
+}

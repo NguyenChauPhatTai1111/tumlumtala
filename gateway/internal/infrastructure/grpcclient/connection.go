@@ -11,10 +11,11 @@ import (
 type ServiceName string
 
 const (
-	AuthService   ServiceName = "auth"
-	UserService   ServiceName = "user"
-	CourseService ServiceName = "course"
-	OrderService  ServiceName = "order"
+	AuthService          ServiceName = "auth"
+	AuthorizationService ServiceName = "authorization"
+	UserService          ServiceName = "user"
+	CourseService        ServiceName = "course"
+	OrderService         ServiceName = "order"
 )
 
 type ConnectionConfig struct {

@@ -19,4 +19,5 @@ CMD sh -c '\
     --go-grpc_opt=module=github.com/tumlumtala/contracts \
     grpc/auth.proto \
     grpc/user.proto \
+    grpc/authorization.proto \
 '

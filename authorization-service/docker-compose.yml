@@ -1,0 +1,16 @@
+services:
+  authorization-service:
+    build:
+      context: ..
+      dockerfile: authorization-service/Dockerfile
+    container_name: tumlumtala-authorization-service
+    env_file: .env
+    environment:
+      PORT: "${PORT:-25054}"
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+networks:
+  tumlumtala-net:
+    external: true
