@@ -16,6 +16,7 @@ import (
 	jwtinfra "github.com/tumlumtala/gateway/internal/infrastructure/jwt"
 	healthhandler "github.com/tumlumtala/gateway/internal/interfaces/health"
 	httphandler "github.com/tumlumtala/gateway/internal/interfaces/http/handler"
+	httpmodule "github.com/tumlumtala/gateway/internal/interfaces/http/module"
 	httprouter "github.com/tumlumtala/gateway/internal/interfaces/http/router"
 	"github.com/tumlumtala/gateway/internal/middleware"
 	"github.com/tumlumtala/gateway/internal/shared/logger"
@@ -55,7 +56,7 @@ func main() {
 	}
 	defer orderConn.Close()
 
-	_ = grpcclient.NewUserClient(userConn)
+	userClient := grpcclient.NewUserClient(userConn)
 	_ = grpcclient.NewCourseClient(courseConn)
 	_ = grpcclient.NewOrderClient(orderConn)
 
@@ -66,15 +67,21 @@ func main() {
 	}
 
 	authService := service.NewAuthService(grpcclient.NewAuthClient(authConn))
+	userService := service.NewUserService(userClient)
 	authHandler := httphandler.NewAuthHandler(authService)
+	userHandler := httphandler.NewUserHandler(userService)
 	healthHandler := healthhandler.NewHandler()
+	authMiddleware := middleware.Auth(jwtVerifier)
 	router := httprouter.New(httprouter.Config{
-		Logger:         log,
-		AuthHandler:    authHandler,
-		HealthHandler:  healthHandler,
-		AuthMiddleware: middleware.Auth(jwtVerifier),
-		Timeout:        middleware.Timeout(cfg.RequestTimeout),
-		RateLimit:      middleware.RateLimit(cfg.RateLimitPerMin),
+		Logger:    log,
+		Timeout:   middleware.Timeout(cfg.RequestTimeout),
+		RateLimit: middleware.RateLimit(cfg.RateLimitPerMin),
+		Modules: []httprouter.Module{
+			httpmodule.NewAuthModule(authHandler),
+			httpmodule.NewUserModule(userHandler, authMiddleware),
+			httpmodule.NewHealthModule(healthHandler),
+			httpmodule.NewMetricsModule(),
+		},
 	})
 
 	server := &nethttp.Server{
