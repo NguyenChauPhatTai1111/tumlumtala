@@ -1,7 +1,7 @@
 COMPOSE := docker compose
 PORT ?= 25054
 export PORT
-MYSQL_CONTAINER := tumlumtala-authorization-mysql
+MYSQL_CONTAINER := tumlumtala-users-mysql
 DATABASE_NAME ?= tumlumtala_authorization
 DATABASE_USER ?= tumlum
 DATABASE_PASSWORD ?= tala
@@ -28,8 +28,7 @@ down:
 	@$(COMPOSE) down --remove-orphans
 
 wait-db:
-	@docker network inspect tumlumtala-net >/dev/null 2>&1 || docker network create tumlumtala-net
-	@$(COMPOSE) up -d --wait authorization-mysql
+	@$(MAKE) -C ../users-service wait-db
 
 ensure-db: wait-db
 	@docker exec -i \

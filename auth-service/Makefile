@@ -2,8 +2,6 @@ COMPOSE_FILE := docker-compose.yml
 PORT ?= 25053
 export PORT
 COMPOSE := docker compose
-INFRA_COMPOSE := docker compose -f ../infra/docker-compose.yml
-MYSQL_CONTAINER := tumlumtala-mysql
 
 .NOTPARALLEL:
 
@@ -22,7 +20,7 @@ down:
 	@$(COMPOSE) down --remove-orphans
 
 wait-db:
-	@$(INFRA_COMPOSE) up -d --wait mysql
+	@$(MAKE) -C ../users-service wait-db
 
 migrate-up:
 	@echo "auth-service: no migrations (shares tumlumtala_users DB)"

@@ -74,10 +74,10 @@ down: down-frontend down-auth down-authz down-user down-infra down-gateway
 down-frontend:
 	@bash scripts/kill-frontend.sh
 
-up: network up-infra up-auth up-authz up-user up-gateway
+up: network up-infra up-user up-auth up-authz up-gateway
 	@echo "✅ All services up"
 
-build: network up-infra build-auth build-authz build-user build-gateway
+build: network up-infra build-user build-auth build-authz build-gateway
 	@echo "✅ All services built and up"
 
 start: validate-ports down up
@@ -165,13 +165,14 @@ migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migra
 seed-user-roles:
 	@echo "→ seeding user_roles from tumlumtala_users..."
 	@docker exec tumlumtala-users-mysql \
-		sh -c 'MYSQL_PWD=tala mysql -utumlum tumlumtala_users -sNe \
-		"SELECT CONCAT(uuid, \",\", CASE role WHEN \"administrator\" THEN 1 WHEN \"manager\" THEN 2 ELSE 3 END) FROM users;"' \
-	| while IFS=, read uuid role_id; do \
-		docker exec tumlumtala-authorization-mysql \
-			sh -c "MYSQL_PWD=tala mysql -utumlum tumlumtala_authorization -e \
-			\"INSERT IGNORE INTO user_roles (user_uuid, role_id) VALUES ('$$uuid', $$role_id);\""; \
-	done
+		sh -c 'MYSQL_PWD=tala mysql -utumlum -e "\
+			INSERT IGNORE INTO tumlumtala_authorization.user_roles (user_uuid, role_id) \
+			SELECT uuid, CASE role \
+				WHEN '\''administrator'\'' THEN 1 \
+				WHEN '\''manager'\'' THEN 2 \
+				ELSE 3 \
+			END \
+			FROM tumlumtala_users.users;"'
 	@echo "✅ user_roles seeded"
 
 flush-cache:

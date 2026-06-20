@@ -1,24 +1,4 @@
 services:
-  movies-mysql:
-    image: mysql:8.4
-    container_name: tumlumtala-movies-mysql
-    environment:
-      MYSQL_DATABASE: ${DB_NAME:-tumlumtala_movies}
-      MYSQL_USER: ${DB_USER:-tumlum}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-tala}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
-    volumes:
-      - mysql_data:/var/lib/mysql
-    ports:
-      - "23307:3306"
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
-    networks:
-      - tumlumtala-net
-
   movies-service:
     build:
       context: .
@@ -26,19 +6,13 @@ services:
     container_name: tumlumtala-movies-service
     env_file: .env
     environment:
-      DB_HOST: tumlumtala-movies-mysql
+      DB_HOST: tumlumtala-users-mysql
       DB_PORT: "3306"
     ports:
       - "${PORT:-25055}:${PORT:-25055}"
-    depends_on:
-      movies-mysql:
-        condition: service_healthy
     networks:
       - tumlumtala-net
     restart: unless-stopped
-
-volumes:
-  mysql_data:
 
 networks:
   tumlumtala-net:
