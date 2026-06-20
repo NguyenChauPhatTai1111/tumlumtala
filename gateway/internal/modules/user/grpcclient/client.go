@@ -7,7 +7,6 @@ import (
 	userpb "github.com/tumlumtala/contracts/generated/user"
 	"github.com/tumlumtala/gateway/internal/modules/user/domain"
 	apperrors "github.com/tumlumtala/gateway/internal/shared/errors"
-	"google.golang.org/grpc"
 )
 
 type UserClient interface {
@@ -22,8 +21,8 @@ type userClient struct {
 	client userpb.UserServiceClient
 }
 
-func NewUserClient(conn *grpc.ClientConn) UserClient {
-	return &userClient{client: userpb.NewUserServiceClient(conn)}
+func NewUserClient(client userpb.UserServiceClient) UserClient {
+	return &userClient{client: client}
 }
 
 func (c *userClient) CreateUser(ctx context.Context, input domain.CreateUserInput) (domain.User, error) {

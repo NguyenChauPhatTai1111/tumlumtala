@@ -31,11 +31,11 @@ func UnaryClientInterceptor(logger *slog.Logger) grpc.UnaryClientInterceptor {
 			metrics.GRPCClientRequests.WithLabelValues(serviceName, methodName, code).Inc()
 			metrics.GRPCClientErrors.WithLabelValues(serviceName, methodName, code).Inc()
 			logger.ErrorContext(ctx, "grpc client error",
-				slog.String("trace_id", traceID),
-				slog.String("request_id", requestID),
 				slog.String("service", serviceName),
 				slog.String("method", methodName),
-				slog.String("code", code),
+				slog.String("trace_id", traceID),
+				slog.String("request_id", requestID),
+				slog.String("status", code),
 				slog.Int64("duration_ms", duration.Milliseconds()),
 				slog.Any("error", err),
 			)
@@ -44,11 +44,11 @@ func UnaryClientInterceptor(logger *slog.Logger) grpc.UnaryClientInterceptor {
 
 		metrics.GRPCClientRequests.WithLabelValues(serviceName, methodName, codes.OK.String()).Inc()
 		logger.InfoContext(ctx, "grpc client request",
-			slog.String("trace_id", traceID),
-			slog.String("request_id", requestID),
 			slog.String("service", serviceName),
 			slog.String("method", methodName),
-			slog.String("code", codes.OK.String()),
+			slog.String("trace_id", traceID),
+			slog.String("request_id", requestID),
+			slog.String("status", codes.OK.String()),
 			slog.Int64("duration_ms", duration.Milliseconds()),
 		)
 		return nil
@@ -60,5 +60,6 @@ func splitFullMethod(fullMethod string) (string, string) {
 	if len(parts) != 2 {
 		return "unknown", fullMethod
 	}
-	return parts[0], parts[1]
+	serviceParts := strings.Split(parts[0], ".")
+	return serviceParts[len(serviceParts)-1], parts[1]
 }

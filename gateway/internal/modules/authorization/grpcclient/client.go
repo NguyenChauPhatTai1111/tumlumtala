@@ -4,15 +4,14 @@ import (
 	"context"
 
 	authzpb "github.com/tumlumtala/contracts/generated/authorization"
-	"google.golang.org/grpc"
 )
 
 type AuthorizationClient struct {
 	client authzpb.AuthorizationServiceClient
 }
 
-func NewAuthorizationClient(conn *grpc.ClientConn) *AuthorizationClient {
-	return &AuthorizationClient{client: authzpb.NewAuthorizationServiceClient(conn)}
+func NewAuthorizationClient(client authzpb.AuthorizationServiceClient) *AuthorizationClient {
+	return &AuthorizationClient{client: client}
 }
 
 func (c *AuthorizationClient) Check(ctx context.Context, userUUID, service, resource, action string) (bool, string, error) {

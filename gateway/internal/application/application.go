@@ -31,11 +31,11 @@ import (
 )
 
 type Application struct {
-	cfg         config.Config
-	log         *slog.Logger
-	server      *nethttp.Server
-	connections sharedgrpc.Connections
-	redis       interface{ Close() error }
+	cfg          config.Config
+	log          *slog.Logger
+	server       *nethttp.Server
+	grpcRegistry *sharedgrpc.Registry
+	redis        interface{ Close() error }
 }
 
 func New(cfg config.Config) (*Application, error) {
@@ -46,33 +46,29 @@ func New(cfg config.Config) (*Application, error) {
 	})
 	metrics.Register()
 
-	connections, err := sharedgrpc.NewConnections([]sharedgrpc.ConnectionConfig{
-		{Service: sharedgrpc.AuthService, Target: cfg.AuthServiceAddr},
-		{Service: sharedgrpc.AuthorizationService, Target: cfg.AuthorizationServiceAddr},
-		{Service: sharedgrpc.UserService, Target: cfg.UserServiceAddr},
-	}, log)
+	grpcRegistry, err := sharedgrpc.NewRegistry(context.Background(), sharedgrpc.FromAppConfig(cfg), log)
 	if err != nil {
 		return nil, err
 	}
 
 	redisClient, err := redisinfra.NewClient(cfg.Redis.Addr(), cfg.Redis.Password, cfg.Redis.DB)
 	if err != nil {
-		connections.Close()
+		_ = grpcRegistry.Close()
 		return nil, err
 	}
 
-	router, err := buildRouter(cfg, log, connections, redisClient)
+	router, err := buildRouter(cfg, log, grpcRegistry, redisClient)
 	if err != nil {
-		connections.Close()
+		_ = grpcRegistry.Close()
 		_ = redisClient.Close()
 		return nil, err
 	}
 
 	return &Application{
-		cfg:         cfg,
-		log:         log,
-		connections: connections,
-		redis:       redisClient,
+		cfg:          cfg,
+		log:          log,
+		grpcRegistry: grpcRegistry,
+		redis:        redisClient,
 		server: &nethttp.Server{
 			Addr:              ":" + cfg.AppPort,
 			Handler:           router,
@@ -82,7 +78,7 @@ func New(cfg config.Config) (*Application, error) {
 }
 
 func (app *Application) Run() error {
-	defer app.connections.Close()
+	defer func() { _ = app.grpcRegistry.Close() }()
 	defer func() { _ = app.redis.Close() }()
 
 	errCh := make(chan error, 1)
@@ -112,16 +108,16 @@ func (app *Application) Run() error {
 	return nil
 }
 
-func buildRouter(cfg config.Config, log *slog.Logger, connections sharedgrpc.Connections, redisClient *redis.Client) (*gin.Engine, error) {
+func buildRouter(cfg config.Config, log *slog.Logger, grpcRegistry *sharedgrpc.Registry, redisClient *redis.Client) (*gin.Engine, error) {
 	jwtVerifier, err := jwtinfra.NewVerifier(cfg.JWTSecret, cfg.JWTPublicKeyPath, cfg.JWTAlgorithm, redisClient)
 	if err != nil {
 		return nil, err
 	}
 
-	authzClient := authzgrpc.NewAuthorizationClient(connections[sharedgrpc.AuthorizationService])
+	authzClient := authzgrpc.NewAuthorizationClient(grpcRegistry.Clients.Authorization)
 
-	authService := authservice.NewAuthService(authgrpc.NewAuthClient(connections[sharedgrpc.AuthService]))
-	userService := userservice.NewUserService(usergrpc.NewUserClient(connections[sharedgrpc.UserService]))
+	authService := authservice.NewAuthService(authgrpc.NewAuthClient(grpcRegistry.Clients.Auth))
+	userService := userservice.NewUserService(usergrpc.NewUserClient(grpcRegistry.Clients.User))
 	authHandler := authhttp.NewAuthHandler(authService)
 	userHandler := userhttp.NewUserHandler(userService)
 	healthHandler := healthhandler.NewHandler()

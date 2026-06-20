@@ -1,60 +1,92 @@
 package grpcclient
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
-type ServiceName string
+func NewConnection(ctx context.Context, service ServiceName, target string, cfg Config, logger *slog.Logger) (*grpc.ClientConn, error) {
+	if target == "" {
+		return nil, fmt.Errorf("%s target is empty", service)
+	}
 
-const (
-	AuthService          ServiceName = "auth"
-	AuthorizationService ServiceName = "authorization"
-	UserService          ServiceName = "user"
-	CourseService        ServiceName = "course"
-	OrderService         ServiceName = "order"
-)
-
-type ConnectionConfig struct {
-	Service ServiceName
-	Target  string
-}
-
-type Connections map[ServiceName]*grpc.ClientConn
-
-func NewConnection(target string, logger *slog.Logger) (*grpc.ClientConn, error) {
-	return grpc.NewClient(
+	conn, err := grpc.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(UnaryClientInterceptor(logger)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                cfg.KeepaliveTime,
+			Timeout:             cfg.KeepaliveTimeout,
+			PermitWithoutStream: true,
+		}),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay:  cfg.BackoffBaseDelay,
+				Multiplier: cfg.BackoffMultiplier,
+				Jitter:     cfg.BackoffJitter,
+				MaxDelay:   cfg.BackoffMaxDelay,
+			},
+			MinConnectTimeout: cfg.ConnectTimeout,
+		}),
+		grpc.WithDefaultServiceConfig(defaultServiceConfig(cfg)),
 	)
-}
-
-func NewConnections(configs []ConnectionConfig, logger *slog.Logger) (Connections, error) {
-	connections := make(Connections, len(configs))
-
-	for _, config := range configs {
-		if _, exists := connections[config.Service]; exists {
-			connections.Close()
-			return nil, fmt.Errorf("duplicate gRPC service %q", config.Service)
-		}
-
-		connection, err := NewConnection(config.Target, logger)
-		if err != nil {
-			connections.Close()
-			return nil, fmt.Errorf("connect %s service: %w", config.Service, err)
-		}
-		connections[config.Service] = connection
+	if err != nil {
+		return nil, fmt.Errorf("create %s gRPC client: %w", service, err)
 	}
 
-	return connections, nil
+	if err := waitUntilReady(ctx, conn); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("connect %s at %s: %w", service, target, err)
+	}
+
+	return conn, nil
 }
 
-func (connections Connections) Close() {
-	for _, connection := range connections {
-		_ = connection.Close()
+func waitUntilReady(ctx context.Context, conn *grpc.ClientConn) error {
+	conn.Connect()
+	for {
+		state := conn.GetState()
+		switch state {
+		case connectivity.Ready:
+			return nil
+		case connectivity.Shutdown:
+			return fmt.Errorf("connection shutdown")
+		}
+
+		if !conn.WaitForStateChange(ctx, state) {
+			return ctx.Err()
+		}
 	}
+}
+
+func defaultServiceConfig(cfg Config) string {
+	if cfg.MaxRetryAttempts <= 1 {
+		return `{"loadBalancingPolicy":"round_robin"}`
+	}
+
+	return fmt.Sprintf(`{
+		"loadBalancingPolicy":"round_robin",
+		"methodConfig":[{
+			"name":[{}],
+			"retryPolicy":{
+				"maxAttempts":%d,
+				"initialBackoff":"%s",
+				"maxBackoff":"%s",
+				"backoffMultiplier":%.2f,
+				"retryableStatusCodes":["UNAVAILABLE","RESOURCE_EXHAUSTED","DEADLINE_EXCEEDED"]
+			}
+		}]
+	}`, cfg.MaxRetryAttempts, durationString(200*time.Millisecond), durationString(cfg.BackoffMaxDelay), cfg.BackoffMultiplier)
+}
+
+func durationString(duration time.Duration) string {
+	return fmt.Sprintf("%.3fs", duration.Seconds())
 }

@@ -27,7 +27,7 @@ func (r *UserRoutes) RegisterPublic(router *gin.RouterGroup) {
 func (r *UserRoutes) Register(router *gin.RouterGroup) {
 	router.GET("/me", r.userController.Me)
 
-	canRead   := middleware.Authorize(r.authz, "user-service", "user", "read")
+	canRead := middleware.Authorize(r.authz, "user-service", "user", "read")
 	canUpdate := middleware.Authorize(r.authz, "user-service", "user", "update")
 	canDelete := middleware.Authorize(r.authz, "user-service", "user", "delete")
 

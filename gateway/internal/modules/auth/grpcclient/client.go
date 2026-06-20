@@ -6,7 +6,6 @@ import (
 	authpb "github.com/tumlumtala/contracts/generated/auth"
 	"github.com/tumlumtala/gateway/internal/modules/auth/domain"
 	apperrors "github.com/tumlumtala/gateway/internal/shared/errors"
-	"google.golang.org/grpc"
 )
 
 type AuthClient interface {
@@ -19,8 +18,8 @@ type authClient struct {
 	client authpb.AuthServiceClient
 }
 
-func NewAuthClient(conn *grpc.ClientConn) AuthClient {
-	return &authClient{client: authpb.NewAuthServiceClient(conn)}
+func NewAuthClient(client authpb.AuthServiceClient) AuthClient {
+	return &authClient{client: client}
 }
 
 func (c *authClient) Login(ctx context.Context, input domain.LoginInput) (domain.TokenPair, error) {
