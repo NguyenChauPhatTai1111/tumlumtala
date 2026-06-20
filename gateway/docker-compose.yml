@@ -1,0 +1,18 @@
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    container_name: tumlumtala-gateway
+    ports:
+      - "${HOST_PORT}:${APP_PORT}"
+    env_file:
+      - .env
+    networks:
+      - tumlumtala-network
+    restart: unless-stopped
+
+networks:
+  tumlumtala-network:
+    driver: bridge
+    external: true

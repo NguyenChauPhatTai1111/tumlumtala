@@ -20,7 +20,7 @@ services:
       - tumlumtala-net
 
   redis:
-    image: redis:8.8-alpine
+    image: redis:8.4-alpine
     container_name: tumlumtala-redis
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
