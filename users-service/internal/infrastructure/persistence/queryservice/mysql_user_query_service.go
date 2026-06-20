@@ -15,9 +15,9 @@ func NewMySQLUserQueryService(db *gorm.DB) *MySQLUserQueryService {
 	return &MySQLUserQueryService{db: db}
 }
 
-func (q *MySQLUserQueryService) GetByID(ctx context.Context, id string) (*entity.User, error) {
+func (q *MySQLUserQueryService) GetByUUID(ctx context.Context, uuid string) (*entity.User, error) {
 	var user model.User
-	err := q.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
+	err := q.db.WithContext(ctx).Where("uuid = ?", uuid).First(&user).Error
 	if err != nil {
 		return nil, persistence.TranslateError(err)
 	}

@@ -29,8 +29,8 @@ func normalizeRole(value string, defaultRole entity.Role) (entity.Role, error) {
 	return role, nil
 }
 
-func validateID(id string) error {
-	if _, err := uuid.Parse(id); err != nil {
+func validateUUID(value string) error {
+	if _, err := uuid.Parse(value); err != nil {
 		return domainerrors.ErrInvalidInput
 	}
 	return nil

@@ -45,7 +45,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 		return nil, err
 	}
 	now := time.Now().UTC()
-	user := &entity.User{ID: uuid.NewString(), Email: email, Password: string(hash), Fullname: fullname, Role: role, CreatedAt: now, UpdatedAt: now}
+	user := &entity.User{UUID: uuid.NewString(), Email: email, Password: string(hash), Fullname: fullname, Role: role, CreatedAt: now, UpdatedAt: now}
 	if err := uc.repository.Create(ctx, user); err != nil {
 		return nil, err
 	}

@@ -28,7 +28,9 @@ Một service mới nên theo cấu trúc sau:
 
 ```text
 products-service/
-├── cmd/server/main.go
+├── cmd/
+│   ├── api/main.go                  # Service entrypoint
+│   └── seed/main.go                 # Seeder entrypoint
 ├── internal/
 │   ├── adapter/grpc/                 # Controller, interceptor, protocol mapper
 │   ├── application/
@@ -42,13 +44,14 @@ products-service/
 │   │   ├── errors/                   # Domain errors
 │   │   └── repository/               # Write-side interfaces
 │   └── infrastructure/
-│       ├── database/                 # GORM/MySQL connection
+│       ├── db/
+│       │   ├── connection.go         # GORM/MySQL connection
+│       │   ├── migrations/           # SQL schema migrations
+│       │   └── seeders/              # Seeder interface, runner và Go seeders
 │       └── persistence/
 │           ├── model/                # GORM models và domain mapper
 │           ├── queryservice/          # GORM read implementations
 │           └── repository/            # GORM write implementations
-├── migrations/                       # SQL schema migrations
-├── seeders/                          # SQL development seeders
 ├── scripts/database.sh               # Ensure/fresh database của service
 ├── .env.example
 ├── docker-compose.yml
@@ -133,18 +136,30 @@ Không dùng `docker compose down -v` để fresh một service vì MySQL volume
 Đặt migration theo thứ tự tăng dần:
 
 ```text
-migrations/
+internal/infrastructure/db/migrations/
 ├── 001_create_products.sql
 └── 002_create_categories.sql
 ```
 
-Seeder cũng chạy theo thứ tự tên file:
+Seeder phải viết bằng Go, sử dụng DTO/usecase đã khai báo thay vì thực thi SQL trực tiếp:
 
-```text
-seeders/
-├── 001_categories.sql
-└── 002_products.sql
+```go
+func (s *ProductSeeder) Run(ctx context.Context) error {
+    products := []dto.CreateProductInput{
+        {Name: "Product A", Price: 100},
+        {Name: "Product B", Price: 200},
+    }
+
+    for _, input := range products {
+        if _, err := s.createProduct.Execute(ctx, input); err != nil {
+            return err
+        }
+    }
+    return nil
+}
 ```
+
+Với dữ liệu UUID, dùng package `github.com/google/uuid` (`uuid.NewString()` hoặc `uuid.New()`) trong business flow; không hard-code UUID trong seed data. Seeder nên idempotent bằng cách kiểm tra unique key trước khi create hoặc update record hiện có.
 
 Migration nên có khả năng chạy lại an toàn trong môi trường development, ví dụ sử dụng `CREATE TABLE IF NOT EXISTS`.
 
@@ -218,8 +233,8 @@ make build
 - `up`: ensure database, migrate, build và start service.
 - `start`: ensure database, migrate và start service hiện có.
 - `down`: stop application container, không xóa shared MySQL volume.
-- `migrate-up`: ensure database rồi chạy `migrations/*.sql` theo thứ tự.
-- `seed`: chạy `seeders/*.sql` theo thứ tự.
+- `migrate-up`: ensure database rồi chạy `internal/infrastructure/db/migrations/*.sql` theo thứ tự.
+- `seed`: chạy Go seeder entrypoint, ví dụ `go run ./cmd/seed`.
 - `migrate-fresh-seeder`: chỉ recreate database của service rồi migrate và seed.
 - `test`: chạy test của service.
 - `build`: build application image.
@@ -228,7 +243,7 @@ Có thể copy `users-service/Makefile` làm mẫu, sau đó thay:
 
 - `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`.
 - Tên container service.
-- Tên migration và seeder directory nếu khác convention.
+- Seeder command và các dependency usecase của service.
 
 ## 9. Nối service vào Makefile root
 

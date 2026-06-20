@@ -2,13 +2,14 @@
 set -eu
 
 mode="${1:-ensure}"
+export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
 
 if [ "$mode" = "fresh" ]; then
-  mysql --user=root --password="$MYSQL_ROOT_PASSWORD" \
+  mysql --user=root \
     --execute="DROP DATABASE IF EXISTS \`$MYSQL_DATABASE\`;"
 fi
 
-mysql --user=root --password="$MYSQL_ROOT_PASSWORD" <<SQL
+mysql --user=root <<SQL
 CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
@@ -21,13 +22,13 @@ SQL
 # source table is copied (not moved or dropped), so rollback remains possible.
 if [ "$mode" != "fresh" ]; then
   legacy_database="${LEGACY_USERS_DATABASE:-tumlumtala}"
-  legacy_exists="$(mysql --user=root --password="$MYSQL_ROOT_PASSWORD" --batch --skip-column-names \
+  legacy_exists="$(mysql --user=root --batch --skip-column-names \
     --execute="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$legacy_database' AND table_name='users';")"
-  target_exists="$(mysql --user=root --password="$MYSQL_ROOT_PASSWORD" --batch --skip-column-names \
+  target_exists="$(mysql --user=root --batch --skip-column-names \
     --execute="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$MYSQL_DATABASE' AND table_name='users';")"
 
   if [ "$legacy_exists" = "1" ] && [ "$target_exists" = "0" ]; then
-    mysql --user=root --password="$MYSQL_ROOT_PASSWORD" <<SQL
+    mysql --user=root <<SQL
 CREATE TABLE \`$MYSQL_DATABASE\`.\`users\` LIKE \`$legacy_database\`.\`users\`;
 INSERT INTO \`$MYSQL_DATABASE\`.\`users\` SELECT * FROM \`$legacy_database\`.\`users\`;
 SQL

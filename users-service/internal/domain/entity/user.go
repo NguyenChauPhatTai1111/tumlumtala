@@ -15,7 +15,8 @@ func (r Role) IsValid() bool {
 }
 
 type User struct {
-	ID        string
+	ID        uint64
+	UUID      string
 	Email     string
 	Password  string
 	Fullname  string

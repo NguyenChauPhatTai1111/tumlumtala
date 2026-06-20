@@ -4,6 +4,8 @@ Microservice gRPC dùng GORM với MySQL để quản lý user qua các thao tá
 
 User có một trong ba role: `administrator`, `manager`, `member`. Khi tạo user mà không truyền role, service mặc định dùng `member`.
 
+Database dùng `id BIGINT UNSIGNED AUTO_INCREMENT` làm khóa nội bộ và `uuid CHAR(36) UNIQUE` làm định danh public qua API.
+
 ## Chạy bằng Docker
 
 Từ thư mục `users-service`:
@@ -18,7 +20,7 @@ Hoặc dùng Makefile của service:
 ```bash
 make up
 make migrate-up
-make migrate-fresh-seeder # recreate tumlumtala_users và chạy seeders/*.sql
+make migrate-fresh-seeder # recreate tumlumtala_users và chạy Go UserSeeder
 ```
 
 Service lắng nghe tại `localhost:25052`. MySQL dùng chung của hệ thống được expose tại `localhost:23306`; users-service chỉ sở hữu database `tumlumtala_users` và migration/seeder của database này.
@@ -50,7 +52,7 @@ internal/
 │   ├── errors/                      # domain errors
 │   └── repository/                  # write-side interface
 └── infrastructure/
-    ├── database/                    # MySQL connection lifecycle
+    ├── db/                          # Connection, migrations và Go seeders
     └── persistence/
         ├── model/                   # GORM persistence models và domain mapper
         ├── queryservice/            # MySQL read implementation
@@ -62,9 +64,9 @@ Controller chỉ gọi use case; use case chỉ phụ thuộc các interface tro
 ## RPC
 
 - `CreateUser`: email, password (tối thiểu 8 ký tự), fullname, role (mặc định `member`).
-- `GetUser`: id.
+- `GetUser`: uuid.
 - `ListUsers`: limit (mặc định 20, tối đa 100), offset.
-- `UpdateUser`: id, email, fullname, role (để trống sẽ giữ role hiện tại).
-- `DeleteUser`: id.
+- `UpdateUser`: uuid, email, fullname, role (để trống sẽ giữ role hiện tại).
+- `DeleteUser`: uuid.
 
 Sau khi sửa file proto, chạy `make proto` ở thư mục gốc để sinh lại Go contracts.

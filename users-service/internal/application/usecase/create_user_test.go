@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/tumlumtala/users-service/internal/application/dto"
 	"github.com/tumlumtala/users-service/internal/domain/entity"
 	domainerrors "github.com/tumlumtala/users-service/internal/domain/errors"
@@ -18,7 +19,7 @@ func (s *userStoreStub) Create(_ context.Context, user *entity.User) error {
 }
 func (s *userStoreStub) Update(context.Context, *entity.User) error { return nil }
 func (s *userStoreStub) Delete(context.Context, string) error       { return nil }
-func (s *userStoreStub) GetByID(context.Context, string) (*entity.User, error) {
+func (s *userStoreStub) GetByUUID(context.Context, string) (*entity.User, error) {
 	return nil, domainerrors.ErrNotFound
 }
 func (s *userStoreStub) GetByEmail(context.Context, string) (*entity.User, error) {
@@ -41,6 +42,12 @@ func TestCreateUserHashesPassword(t *testing.T) {
 	}
 	if store.created.Role != entity.RoleMember {
 		t.Fatalf("default role = %q", store.created.Role)
+	}
+	if store.created.UUID == "" {
+		t.Fatal("uuid was not generated")
+	}
+	if _, err := uuid.Parse(store.created.UUID); err != nil {
+		t.Fatalf("invalid generated uuid: %v", err)
 	}
 }
 

@@ -19,14 +19,14 @@ func NewUpdateUserUseCase(repository repository.UserRepository, queries queryser
 	return &UpdateUserUseCase{repository: repository, queries: queries}
 }
 func (uc *UpdateUserUseCase) Execute(ctx context.Context, input dto.UpdateUserInput) (*dto.UserDTO, error) {
-	if err := validateID(input.ID); err != nil {
+	if err := validateUUID(input.UUID); err != nil {
 		return nil, err
 	}
 	email, fullname, err := normalizeUser(input.Email, input.Fullname)
 	if err != nil {
 		return nil, err
 	}
-	user, err := uc.queries.GetByID(ctx, input.ID)
+	user, err := uc.queries.GetByUUID(ctx, input.UUID)
 	if err != nil {
 		return nil, err
 	}

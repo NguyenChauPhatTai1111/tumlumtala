@@ -6,8 +6,8 @@ MYSQL_CONTAINER := tumlumtala-mysql
 DATABASE_NAME ?= tumlumtala_users
 DATABASE_USER ?= tumlum
 DATABASE_PASSWORD ?= tala
-MIGRATIONS_DIR := migrations
-SEEDERS_DIR := seeders
+MIGRATIONS_DIR := internal/infrastructure/db/migrations
+SEEDER_CMD := ./cmd/seed
 
 .NOTPARALLEL:
 
@@ -53,19 +53,14 @@ migrate-up: ensure-db
 	for file in $$(find "$(MIGRATIONS_DIR)" -maxdepth 1 -type f -name '*.sql' | sort); do \
 		found=1; \
 		echo "→ migrate $$file"; \
-		docker exec -i -e MYSQL_DATABASE="$(DATABASE_NAME)" -e MYSQL_USER="$(DATABASE_USER)" -e MYSQL_PASSWORD="$(DATABASE_PASSWORD)" $(MYSQL_CONTAINER) sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"' < "$$file"; \
+		docker exec -i -e MYSQL_DATABASE="$(DATABASE_NAME)" -e MYSQL_USER="$(DATABASE_USER)" -e MYSQL_PASSWORD="$(DATABASE_PASSWORD)" $(MYSQL_CONTAINER) sh -c 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -u"$$MYSQL_USER" "$$MYSQL_DATABASE"' < "$$file"; \
 	done; \
 	if [ "$$found" -eq 0 ]; then echo "No user migrations found"; fi
 	@echo "✅ users-service migrated"
 
 seed: wait-db
-	@set -e; found=0; \
-	for file in $$(find "$(SEEDERS_DIR)" -maxdepth 1 -type f -name '*.sql' 2>/dev/null | sort); do \
-		found=1; \
-		echo "→ seed $$file"; \
-		docker exec -i -e MYSQL_DATABASE="$(DATABASE_NAME)" -e MYSQL_USER="$(DATABASE_USER)" -e MYSQL_PASSWORD="$(DATABASE_PASSWORD)" $(MYSQL_CONTAINER) sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"' < "$$file"; \
-	done; \
-	if [ "$$found" -eq 0 ]; then echo "No user seeders found; skipped"; fi
+	@echo "→ run Go UserSeeder"
+	@DB_HOST=localhost DB_PORT=$${MYSQL_HOST_PORT:-23306} DB_NAME="$(DATABASE_NAME)" DB_USER="$(DATABASE_USER)" DB_PASSWORD="$(DATABASE_PASSWORD)" go run $(SEEDER_CMD)
 
 migrate-fresh-seeder: fresh-db migrate-up seed
 	@echo "✅ users-service database recreated and seeded"

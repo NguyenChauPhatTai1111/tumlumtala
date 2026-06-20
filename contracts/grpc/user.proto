@@ -20,22 +20,24 @@ message CreateUserRequest {
 }
 
 message CreateUserResponse {
-  string id = 1;
+  uint64 id = 1;
   string email = 2;
   string fullname = 3;
   string role = 4;
+  string uuid = 5;
 }
 
 message User {
-  string id = 1;
+  uint64 id = 1;
   string email = 2;
   string fullname = 3;
   string created_at = 4;
   string updated_at = 5;
   string role = 6;
+  string uuid = 7;
 }
 
-message GetUserRequest { string id = 1; }
+message GetUserRequest { string uuid = 1; }
 
 message ListUsersRequest {
   int32 limit = 1;
@@ -48,11 +50,11 @@ message ListUsersResponse {
 }
 
 message UpdateUserRequest {
-  string id = 1;
+  string uuid = 1;
   string email = 2;
   string fullname = 3;
   string role = 4;
 }
 
-message DeleteUserRequest { string id = 1; }
+message DeleteUserRequest { string uuid = 1; }
 message DeleteUserResponse { bool deleted = 1; }

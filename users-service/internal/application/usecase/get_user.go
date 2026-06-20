@@ -13,11 +13,11 @@ type GetUserUseCase struct{ queries queryservice.UserQueryService }
 func NewGetUserUseCase(queries queryservice.UserQueryService) *GetUserUseCase {
 	return &GetUserUseCase{queries: queries}
 }
-func (uc *GetUserUseCase) Execute(ctx context.Context, id string) (*dto.UserDTO, error) {
-	if err := validateID(id); err != nil {
+func (uc *GetUserUseCase) Execute(ctx context.Context, uuid string) (*dto.UserDTO, error) {
+	if err := validateUUID(uuid); err != nil {
 		return nil, err
 	}
-	user, err := uc.queries.GetByID(ctx, id)
+	user, err := uc.queries.GetByUUID(ctx, uuid)
 	if err != nil {
 		return nil, err
 	}

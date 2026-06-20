@@ -55,7 +55,7 @@ migrate-up: wait-db
 		set -e; found=0; \
 		for file in $$(find "$(MIGRATIONS_DIR)" -maxdepth 1 -type f -name '*.sql' 2>/dev/null | sort); do \
 			found=1; echo "→ migrate $$file"; \
-			$(COMPOSE) exec -T $(DB_SERVICE) sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"' < "$$file"; \
+			$(COMPOSE) exec -T $(DB_SERVICE) sh -c 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -u"$$MYSQL_USER" "$$MYSQL_DATABASE"' < "$$file"; \
 		done; \
 		if [ "$$found" -eq 0 ]; then echo "No auth migrations found"; fi; \
 	fi
@@ -67,7 +67,10 @@ seed: wait-db
 		set -e; found=0; \
 		for file in $$(find "$(SEEDERS_DIR)" -maxdepth 1 -type f -name '*.sql' 2>/dev/null | sort); do \
 			found=1; echo "→ seed $$file"; \
-			$(COMPOSE) exec -T $(DB_SERVICE) sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"' < "$$file"; \
+			echo "──────────────── SQL ────────────────"; \
+			sed -n '1,$$p' "$$file"; \
+			echo "────────────── END SQL ──────────────"; \
+			$(COMPOSE) exec -T $(DB_SERVICE) sh -c 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -u"$$MYSQL_USER" "$$MYSQL_DATABASE"' < "$$file"; \
 		done; \
 		if [ "$$found" -eq 0 ]; then echo "No auth seeders found"; fi; \
 	fi

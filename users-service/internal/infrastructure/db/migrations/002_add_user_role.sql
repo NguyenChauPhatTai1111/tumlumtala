@@ -9,7 +9,7 @@ SET @role_column_exists = (
 SET @add_role_sql = IF(
     @role_column_exists = 0,
     'ALTER TABLE users ADD COLUMN role ENUM(''administrator'', ''member'', ''manager'') NOT NULL DEFAULT ''member'' AFTER fullname',
-    'SELECT 1'
+    'DO 0'
 );
 
 PREPARE add_role_statement FROM @add_role_sql;

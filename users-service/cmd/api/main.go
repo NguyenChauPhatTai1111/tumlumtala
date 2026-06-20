@@ -9,7 +9,7 @@ import (
 
 	bootstrap "github.com/tumlumtala/users-service/internal/bootstrap"
 	"github.com/tumlumtala/users-service/internal/config"
-	"github.com/tumlumtala/users-service/internal/infrastructure/database"
+	database "github.com/tumlumtala/users-service/internal/infrastructure/db"
 	"google.golang.org/grpc"
 )
 
