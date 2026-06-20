@@ -8,7 +8,7 @@ import (
 	"time"
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
-	authdomain "github.com/tumlumtala/gateway/internal/domain/auth"
+	authdomain "github.com/tumlumtala/gateway/internal/modules/auth/domain"
 	apperrors "github.com/tumlumtala/gateway/internal/shared/errors"
 )
 

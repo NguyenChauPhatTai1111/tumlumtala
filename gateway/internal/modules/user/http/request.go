@@ -1,4 +1,4 @@
-package request
+package http
 
 type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required,email"`
