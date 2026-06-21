@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus:9090
+
+  - job_name: gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - gateway:8080
+        labels:
+          app: gateway
+
+  # Add service metrics here once each service exposes /metrics.
+  # Example:
+  # - job_name: auth-service
+  #   metrics_path: /metrics
+  #   static_configs:
+  #     - targets:
+  #         - auth-service:8081
+  #       labels:
+  #         app: auth-service

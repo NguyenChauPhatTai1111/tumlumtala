@@ -19,8 +19,12 @@ type Config struct {
 	AppPort                  string
 	HostPort                 string
 	Environment              string
+	AppVersion               string
 	LogLevel                 string
 	LogOutput                string
+	LogCaller                bool
+	TracingEnabled           bool
+	OTLPEndpoint             string
 	JWTSecret                string
 	JWTPublicKeyPath         string
 	JWTAlgorithm             string
@@ -39,8 +43,12 @@ func Load() Config {
 		AppPort:                  getEnv("APP_PORT", "8080"),
 		HostPort:                 getEnv("HOST_PORT", "8888"),
 		Environment:              getEnv("APP_ENV", "local"),
+		AppVersion:               getEnv("APP_VERSION", "local"),
 		LogLevel:                 getEnv("LOG_LEVEL", "INFO"),
 		LogOutput:                getEnv("LOG_OUTPUT", "json"),
+		LogCaller:                getEnvBool("LOG_CALLER", false),
+		TracingEnabled:           getEnvBool("TRACING_ENABLED", true),
+		OTLPEndpoint:             getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
 		JWTSecret:                getEnv("JWT_SECRET", "change-me"),
 		JWTPublicKeyPath:         getEnv("JWT_PUBLIC_KEY_PATH", ""),
 		JWTAlgorithm:             getEnv("JWT_ALGORITHM", "HS256"),
@@ -74,6 +82,19 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return fallback
 	}

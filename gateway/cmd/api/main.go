@@ -11,19 +11,22 @@ import (
 func main() {
 	cfg := config.Load()
 	log := logger.New(logger.Config{
-		Level:       cfg.LogLevel,
-		Output:      cfg.LogOutput,
-		Environment: cfg.Environment,
+		Service:      logger.ServiceGateway,
+		Level:        cfg.LogLevel,
+		Output:       cfg.LogOutput,
+		Environment:  cfg.Environment,
+		Version:      cfg.AppVersion,
+		EnableCaller: cfg.LogCaller,
 	})
 
 	app, err := application.New(cfg)
 	if err != nil {
-		log.Error("initialize gateway failed", "error", err)
+		log.Error().Err(err).Msg("initialize gateway failed")
 		os.Exit(1)
 	}
 
 	if err := app.Run(); err != nil {
-		log.Error("gateway run failed", "error", err)
+		log.Error().Err(err).Msg("gateway run failed")
 		os.Exit(1)
 	}
 }

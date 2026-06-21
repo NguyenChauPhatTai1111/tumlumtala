@@ -4,9 +4,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tumlumtala/gateway/internal/shared/contextx"
 	"github.com/tumlumtala/gateway/internal/shared/id"
+	"github.com/tumlumtala/gateway/internal/shared/logger"
 )
 
-const RequestIDHeader = "X-Request-ID"
+const RequestIDHeader = logger.HeaderRequestID
 
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {

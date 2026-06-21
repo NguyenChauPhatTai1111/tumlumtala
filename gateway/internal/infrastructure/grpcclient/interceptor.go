@@ -2,11 +2,13 @@ package grpcclient
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/tumlumtala/gateway/internal/shared/contextx"
+	"github.com/tumlumtala/gateway/internal/shared/id"
+	"github.com/tumlumtala/gateway/internal/shared/logger"
 	"github.com/tumlumtala/gateway/internal/shared/metrics"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -14,11 +16,25 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func UnaryClientInterceptor(logger *slog.Logger) grpc.UnaryClientInterceptor {
+func UnaryClientInterceptor(base zerolog.Logger) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		requestID := contextx.RequestID(ctx)
 		traceID := contextx.TraceID(ctx)
-		ctx = metadata.AppendToOutgoingContext(ctx, "x-request-id", requestID, "x-trace-id", traceID)
+		if requestID == "" {
+			requestID = id.New()
+			ctx = contextx.WithRequestID(ctx, requestID)
+		}
+		if traceID == "" {
+			traceID = id.New()
+			ctx = contextx.WithTraceID(ctx, traceID)
+		}
+
+		ctx = metadata.AppendToOutgoingContext(
+			ctx,
+			logger.MetadataRequestID, requestID,
+			logger.MetadataTraceID, traceID,
+		)
+		ctx = logger.WithRequestFields(ctx, base)
 
 		serviceName, methodName := splitFullMethod(method)
 		startedAt := time.Now()
@@ -26,31 +42,32 @@ func UnaryClientInterceptor(logger *slog.Logger) grpc.UnaryClientInterceptor {
 		duration := time.Since(startedAt)
 
 		metrics.GRPCClientDuration.WithLabelValues(serviceName, methodName).Observe(duration.Seconds())
+		log := logger.FromContext(ctx, base)
 		if err != nil {
 			code := status.Code(err).String()
 			metrics.GRPCClientRequests.WithLabelValues(serviceName, methodName, code).Inc()
 			metrics.GRPCClientErrors.WithLabelValues(serviceName, methodName, code).Inc()
-			logger.ErrorContext(ctx, "grpc client error",
-				slog.String("service", serviceName),
-				slog.String("method", methodName),
-				slog.String("trace_id", traceID),
-				slog.String("request_id", requestID),
-				slog.String("status", code),
-				slog.Int64("duration_ms", duration.Milliseconds()),
-				slog.Any("error", err),
-			)
+			log.Error().
+				Err(err).
+				Str("component", "grpc_client").
+				Str("target_service", serviceName).
+				Str("method", methodName).
+				Str("grpc_code", code).
+				Dur("latency", duration).
+				Int64("latency_ms", duration.Milliseconds()).
+				Msg("grpc client request")
 			return err
 		}
 
 		metrics.GRPCClientRequests.WithLabelValues(serviceName, methodName, codes.OK.String()).Inc()
-		logger.InfoContext(ctx, "grpc client request",
-			slog.String("service", serviceName),
-			slog.String("method", methodName),
-			slog.String("trace_id", traceID),
-			slog.String("request_id", requestID),
-			slog.String("status", codes.OK.String()),
-			slog.Int64("duration_ms", duration.Milliseconds()),
-		)
+		log.Info().
+			Str("component", "grpc_client").
+			Str("target_service", serviceName).
+			Str("method", methodName).
+			Str("grpc_code", codes.OK.String()).
+			Dur("latency", duration).
+			Int64("latency_ms", duration.Milliseconds()).
+			Msg("grpc client request")
 		return nil
 	}
 }

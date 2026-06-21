@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 
+	"github.com/rs/zerolog"
 	authpb "github.com/tumlumtala/contracts/generated/auth"
 	authzpb "github.com/tumlumtala/contracts/generated/authorization"
 	userpb "github.com/tumlumtala/contracts/generated/user"
@@ -22,7 +22,7 @@ type Registry struct {
 	OrderConn         *grpc.ClientConn
 }
 
-func NewRegistry(parent context.Context, cfg Config, logger *slog.Logger) (*Registry, error) {
+func NewRegistry(parent context.Context, cfg Config, logger zerolog.Logger) (*Registry, error) {
 	ctx, cancel := context.WithTimeout(parent, cfg.ConnectTimeout)
 	defer cancel()
 

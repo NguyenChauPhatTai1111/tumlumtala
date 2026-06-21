@@ -52,7 +52,11 @@ func NewVerifier(secret, publicKeyPath, algorithm string, redisClient *redis.Cli
 	return v, nil
 }
 
-func (v *Verifier) Verify(accessToken string) (authdomain.AccessClaims, error) {
+func (v *Verifier) Verify(ctx context.Context, accessToken string) (authdomain.AccessClaims, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	claims := &accessClaims{}
 	token, err := jwtlib.ParseWithClaims(accessToken, claims, func(t *jwtlib.Token) (any, error) {
 		if t.Method.Alg() != v.algorithm {
@@ -75,8 +79,6 @@ func (v *Verifier) Verify(accessToken string) (authdomain.AccessClaims, error) {
 
 	jti := claims.ID
 	userID := normalizeUserID(claims.UserID)
-
-	ctx := context.Background()
 
 	// O(1): check jti blacklist
 	if jti != "" {

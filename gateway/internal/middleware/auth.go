@@ -19,7 +19,7 @@ func Auth(verifier *jwtinfra.Verifier) gin.HandlerFunc {
 			return
 		}
 
-		claims, err := verifier.Verify(strings.TrimPrefix(header, "Bearer "))
+		claims, err := verifier.Verify(c.Request.Context(), strings.TrimPrefix(header, "Bearer "))
 		if err != nil {
 			response.Error(c, err)
 			c.Abort()

@@ -7,6 +7,8 @@ import (
 	domainerrors "github.com/tumlumtala/users-service/internal/domain/errors"
 	"github.com/tumlumtala/users-service/internal/infrastructure/persistence"
 	"github.com/tumlumtala/users-service/internal/infrastructure/persistence/model"
+	"github.com/tumlumtala/users-service/internal/shared/logger"
+	"github.com/tumlumtala/users-service/internal/shared/observability"
 	"gorm.io/gorm"
 )
 
@@ -15,12 +17,19 @@ type MySQLUserRepository struct{ db *gorm.DB }
 func NewMySQLUserRepository(db *gorm.DB) *MySQLUserRepository { return &MySQLUserRepository{db: db} }
 
 func (r *MySQLUserRepository) Create(ctx context.Context, user *entity.User) error {
-	record := model.FromEntity(user)
-	err := r.db.WithContext(ctx).Create(record).Error
-	if err == nil {
-		user.ID = record.ID
-	}
-	return persistence.TranslateError(err)
+	return observability.Trace(ctx, "UserRepository.Create", func(ctx context.Context) error {
+		record := model.FromEntity(user)
+		err := r.db.WithContext(ctx).Create(record).Error
+		if err == nil {
+			user.ID = record.ID
+		}
+		return persistence.TranslateError(err)
+	},
+		observability.AttrServiceName(logger.ServiceUsers),
+		observability.AttrLayer("repository"),
+		observability.AttrOperation("create_user"),
+		observability.AttrResourceType("user"),
+	)
 }
 
 func (r *MySQLUserRepository) Update(ctx context.Context, user *entity.User) error {

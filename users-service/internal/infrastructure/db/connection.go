@@ -9,6 +9,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 )
 
 func OpenMySQL(ctx context.Context, dsn string) (*gorm.DB, error) {
@@ -25,6 +26,13 @@ func OpenMySQL(ctx context.Context, dsn string) (*gorm.DB, error) {
 		Logger: gormLogger,
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err := db.Use(gormtracing.NewPlugin(
+		gormtracing.WithDBSystem("mysql"),
+		gormtracing.WithoutMetrics(),
+		gormtracing.WithoutQueryVariables(),
+	)); err != nil {
 		return nil, err
 	}
 	sqlDB, err := db.DB()

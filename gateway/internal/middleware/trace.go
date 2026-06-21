@@ -4,13 +4,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tumlumtala/gateway/internal/shared/contextx"
 	"github.com/tumlumtala/gateway/internal/shared/id"
+	"github.com/tumlumtala/gateway/internal/shared/logger"
 )
 
-const TraceIDHeader = "X-Trace-ID"
+const TraceIDHeader = logger.HeaderTraceID
 
 func Trace() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		traceID := id.New()
+		traceID := c.GetHeader(TraceIDHeader)
+		if traceID == "" {
+			traceID = id.New()
+		}
+
 		c.Header(TraceIDHeader, traceID)
 		ctx := contextx.WithTraceID(c.Request.Context(), traceID)
 		c.Request = c.Request.WithContext(ctx)

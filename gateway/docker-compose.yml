@@ -8,6 +8,10 @@ services:
       - "${HOST_PORT}:${APP_PORT}"
     env_file:
       - .env
+    environment:
+      TRACING_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      APP_VERSION: local
     networks:
       - tumlumtala-net
     restart: unless-stopped

@@ -33,9 +33,16 @@ func (c DatabaseConfig) DSN() string {
 }
 
 type Config struct {
-	Database   DatabaseConfig
-	Port       string
-	CORSOrigin string
+	Database       DatabaseConfig
+	Port           string
+	CORSOrigin     string
+	Environment    string
+	AppVersion     string
+	LogLevel       string
+	LogOutput      string
+	LogCaller      bool
+	TracingEnabled bool
+	OTLPEndpoint   string
 }
 
 func Load() (Config, error) {
@@ -48,6 +55,13 @@ func Load() (Config, error) {
 			User: env("DB_USER", "tumlum"), Password: env("DB_PASSWORD", "tala"), Name: env("DB_NAME", "tumlumtala_users"),
 		},
 		Port: env("PORT", "25052"), CORSOrigin: env("CORS_ORIGIN", "http://localhost:3000"),
+		Environment:    env("APP_ENV", "local"),
+		AppVersion:     env("APP_VERSION", "local"),
+		LogLevel:       env("LOG_LEVEL", "INFO"),
+		LogOutput:      env("LOG_OUTPUT", "json"),
+		LogCaller:      envBool("LOG_CALLER", false),
+		TracingEnabled: envBool("TRACING_ENABLED", true),
+		OTLPEndpoint:   env("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
 	}
 	if err := validatePort("PORT", cfg.Port); err != nil {
 		return Config{}, err
@@ -71,4 +85,16 @@ func validatePort(name, value string) error {
 		return fmt.Errorf("%s must be between 1 and 65535", name)
 	}
 	return nil
+}
+
+func envBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

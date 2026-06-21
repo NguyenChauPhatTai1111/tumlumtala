@@ -9,6 +9,8 @@ import (
 	"github.com/tumlumtala/gateway/internal/interfaces/http/response"
 	"github.com/tumlumtala/gateway/internal/modules/user/domain"
 	"github.com/tumlumtala/gateway/internal/shared/contextx"
+	"github.com/tumlumtala/gateway/internal/shared/logger"
+	"github.com/tumlumtala/gateway/internal/shared/observability"
 	"github.com/tumlumtala/gateway/internal/shared/validator"
 )
 
@@ -29,17 +31,31 @@ func NewUserHandler(service UserService) *UserHandler {
 }
 
 func (h *UserHandler) CreateUser(c *gin.Context) {
-	var req CreateUserRequest
-	if err := validator.BindJSON(c, &req); err != nil {
-		response.Error(c, err)
-		return
-	}
+	var user domain.User
+	err := observability.Trace(c.Request.Context(), "UserHTTPController.CreateUser", func(ctx context.Context) error {
+		c.Request = c.Request.WithContext(ctx)
 
-	user, err := h.service.CreateUser(c.Request.Context(), domain.CreateUserInput{
-		Email:    req.Email,
-		Password: req.Password,
-		Fullname: req.Fullname,
-	})
+		var req CreateUserRequest
+		if err := validator.BindJSON(c, &req); err != nil {
+			return err
+		}
+
+		createdUser, err := h.service.CreateUser(ctx, domain.CreateUserInput{
+			Email:    req.Email,
+			Password: req.Password,
+			Fullname: req.Fullname,
+		})
+		if err != nil {
+			return err
+		}
+		user = createdUser
+		return nil
+	},
+		observability.AttrServiceName(logger.ServiceGateway),
+		observability.AttrLayer("controller"),
+		observability.AttrOperation("create_user"),
+		observability.AttrResourceType("user"),
+	)
 	if err != nil {
 		response.Error(c, err)
 		return

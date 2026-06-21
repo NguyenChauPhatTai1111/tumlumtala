@@ -11,8 +11,89 @@ services:
     networks:
       - tumlumtala-net
 
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    container_name: tumlumtala-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: tumlumtala-loki
+    command: "-config.file=/etc/loki/loki-config.yml"
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: tumlumtala-promtail
+    command: "-config.file=/etc/promtail/promtail-config.yml"
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.3.0
+    container_name: tumlumtala-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_DEFAULT_THEME: light
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    container_name: tumlumtala-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
 volumes:
   redis_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
 
 networks:
   tumlumtala-net:

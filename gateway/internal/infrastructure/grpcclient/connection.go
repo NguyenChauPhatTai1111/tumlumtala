@@ -3,9 +3,10 @@ package grpcclient
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
@@ -13,7 +14,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-func NewConnection(ctx context.Context, service ServiceName, target string, cfg Config, logger *slog.Logger) (*grpc.ClientConn, error) {
+func NewConnection(ctx context.Context, service ServiceName, target string, cfg Config, logger zerolog.Logger) (*grpc.ClientConn, error) {
 	if target == "" {
 		return nil, fmt.Errorf("%s target is empty", service)
 	}
@@ -21,6 +22,7 @@ func NewConnection(ctx context.Context, service ServiceName, target string, cfg 
 	conn, err := grpc.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithUnaryInterceptor(UnaryClientInterceptor(logger)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                cfg.KeepaliveTime,

@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"log/slog"
 	nethttp "net/http"
 	"os"
 	"os/signal"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
 	"github.com/tumlumtala/gateway/internal/config"
 	sharedgrpc "github.com/tumlumtala/gateway/internal/infrastructure/grpcclient"
 	jwtinfra "github.com/tumlumtala/gateway/internal/infrastructure/jwt"
@@ -28,26 +28,44 @@ import (
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
 	"github.com/tumlumtala/gateway/internal/shared/logger"
 	"github.com/tumlumtala/gateway/internal/shared/metrics"
+	"github.com/tumlumtala/gateway/internal/shared/observability"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 type Application struct {
 	cfg          config.Config
-	log          *slog.Logger
+	log          zerolog.Logger
 	server       *nethttp.Server
 	grpcRegistry *sharedgrpc.Registry
 	redis        interface{ Close() error }
+	shutdownOtel func(context.Context) error
 }
 
 func New(cfg config.Config) (*Application, error) {
 	log := logger.New(logger.Config{
-		Level:       cfg.LogLevel,
-		Output:      cfg.LogOutput,
-		Environment: cfg.Environment,
+		Service:      logger.ServiceGateway,
+		Level:        cfg.LogLevel,
+		Output:       cfg.LogOutput,
+		Environment:  cfg.Environment,
+		Version:      cfg.AppVersion,
+		EnableCaller: cfg.LogCaller,
 	})
 	metrics.Register()
 
+	shutdownOtel, err := observability.InitTracing(context.Background(), observability.TracingConfig{
+		ServiceName: logger.ServiceGateway,
+		Environment: cfg.Environment,
+		Version:     cfg.AppVersion,
+		Endpoint:    cfg.OTLPEndpoint,
+		Enabled:     cfg.TracingEnabled,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	grpcRegistry, err := sharedgrpc.NewRegistry(context.Background(), sharedgrpc.FromAppConfig(cfg), log)
 	if err != nil {
+		_ = shutdownOtel(context.Background())
 		return nil, err
 	}
 
@@ -74,16 +92,24 @@ func New(cfg config.Config) (*Application, error) {
 			Handler:           router,
 			ReadHeaderTimeout: 5 * time.Second,
 		},
+		shutdownOtel: shutdownOtel,
 	}, nil
 }
 
 func (app *Application) Run() error {
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := app.shutdownOtel(ctx); err != nil {
+			app.log.Error().Err(err).Msg("shutdown tracing failed")
+		}
+	}()
 	defer func() { _ = app.grpcRegistry.Close() }()
 	defer func() { _ = app.redis.Close() }()
 
 	errCh := make(chan error, 1)
 	go func() {
-		app.log.Info("gateway started", slog.String("addr", app.server.Addr))
+		app.log.Info().Str("addr", app.server.Addr).Msg("gateway started")
 		errCh <- app.server.ListenAndServe()
 	}()
 
@@ -92,7 +118,7 @@ func (app *Application) Run() error {
 
 	select {
 	case sig := <-stopCh:
-		app.log.Info("shutdown signal received", slog.String("signal", sig.String()))
+		app.log.Info().Str("signal", sig.String()).Msg("shutdown signal received")
 	case err := <-errCh:
 		if !errors.Is(err, nethttp.ErrServerClosed) {
 			return err
@@ -104,11 +130,11 @@ func (app *Application) Run() error {
 	if err := app.server.Shutdown(ctx); err != nil {
 		return err
 	}
-	app.log.Info("gateway stopped")
+	app.log.Info().Msg("gateway stopped")
 	return nil
 }
 
-func buildRouter(cfg config.Config, log *slog.Logger, grpcRegistry *sharedgrpc.Registry, redisClient *redis.Client) (*gin.Engine, error) {
+func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc.Registry, redisClient *redis.Client) (*gin.Engine, error) {
 	jwtVerifier, err := jwtinfra.NewVerifier(cfg.JWTSecret, cfg.JWTPublicKeyPath, cfg.JWTAlgorithm, redisClient)
 	if err != nil {
 		return nil, err
@@ -124,6 +150,9 @@ func buildRouter(cfg config.Config, log *slog.Logger, grpcRegistry *sharedgrpc.R
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
+	router.Use(otelgin.Middleware(logger.ServiceGateway, otelgin.WithFilter(func(req *nethttp.Request) bool {
+		return req.URL.Path != "/metrics" && req.URL.Path != "/health" && req.URL.Path != "/live" && req.URL.Path != "/ready"
+	})))
 	httproutes.RegisterRoutes(router, httproutes.RegisterOptions{
 		Logger:    log,
 		Auth:      middleware.Auth(jwtVerifier),

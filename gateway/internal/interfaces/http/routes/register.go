@@ -1,10 +1,10 @@
 package routes
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 	"github.com/tumlumtala/gateway/internal/interfaces/http/response"
 	"github.com/tumlumtala/gateway/internal/middleware"
 )
@@ -22,7 +22,7 @@ type InternalRoute interface {
 }
 
 type RegisterOptions struct {
-	Logger    *slog.Logger
+	Logger    zerolog.Logger
 	Auth      gin.HandlerFunc
 	Timeout   gin.HandlerFunc
 	RateLimit gin.HandlerFunc

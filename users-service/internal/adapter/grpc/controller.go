@@ -8,6 +8,8 @@ import (
 	"github.com/tumlumtala/users-service/internal/application/dto"
 	"github.com/tumlumtala/users-service/internal/application/usecase"
 	domainerrors "github.com/tumlumtala/users-service/internal/domain/errors"
+	"github.com/tumlumtala/users-service/internal/shared/logger"
+	"github.com/tumlumtala/users-service/internal/shared/observability"
 	grpcCodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -49,10 +51,35 @@ func toProto(user *dto.UserDTO) *userpb.User {
 }
 
 func (c *UserController) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
-	user, err := c.create.Execute(ctx, dto.CreateUserInput{Email: req.GetEmail(), Password: req.GetPassword(), Fullname: req.GetFullname(), Role: req.GetRole()})
+	user, err := observability.TraceResult(ctx, "UserController.CreateUser", func(ctx context.Context) (*dto.UserDTO, error) {
+		user, err := c.create.Execute(ctx, dto.CreateUserInput{Email: req.GetEmail(), Password: req.GetPassword(), Fullname: req.GetFullname(), Role: req.GetRole()})
+		if err != nil {
+			return nil, mapError(err)
+		}
+		return user, nil
+	},
+		observability.AttrServiceName(logger.ServiceUsers),
+		observability.AttrLayer("controller"),
+		observability.AttrOperation("create_user"),
+		observability.AttrResourceType("user"),
+	)
 	if err != nil {
-		return nil, mapError(err)
+		log := logger.FromContext(ctx, logger.Nop())
+		log.
+			Warn().
+			Err(err).
+			Str("grpc_code", status.Code(err).String()).
+			Msg("create user failed")
+		return nil, err
 	}
+
+	log := logger.FromContext(ctx, logger.Nop())
+	log.
+		Info().
+		Uint64("user_id", user.ID).
+		Str("user_uuid", user.UUID).
+		Str("role", user.Role).
+		Msg("user created")
 	return &userpb.CreateUserResponse{Id: user.ID, Uuid: user.UUID, Email: user.Email, Fullname: user.Fullname, Role: user.Role}, nil
 }
 
