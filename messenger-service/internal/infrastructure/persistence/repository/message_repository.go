@@ -82,7 +82,7 @@ func (r *UserMessageRepository) CreateMessage(ctx context.Context, message *enti
 	var sender senderRow
 	r.db.WithContext(ctx).
 		Table("conversation_participants ucp").
-		Select("COALESCE(NULLIF(ucp.nickname, ''), u.fullname) AS sender_name, u.gender AS sender_gender").
+		Select("COALESCE(NULLIF(ucp.nickname, ''), u.fullname) AS sender_name, '' AS sender_gender").
 		Joins("JOIN user_snapshots u ON u.id = ucp.user_id").
 		Where("ucp.conversation_id = ? AND ucp.user_id = ? AND ucp.deleted_at IS NULL", message.ConversationID, message.SenderID).
 		Scan(&sender)
@@ -193,7 +193,7 @@ func (r *UserMessageRepository) GetMessagesByConversationID(
 				u.fullname
 			) AS sender_name,
 
-			u.gender AS sender_gender,
+			'' AS sender_gender,
 
 			um.content,
 			um.message_type,

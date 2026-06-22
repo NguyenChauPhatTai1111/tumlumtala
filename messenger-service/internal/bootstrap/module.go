@@ -150,7 +150,7 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	)
 
 	// Routes
-	routes := httpAdapter.NewMessengerRoutes(handler, wsHandler, pool, hub, cfg.JWTSecret)
+	routes := httpAdapter.NewMessengerRoutes(handler, wsHandler, pool, hub, db, cfg.JWTSecret)
 
 	v1 := engine.Group("/api/v1")
 	routes.Register(v1)

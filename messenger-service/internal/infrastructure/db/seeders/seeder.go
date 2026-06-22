@@ -2,7 +2,6 @@ package seeders
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"gorm.io/gorm"
@@ -13,20 +12,21 @@ type Seeder interface {
 	Run(db *gorm.DB) error
 }
 
-var list []Seeder
-
-func Register(s Seeder) {
-	list = append(list, s)
+// All khai báo danh sách và thứ tự các seeder sẽ được chạy.
+// Thêm hoặc bỏ seeder tại đây để kiểm soát seeder nào được phép chạy.
+func All() []Seeder {
+	return []Seeder{
+		&EmojiSeeder{},
+		&StickerSeeder{},
+		&ThemeSeeder{},
+		&UserSnapshotSeeder{},
+		&MessengerSeeder{},
+	}
 }
 
 func Run(db *gorm.DB, only []string, skip []string) error {
-	ordered := append([]Seeder(nil), list...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		return seederPriority(ordered[i].Name()) < seederPriority(ordered[j].Name())
-	})
-
 	total := 0
-	for _, seed := range ordered {
+	for _, seed := range All() {
 		if len(only) > 0 && !contains(only, seed.Name()) {
 			continue
 		}
@@ -49,18 +49,6 @@ func Run(db *gorm.DB, only []string, skip []string) error {
 
 	fmt.Printf("\n✅ %d seeder(s) completed\n", total)
 	return nil
-}
-
-func seederPriority(name string) int {
-	priorities := map[string]int{
-		"EmojiSeeder":     10,
-		"StickerSeeder":   20,
-		"MessengerSeeder": 30,
-	}
-	if p, ok := priorities[name]; ok {
-		return p
-	}
-	return 1000
 }
 
 func contains(list []string, v string) bool {

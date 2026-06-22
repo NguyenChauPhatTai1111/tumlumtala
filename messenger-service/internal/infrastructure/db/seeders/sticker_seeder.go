@@ -182,19 +182,22 @@ var packDefs = []stickerPackDef{
 
 func (s *StickerSeeder) Run(db *gorm.DB) error {
 	ctx := context.Background()
+	skipUpload := os.Getenv("SKIP_CDN_UPLOAD") == "true"
 
-	// Resolve assets dir: STICKER_ASSETS_DIR env, or auto-detect relative to backend
-	assetsDir := os.Getenv("STICKER_ASSETS_DIR")
-	if assetsDir == "" {
-		// Default: backend/seed-assets/stickers next to tumlumtala
-		cwd, _ := os.Getwd()
-		assetsDir = filepath.Join(cwd, "..", "..", "backend", "seed-assets", "stickers")
+	var client *bunnycdn.Client
+	if !skipUpload {
+		var err error
+		client, err = bunnycdn.NewClientFromEnv()
+		if err != nil {
+			return fmt.Errorf("bunnycdn init: %w", err)
+		}
 	}
 
-	// Init BunnyCDN client
-	client, err := bunnycdn.NewClientFromEnv()
-	if err != nil {
-		return fmt.Errorf("bunnycdn init: %w", err)
+	// Resolve assets dir outside the block so it's available below
+	assetsDir := os.Getenv("STICKER_ASSETS_DIR")
+	if assetsDir == "" {
+		cwd, _ := os.Getwd()
+		assetsDir = filepath.Join(cwd, "..", "..", "backend", "seed-assets", "stickers")
 	}
 
 	now := time.Now()
@@ -207,9 +210,15 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 		return fmt.Errorf("delete sticker_packs: %w", err)
 	}
 
+	resolveURL := func(folder, file string) (string, error) {
+		if skipUpload {
+			return fmt.Sprintf("local://%s/%s", folder, file), nil
+		}
+		return uploadStickerFile(ctx, client, assetsDir, folder, file)
+	}
+
 	for _, pd := range packDefs {
-		// Upload thumbnail
-		thumbURL, err := uploadStickerFile(ctx, client, assetsDir, pd.folder, "thumbnail")
+		thumbURL, err := resolveURL(pd.folder, "thumbnail")
 		if err != nil {
 			fmt.Printf("  ⚠  thumbnail upload failed for %s: %v — skipping pack\n", pd.name, err)
 			continue
@@ -232,7 +241,7 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 		}
 
 		for _, sd := range pd.stickers {
-			imageURL, err := uploadStickerFile(ctx, client, assetsDir, pd.folder, sd.file)
+			imageURL, err := resolveURL(pd.folder, sd.file)
 			if err != nil {
 				fmt.Printf("  ⚠  upload failed %s/%s: %v — skipping\n", pd.folder, sd.file, err)
 				continue
@@ -255,7 +264,11 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 			}
 		}
 
-		fmt.Printf("  ✓  pack %-30s uploaded\n", pd.name)
+		if skipUpload {
+			fmt.Printf("  ✓  pack %-30s seeded (no upload)\n", pd.name)
+		} else {
+			fmt.Printf("  ✓  pack %-30s uploaded\n", pd.name)
+		}
 	}
 
 	fmt.Printf("[StickerSeeder] seeded %d sticker packs\n", len(packDefs))
@@ -297,6 +310,3 @@ func uploadStickerFile(ctx context.Context, client *bunnycdn.Client, assetsDir, 
 	return "", fmt.Errorf("file not found: %s/%s.*", folder, baseName)
 }
 
-func init() {
-	Register(&StickerSeeder{})
-}

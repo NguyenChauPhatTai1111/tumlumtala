@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // JWTValidator is a function that validates a JWT token string and returns the user ID.
@@ -60,10 +61,10 @@ func ServeWS(
 	}
 }
 
-// ParseUserIDFromToken parses a JWT token and extracts the user_id claim.
-// jwtSecret is the HMAC secret used to sign tokens.
-func ParseUserIDFromToken(jwtSecret string) JWTValidator {
-	return func(_ context.Context, tokenStr string) (uint, error) {
+// ParseUserIDFromToken parses a JWT token whose user_id claim is a UUID string,
+// then looks up the numeric user ID from user_snapshots.
+func ParseUserIDFromToken(jwtSecret string, db *gorm.DB) JWTValidator {
+	return func(ctx context.Context, tokenStr string) (uint, error) {
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
@@ -79,14 +80,21 @@ func ParseUserIDFromToken(jwtSecret string) JWTValidator {
 			return 0, jwt.ErrTokenInvalidClaims
 		}
 
-		var userID uint
-		switch v := claims["user_id"].(type) {
-		case float64:
-			userID = uint(v)
-		case uint:
-			userID = v
+		// user_id in JWT is a UUID string — look up numeric ID from user_snapshots.
+		uuidStr, _ := claims["user_id"].(string)
+		if uuidStr == "" {
+			return 0, jwt.ErrTokenInvalidClaims
 		}
 
-		return userID, nil
+		var row struct {
+			ID uint `gorm:"column:id"`
+		}
+		if err := db.WithContext(ctx).
+			Raw("SELECT id FROM user_snapshots WHERE uuid = ? LIMIT 1", uuidStr).
+			Scan(&row).Error; err != nil || row.ID == 0 {
+			return 0, jwt.ErrTokenInvalidClaims
+		}
+
+		return row.ID, nil
 	}
 }

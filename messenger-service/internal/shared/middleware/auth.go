@@ -2,70 +2,35 @@ package middleware
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
-// AuthMiddleware validates the JWT token from the Authorization header and
-// sets "user_id" in the Gin context for downstream handlers.
-func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
+// AuthMiddleware reads the X-User-ID header injected by the gateway (which has already
+// verified the JWT). The header value is a UUID; it is resolved to the numeric user_id
+// from user_snapshots and stored in the Gin context for downstream handlers.
+func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		uuid := c.GetHeader("X-User-ID")
+		if uuid == "" {
 			c.JSON(401, gin.H{"success": false, "message": "Unauthorized"})
 			c.Abort()
 			return
 		}
 
-		tokenStr := authHeader
-		if strings.HasPrefix(strings.ToLower(tokenStr), "bearer ") {
-			tokenStr = strings.TrimSpace(tokenStr[7:])
+		var row struct {
+			ID uint64 `gorm:"column:id"`
 		}
-
-		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrSignatureInvalid
-			}
-			return []byte(jwtSecret), nil
-		})
-		if err != nil || !token.Valid {
+		if err := db.Raw("SELECT id FROM user_snapshots WHERE uuid = ? LIMIT 1", uuid).Scan(&row).Error; err != nil || row.ID == 0 {
 			c.JSON(401, gin.H{"success": false, "message": "Unauthorized"})
 			c.Abort()
 			return
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(401, gin.H{"success": false, "message": "Unauthorized"})
-			c.Abort()
-			return
-		}
-
-		var userID uint
-		switch v := claims["user_id"].(type) {
-		case float64:
-			userID = uint(v)
-		case uint:
-			userID = v
-		case int:
-			userID = uint(v)
-		case int64:
-			userID = uint(v)
-		case string:
-			if n, err := strconv.ParseUint(v, 10, 64); err == nil {
-				userID = uint(n)
-			}
-		}
-
-		if userID == 0 {
-			c.JSON(401, gin.H{"success": false, "message": "Unauthorized"})
-			c.Abort()
-			return
-		}
-
-		c.Set("user_id", userID)
+		c.Set("user_id", uint(row.ID))
+		// Expose numeric ID as header so internal handlers can read it easily
+		c.Request.Header.Set("X-User-ID", strconv.FormatUint(row.ID, 10))
 		c.Next()
 	}
 }

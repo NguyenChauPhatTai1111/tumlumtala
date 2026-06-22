@@ -2852,7 +2852,7 @@ export default function MessengerPage() {
 
 	return (
 		<MessengerEmojiProvider>
-			<Box sx={{ display: "flex", height: "100%" }}>
+			<Box sx={{ display: "flex", position: "absolute", inset: 0 }}>
 				{showSidebar && (
 					<MessengerSidebar
 						isMobile={isMobile}

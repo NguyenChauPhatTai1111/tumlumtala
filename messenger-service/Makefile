@@ -13,7 +13,7 @@ MESSENGER_PORT  ?= 25056
 .NOTPARALLEL:
 
 .PHONY: help up start down wait-db ensure-db fresh-db \
-	migrate-up migrate-fresh-seeder \
+	migrate-up migrate-fresh-seeder migrate-fresh-seeder-no-upload \
 	seeder build
 
 help:
@@ -23,6 +23,8 @@ help:
 	@echo "  make migrate-up               Chạy tất cả SQL migrations"
 	@echo "  make migrate-fresh-seeder     Xóa DB, migrate và seed lại"
 	@echo "  make seeder                   Chỉ chạy seeder (không drop DB)"
+	@echo "  make seeder SEEDER_ONLY=EmojiSeeder,StickerSeeder   Chạy seeder cụ thể"
+	@echo "  make seeder SEEDER_SKIP=MessengerSeeder              Bỏ qua seeder cụ thể"
 
 up: ensure-db
 	@$(COMPOSE) up -d --build
@@ -87,6 +89,7 @@ migrate-up: ensure-db
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 
+SEEDER_ONLY ?=
 SEEDER_SKIP ?=
 
 seeder:
@@ -94,11 +97,17 @@ seeder:
 		DB_NAME="$(DATABASE_NAME)" \
 		DB_USER="$(DATABASE_USER)" \
 		DB_PASSWORD="$(DATABASE_PASSWORD)" \
-		go run ./cmd/seed $(if $(SEEDER_SKIP),-skip=$(SEEDER_SKIP))
+		go run ./cmd/seed \
+		$(if $(SEEDER_ONLY),-only=$(SEEDER_ONLY)) \
+		$(if $(SEEDER_SKIP),-skip=$(SEEDER_SKIP))
 
 migrate-fresh-seeder: fresh-db
 	@$(MAKE) migrate-up
 	@$(MAKE) seeder
+
+migrate-fresh-seeder-no-upload: fresh-db
+	@$(MAKE) migrate-up
+	@SKIP_CDN_UPLOAD=true $(MAKE) seeder
 
 build:
 	@$(COMPOSE) build messenger-service

@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tumlumtala/gateway/internal/shared/contextx"
 )
 
 // MessengerProxy reverse-proxies HTTP and WebSocket requests to the messenger-service.
@@ -35,6 +36,9 @@ func NewMessengerProxy(messengerServiceURL string) (*MessengerProxy, error) {
 }
 
 func (p *MessengerProxy) ServeHTTP(c *gin.Context) {
+	if claims, ok := contextx.Claims(c.Request.Context()); ok {
+		c.Request.Header.Set("X-User-ID", claims.UserID)
+	}
 	p.proxy.ServeHTTP(c.Writer, c.Request)
 }
 

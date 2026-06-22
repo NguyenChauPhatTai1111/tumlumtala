@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS themes (
     preset_id VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     background TEXT NULL,
-    background_color VARCHAR(50) NOT NULL DEFAULT '#ffffff',
+    background_color TEXT NOT NULL DEFAULT ('#ffffff'),
     incoming_bubble_color VARCHAR(50) NOT NULL DEFAULT '#f0f0f0',
     outgoing_bubble_color VARCHAR(50) NOT NULL DEFAULT '#0084ff',
     incoming_text_color VARCHAR(50) NOT NULL DEFAULT '#000000',

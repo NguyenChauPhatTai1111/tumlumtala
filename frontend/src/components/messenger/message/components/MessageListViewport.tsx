@@ -184,7 +184,8 @@ export const MessageListViewport = ({
 				ref={messageListRef}
 				className="message-list-viewport"
 				sx={{
-					height: "100%",
+					flex: 1,
+					minHeight: 0,
 					...(chatBackground
 						? {
 								background: chatBackground,

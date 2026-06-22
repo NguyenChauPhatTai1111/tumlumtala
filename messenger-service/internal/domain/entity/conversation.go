@@ -43,7 +43,7 @@ type UserConversation struct {
 	QuickReaction             string             `json:"quick_reaction,omitempty"`
 	UnreadCount               int64              `json:"unread_count"`
 	LastReadMessageID         *uint              `json:"last_read_message_id,omitempty"`
-	Participants              []ParticipantInfo  `json:"participants,omitempty"`
+	Participants              []ParticipantInfo  `json:"participants,omitempty" gorm:"-"`
 }
 
 func (UserConversation) TableName() string {

@@ -20,7 +20,7 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-messenger up-messenger build-messenger down-messenger \
 	start-gateway up-gateway build-gateway down-gateway \
 	migrate-up migrate-auth migrate-authz migrate-user migrate-movie migrate-messenger \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles backfill-snapshots flush-cache \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-messenger-no-upload seed-user-roles backfill-snapshots flush-cache \
 	proto build-proto run-proto \
 	test \
 	frontend down-frontend
@@ -226,6 +226,9 @@ migrate-messenger:
 
 migrate-fresh-seeder-messenger:
 	@$(MAKE) -C messenger-service migrate-fresh-seeder
+
+migrate-fresh-seeder-messenger-no-upload:
+	@$(MAKE) -C messenger-service migrate-fresh-seeder-no-upload
 
 build-proto:
 	@$(MAKE) -C contracts build-proto

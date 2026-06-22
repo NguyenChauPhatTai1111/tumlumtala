@@ -13,11 +13,13 @@ SEEDER_CMD := ./cmd/seed
 .PHONY: help up start down wait-db ensure-db fresh-db migrate-up seed migrate-fresh-seeder test build
 
 help:
-	@echo "  make up                     Build và start users-service"
-	@echo "  make start                  Start users-service"
-	@echo "  make down                   Stop users-service"
-	@echo "  make migrate-up             Chạy tất cả SQL migrations"
-	@echo "  make migrate-fresh-seeder   Xóa volume DB, migrate và seed lại"
+	@echo "  make up                               Build và start users-service"
+	@echo "  make start                            Start users-service"
+	@echo "  make down                             Stop users-service"
+	@echo "  make migrate-up                       Chạy tất cả SQL migrations"
+	@echo "  make migrate-fresh-seeder             Xóa volume DB, migrate và seed lại"
+	@echo "  make seed                             Chạy tất cả seeder"
+	@echo "  make seed SEEDER_ONLY=UserSeeder      Chạy seeder cụ thể"
 
 up: migrate-up
 	@$(COMPOSE) up -d --build
@@ -57,9 +59,12 @@ migrate-up: ensure-db
 	if [ "$$found" -eq 0 ]; then echo "No user migrations found"; fi
 	@echo "✅ users-service migrated"
 
+SEEDER_ONLY ?=
+
 seed: wait-db
 	@echo "→ run Go UserSeeder"
-	@DB_HOST=localhost DB_PORT=$${MYSQL_HOST_PORT:-23306} DB_NAME="$(DATABASE_NAME)" DB_USER="$(DATABASE_USER)" DB_PASSWORD="$(DATABASE_PASSWORD)" go run $(SEEDER_CMD)
+	@DB_HOST=localhost DB_PORT=$${MYSQL_HOST_PORT:-23306} DB_NAME="$(DATABASE_NAME)" DB_USER="$(DATABASE_USER)" DB_PASSWORD="$(DATABASE_PASSWORD)" \
+		go run $(SEEDER_CMD) $(if $(SEEDER_ONLY),-only=$(SEEDER_ONLY))
 
 migrate-fresh-seeder: fresh-db migrate-up seed
 	@echo "✅ users-service database recreated and seeded"

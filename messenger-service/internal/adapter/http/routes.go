@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	wsadapter "github.com/tumlumtala/messenger-service/internal/adapter/websocket"
 	ws "github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
@@ -9,11 +10,12 @@ import (
 )
 
 type MessengerRoutes struct {
-	handler    *MessengerHandler
-	wsHandler  *wsadapter.Handler
-	pool       *ws.ConnectionPool
-	hub        *ws.Hub
-	jwtSecret  string
+	handler   *MessengerHandler
+	wsHandler *wsadapter.Handler
+	pool      *ws.ConnectionPool
+	hub       *ws.Hub
+	db        *gorm.DB
+	jwtSecret string
 }
 
 func NewMessengerRoutes(
@@ -21,6 +23,7 @@ func NewMessengerRoutes(
 	wsHandler *wsadapter.Handler,
 	pool *ws.ConnectionPool,
 	hub *ws.Hub,
+	db *gorm.DB,
 	jwtSecret string,
 ) *MessengerRoutes {
 	return &MessengerRoutes{
@@ -28,13 +31,14 @@ func NewMessengerRoutes(
 		wsHandler: wsHandler,
 		pool:      pool,
 		hub:       hub,
+		db:        db,
 		jwtSecret: jwtSecret,
 	}
 }
 
 // Register registers all authenticated HTTP messenger routes on the given router group.
 func (r *MessengerRoutes) Register(router *gin.RouterGroup) {
-	auth := middleware.AuthMiddleware(r.jwtSecret)
+	auth := middleware.AuthMiddleware(r.db)
 	group := router.Group("/messenger", auth)
 
 	// Emoji & Sticker & Theme — gateway đã verify JWT, không cần verify lại
@@ -78,7 +82,7 @@ func (r *MessengerRoutes) Register(router *gin.RouterGroup) {
 // RegisterInfra registers the WebSocket upgrade endpoint on the engine directly (no auth middleware —
 // the ServeWS function validates the JWT itself via query param or header).
 func (r *MessengerRoutes) RegisterInfra(engine *gin.Engine) {
-	validateToken := ws.ParseUserIDFromToken(r.jwtSecret)
+	validateToken := ws.ParseUserIDFromToken(r.jwtSecret, r.db)
 	engine.GET(
 		"/ws/messenger",
 		gin.WrapF(ws.ServeWS(r.pool, r.hub, r.wsHandler, validateToken)),

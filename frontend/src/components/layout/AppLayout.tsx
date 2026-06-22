@@ -295,8 +295,10 @@ export const AppLayout = () => {
         <Box
           sx={{
             flex: 1,
-            overflow: "auto",
-            p: { xs: 1.5, sm: 2, md: 3 },
+            minHeight: 0,
+            position: "relative",
+            overflow: location.pathname.startsWith("/messenger") ? "hidden" : "auto",
+            p: location.pathname.startsWith("/messenger") ? 0 : { xs: 1.5, sm: 2, md: 3 },
           }}
         >
           <Suspense fallback={null}>

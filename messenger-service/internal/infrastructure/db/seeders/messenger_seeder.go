@@ -238,6 +238,3 @@ func (s *MessengerSeeder) Run(db *gorm.DB) error {
 	return nil
 }
 
-func init() {
-	Register(&MessengerSeeder{})
-}

@@ -16,8 +16,8 @@ type UserMessage struct {
 	ReplyToMessageID *uint                `json:"reply_to_message_id,omitempty"`
 	ReplyToContent   *string              `json:"reply_to_content,omitempty"`
 	ReplyToSenderID  *uint                `json:"reply_to_sender_id,omitempty"`
-	Reactions        []MessageReaction    `json:"reactions,omitempty"`
-	Histories        []UserMessageHistory `json:"histories,omitempty"`
+	Reactions        []MessageReaction    `json:"reactions,omitempty" gorm:"-"`
+	Histories        []UserMessageHistory `json:"histories,omitempty" gorm:"-"`
 	Metadata         string               `json:"metadata,omitempty"`
 	CreatedAt        time.Time            `json:"created_at"`
 	UpdatedAt        time.Time            `json:"updated_at"`

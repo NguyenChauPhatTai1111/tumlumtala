@@ -7,7 +7,7 @@ type Theme struct {
 	PresetID            string    `gorm:"uniqueIndex;size:100;not null"`
 	Name                string    `gorm:"size:255;not null"`
 	Background          string    `gorm:"type:text;not null"`
-	BackgroundColor     string    `gorm:"size:50;not null;default:'#ffffff'"`
+	BackgroundColor     string    `gorm:"type:text;not null;default:'#ffffff'"`
 	IncomingBubbleColor string    `gorm:"size:50;not null;default:'#f0f0f0'"`
 	OutgoingBubbleColor string    `gorm:"size:50;not null;default:'#0084ff'"`
 	IncomingTextColor   string    `gorm:"size:50;not null;default:'#000000'"`
