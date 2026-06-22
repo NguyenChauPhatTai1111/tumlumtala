@@ -57,16 +57,27 @@ const darkTheme = createTheme({
   },
 });
 
+const getInitialMode = (): ThemeMode => {
+  const saved = localStorage.getItem("theme-mode");
+  if (saved === "light" || saved === "dark") return saved;
+  return "dark";
+};
+
 export default function App() {
-  const [mode, setMode] = useState<ThemeMode>("light");
+  const [mode, setMode] = useState<ThemeMode>(getInitialMode);
   const theme = useMemo(() => (mode === "light" ? lightTheme : darkTheme), [mode]);
+
+  const handleSetMode = (m: ThemeMode) => {
+    localStorage.setItem("theme-mode", m);
+    setMode(m);
+  };
 
   return (
     <ThemeContext.Provider
       value={{
         mode,
-        setMode,
-        toggleMode: () => setMode((m) => (m === "light" ? "dark" : "light")),
+        setMode: handleSetMode,
+        toggleMode: () => handleSetMode(mode === "light" ? "dark" : "light"),
       }}
     >
       <ThemeProvider theme={theme}>

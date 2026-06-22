@@ -73,7 +73,7 @@ export const DashboardPage = () => {
           <Grid item xs={12} sm={6} md={3} key={stat.label}>
             <Paper
               elevation={0}
-              sx={(theme) => ({
+              sx={(_theme) => ({
                 p: 3,
                 display: "flex",
                 alignItems: "center",

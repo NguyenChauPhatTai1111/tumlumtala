@@ -25,7 +25,12 @@
       "@hooks/*": ["src/hooks/*"],
       "@pages/*": ["src/pages/*"],
       "@store/*": ["src/store/*"],
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["src/utils/*"],
+      "@context/*": ["src/context/*"],
+      "@services/*": ["src/services/*"],
+      "@configs/*": ["src/configs/*"],
+      "@constants/*": ["src/constants/*"],
+      "@schema/*": ["src/schema/*"]
     }
   },
   "include": ["src"]

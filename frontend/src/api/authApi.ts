@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type { TokenPair } from "@/types";
+export { apiRequest } from "./movieApiClient";
 
 export const login = async (email: string, password: string): Promise<TokenPair> => {
   const res = await apiClient.post("/auth/login", { email, password });

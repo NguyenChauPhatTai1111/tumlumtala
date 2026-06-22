@@ -1,8 +1,10 @@
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Chip,
+  Divider,
   FormControl,
   IconButton,
   InputAdornment,
@@ -10,10 +12,13 @@ import {
   MenuItem,
   Paper,
   Select,
+  Skeleton,
   Stack,
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
@@ -77,7 +82,6 @@ function CustomPagination() {
       <Typography variant="body2" color="text.secondary">
         {rangeStart}–{rangeEnd} / {rowCount}
       </Typography>
-
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
         <IconButton
           size="small"
@@ -101,7 +105,127 @@ function CustomPagination() {
   );
 }
 
+interface MobileCardProps {
+  user: IUser;
+  onEdit: (u: IUser) => void;
+  onDelete: (u: IUser) => void;
+}
+
+function MobileUserCard({ user, onEdit, onDelete }: MobileCardProps) {
+  const initials = user.fullname
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return (
+    <Paper
+      elevation={0}
+      sx={(theme) => ({
+        p: 2,
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 3,
+        bgcolor: alpha(theme.palette.background.paper, 0.8),
+        transition: "box-shadow 0.2s",
+        "&:active": { boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.12)}` },
+      })}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <Avatar
+          sx={(theme) => ({
+            width: 40,
+            height: 40,
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+            fontSize: 14,
+            fontWeight: 700,
+            flexShrink: 0,
+          })}
+        >
+          {initials}
+        </Avatar>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="subtitle2" fontWeight={600} noWrap>
+            {user.fullname}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
+            {user.email}
+          </Typography>
+        </Box>
+        <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+          <Tooltip title="Chỉnh sửa">
+            <IconButton size="small" color="primary" onClick={() => onEdit(user)}>
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Xóa">
+            <IconButton size="small" color="error" onClick={() => onDelete(user)}>
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+      <Divider sx={{ my: 1.5 }} />
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Chip
+          label={ROLE_LABEL[user.role] ?? user.role}
+          color={ROLE_COLOR[user.role] ?? "default"}
+          size="small"
+          variant="outlined"
+          sx={{ fontWeight: 600 }}
+        />
+        <Typography variant="caption" color="text.secondary">
+          {user.created_at ? new Date(user.created_at).toLocaleDateString("vi-VN") : "-"}
+        </Typography>
+      </Box>
+    </Paper>
+  );
+}
+
+function MobilePagination({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (p: number) => void;
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const rangeStart = total > 0 ? page * pageSize + 1 : 0;
+  const rangeEnd = Math.min((page + 1) * pageSize, total);
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pt: 1 }}>
+      <Typography variant="body2" color="text.secondary">
+        {rangeStart}–{rangeEnd} / {total}
+      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <IconButton size="small" disabled={page === 0} onClick={() => onPageChange(page - 1)}>
+          <NavigateBeforeIcon fontSize="small" />
+        </IconButton>
+        <Typography variant="body2" sx={{ minWidth: 52, textAlign: "center" }}>
+          {page + 1} / {pageCount}
+        </Typography>
+        <IconButton
+          size="small"
+          disabled={page >= pageCount - 1}
+          onClick={() => onPageChange(page + 1)}
+        >
+          <NavigateNextIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    </Box>
+  );
+}
+
 export const UsersPage = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const [users, setUsers] = useState<IUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -219,10 +343,28 @@ export const UsersPage = () => {
       headerName: "Họ tên",
       flex: 1,
       minWidth: 150,
-      renderCell: ({ value }) => (
-        <Typography variant="body2" fontWeight={500}>
-          {value}
-        </Typography>
+      renderCell: ({ row }) => (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, height: "100%" }}>
+          <Avatar
+            sx={(t) => ({
+              width: 32,
+              height: 32,
+              fontSize: 12,
+              fontWeight: 700,
+              background: `linear-gradient(135deg, ${t.palette.primary.main} 0%, ${t.palette.secondary.main} 100%)`,
+            })}
+          >
+            {row.fullname
+              .split(" ")
+              .map((w: string) => w[0])
+              .slice(0, 2)
+              .join("")
+              .toUpperCase()}
+          </Avatar>
+          <Typography variant="body2" fontWeight={500}>
+            {row.fullname}
+          </Typography>
+        </Box>
       ),
     },
     { field: "email", headerName: "Email", flex: 1.5, minWidth: 200 },
@@ -286,14 +428,15 @@ export const UsersPage = () => {
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
             <Box
-              sx={(theme) => ({
+              sx={(t) => ({
                 width: 36,
                 height: 36,
                 borderRadius: 2,
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                background: `linear-gradient(135deg, ${t.palette.primary.main} 0%, ${t.palette.secondary.main} 100%)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                flexShrink: 0,
               })}
             >
               <PeopleOutlinedIcon sx={{ fontSize: 20, color: "#fff" }} />
@@ -302,7 +445,7 @@ export const UsersPage = () => {
               Quản lý Người Dùng
             </Typography>
           </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ ml: 6.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ ml: { xs: 0, sm: 6.5 } }}>
             Tổng cộng {total} người dùng trong hệ thống
           </Typography>
         </Box>
@@ -311,6 +454,7 @@ export const UsersPage = () => {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleOpenCreate}
+          fullWidth={isMobile}
           sx={{ textTransform: "none", borderRadius: 2, px: 2.5, py: 1 }}
         >
           Thêm người dùng
@@ -326,13 +470,13 @@ export const UsersPage = () => {
       {/* Filters */}
       <Paper
         elevation={0}
-        sx={(theme) => ({
+        sx={(t) => ({
           p: 2,
           mb: 2,
           border: "1px solid",
           borderColor: "divider",
           borderRadius: 3,
-          bgcolor: alpha(theme.palette.background.paper, 0.8),
+          bgcolor: alpha(t.palette.background.paper, 0.8),
         })}
       >
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
@@ -348,9 +492,9 @@ export const UsersPage = () => {
                 </InputAdornment>
               ),
             }}
-            sx={{ flex: 1, minWidth: 220 }}
+            sx={{ flex: 1 }}
           />
-          <FormControl size="small" sx={{ minWidth: 160 }}>
+          <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 160 } }}>
             <InputLabel>Vai trò</InputLabel>
             <Select
               label="Vai trò"
@@ -367,6 +511,7 @@ export const UsersPage = () => {
             <Button
               size="small"
               variant="outlined"
+              fullWidth={isMobile}
               onClick={() => { setSearch(""); setFilterRole(""); }}
               sx={{ textTransform: "none", borderRadius: 2 }}
             >
@@ -376,52 +521,85 @@ export const UsersPage = () => {
         </Stack>
       </Paper>
 
-      {/* Table */}
-      <Paper
-        elevation={0}
-        sx={{
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 3,
-          overflow: "hidden",
-          width: "100%",
-        }}
-      >
-        <Box sx={{ width: "100%", overflowX: "auto" }}>
-          <DataGrid
-            rows={filteredUsers}
-            columns={columns}
-            getRowId={(row) => row.uuid}
-            loading={loading}
-            paginationMode="server"
-            rowCount={total}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            pageSizeOptions={[10, 25, 50]}
-            autoHeight
-            disableRowSelectionOnClick
-            slots={{ pagination: CustomPagination }}
-            sx={{
-              border: 0,
-              "& .MuiDataGrid-columnHeaders": {
-                bgcolor: "action.hover",
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-row:hover": {
-                bgcolor: "action.hover",
-              },
-              "& .MuiDataGrid-cell:focus": {
-                outline: "none",
-              },
-              "& .MuiDataGrid-cell:focus-within": {
-                outline: "none",
-              },
-              minWidth: 600,
-            }}
-          />
+      {/* Mobile card list */}
+      {isMobile ? (
+        <Box>
+          {loading ? (
+            <Stack spacing={2}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} variant="rounded" height={100} sx={{ borderRadius: 3 }} />
+              ))}
+            </Stack>
+          ) : filteredUsers.length === 0 ? (
+            <Paper
+              elevation={0}
+              sx={{ p: 4, border: "1px solid", borderColor: "divider", borderRadius: 3, textAlign: "center" }}
+            >
+              <Typography color="text.secondary">Không có người dùng nào</Typography>
+            </Paper>
+          ) : (
+            <Stack spacing={1.5}>
+              {filteredUsers.map((user) => (
+                <MobileUserCard
+                  key={user.uuid}
+                  user={user}
+                  onEdit={handleOpenEdit}
+                  onDelete={handleOpenDelete}
+                />
+              ))}
+            </Stack>
+          )}
+          <Box sx={{ mt: 2 }}>
+            <MobilePagination
+              page={paginationModel.page}
+              pageSize={paginationModel.pageSize}
+              total={total}
+              onPageChange={(p) => setPaginationModel((m) => ({ ...m, page: p }))}
+            />
+          </Box>
         </Box>
-      </Paper>
+      ) : (
+        /* Desktop DataGrid */
+        <Paper
+          elevation={0}
+          sx={{
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 3,
+            overflow: "hidden",
+            width: "100%",
+          }}
+        >
+          <Box sx={{ width: "100%", overflowX: "auto" }}>
+            <DataGrid
+              rows={filteredUsers}
+              columns={columns}
+              getRowId={(row) => row.uuid}
+              loading={loading}
+              paginationMode="server"
+              rowCount={total}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              pageSizeOptions={[10, 25, 50]}
+              autoHeight
+              disableRowSelectionOnClick
+              slots={{ pagination: CustomPagination }}
+              sx={{
+                border: 0,
+                "& .MuiDataGrid-columnHeaders": {
+                  bgcolor: "action.hover",
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-row:hover": { bgcolor: "action.hover" },
+                "& .MuiDataGrid-cell:focus": { outline: "none" },
+                "& .MuiDataGrid-cell:focus-within": { outline: "none" },
+                minWidth: 600,
+              }}
+            />
+          </Box>
+        </Paper>
+      )}
 
       {/* Dialogs */}
       <UserFormDialog

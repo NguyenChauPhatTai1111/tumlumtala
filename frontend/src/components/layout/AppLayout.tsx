@@ -22,6 +22,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import LogoutIcon from "@mui/icons-material/Logout";
+import MovieIcon from "@mui/icons-material/Movie";
 import PeopleIcon from "@mui/icons-material/People";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
@@ -39,6 +40,7 @@ const DRAWER_COLLAPSED = 64;
 const NAV_ITEMS = [
   { label: "Dashboard", icon: <DashboardIcon />, path: "/" },
   { label: "Người dùng", icon: <PeopleIcon />, path: "/users" },
+  { label: "Phim", icon: <MovieIcon />, path: "/movie" },
 ];
 
 const SiderContent = ({
@@ -76,21 +78,17 @@ const SiderContent = ({
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, overflow: "hidden" }}>
           <Box
+            component="img"
+            src="/assets/logo/logo.png"
+            alt="TumLumTala"
             sx={{
               width: 32,
               height: 32,
               borderRadius: 2,
-              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              objectFit: "contain",
               flexShrink: 0,
             }}
-          >
-            <Typography variant="caption" sx={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>
-              T
-            </Typography>
-          </Box>
+          />
           {!collapsed && (
             <Typography variant="h6" fontWeight={700} color="primary" noWrap>
               TumLumTala
@@ -179,8 +177,6 @@ export const AppLayout = () => {
     authStore.clearToken();
     navigate("/login", { replace: true });
   };
-
-  const siderWidth = isMobile ? 0 : collapsed ? DRAWER_COLLAPSED : DRAWER_WIDTH;
 
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
