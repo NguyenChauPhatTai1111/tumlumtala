@@ -20,4 +20,5 @@ CMD sh -c '\
     grpc/auth.proto \
     grpc/user.proto \
     grpc/authorization.proto \
+    grpc/notification.proto \
 '

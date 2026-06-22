@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package notification;
+
+option go_package = "github.com/tumlumtala/contracts/generated/notification;notificationpb";
+
+service NotificationService {
+  rpc Send(SendNotificationRequest) returns (SendNotificationResponse);
+  rpc ReplayDLQ(ReplayDLQRequest) returns (ReplayDLQResponse);
+}
+
+message SendNotificationRequest {
+  string channel = 1;
+  string type = 2;
+  string recipient = 3;
+  string subject = 4;
+  string message = 5;
+  string template = 6;
+  map<string, string> data = 7;
+  map<string, string> metadata = 8;
+}
+
+message SendNotificationResponse {
+  string id = 1;
+  string status = 2;
+  string channel = 3;
+}
+
+message ReplayDLQRequest {
+  int32 limit = 1;
+}
+
+message ReplayDLQResponse {
+  int32 replayed = 1;
+}
