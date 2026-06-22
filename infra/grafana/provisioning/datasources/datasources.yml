@@ -5,7 +5,7 @@ datasources:
     uid: Prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:29090
+    url: http://prometheus:9090
     isDefault: true
     editable: true
 
@@ -13,7 +13,7 @@ datasources:
     uid: Loki
     type: loki
     access: proxy
-    url: http://loki:23100
+    url: http://loki:3100
     editable: true
 
   - name: Jaeger
