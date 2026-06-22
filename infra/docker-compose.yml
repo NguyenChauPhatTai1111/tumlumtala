@@ -4,7 +4,7 @@ services:
     container_name: tumlumtala-redis
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - "6379:6379"
+      - "26379:6379"
     volumes:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
       - redis_data:/data
@@ -19,7 +19,7 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
     ports:
-      - "9090:9090"
+      - "29090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -32,7 +32,7 @@ services:
     container_name: tumlumtala-loki
     command: "-config.file=/etc/loki/loki-config.yml"
     ports:
-      - "3100:3100"
+      - "23100:3100"
     volumes:
       - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
       - loki_data:/loki
@@ -62,7 +62,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_DEFAULT_THEME: light
     ports:
-      - "3000:3000"
+      - "23000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
@@ -82,9 +82,9 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"
-      - "4317:4317"
-      - "4318:4318"
+      - "216686:16686"
+      - "24317:4317"
+      - "24318:4318"
     networks:
       - tumlumtala-net
     restart: unless-stopped
