@@ -2,8 +2,4 @@ package api
 
 func main() {
 
-	
-	
-
 }
-
