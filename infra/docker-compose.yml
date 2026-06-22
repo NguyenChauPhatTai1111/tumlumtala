@@ -89,11 +89,59 @@ services:
       - tumlumtala-net
     restart: unless-stopped
 
+  kafka:
+    image: redpandadata/redpanda:v24.3.14
+    container_name: tumlumtala-kafka
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:29092
+      - --advertise-kafka-addr internal://tumlumtala-kafka:9092,external://localhost:29092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:28082
+      - --advertise-pandaproxy-addr internal://tumlumtala-kafka:8082,external://localhost:28082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:28081
+      - --rpc-addr tumlumtala-kafka:33145
+      - --advertise-rpc-addr tumlumtala-kafka:33145
+      - --mode dev-container
+    ports:
+      - "29092:29092"
+      - "28082:28082"
+      - "28081:28081"
+    volumes:
+      - kafka_data:/var/lib/redpanda/data
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  kafka-console:
+    image: redpandadata/console:v2.8.3
+    container_name: tumlumtala-kafka-console
+    environment:
+      CONFIG_FILEPATH: /etc/kafka/console-config.yaml
+    volumes:
+      - ./kafka/console-config.yaml:/etc/kafka/console-config.yaml:ro
+    ports:
+      - "28080:8080"
+    depends_on:
+      - kafka
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
 volumes:
   redis_data:
   prometheus_data:
   loki_data:
   grafana_data:
+  kafka_data:
 
 networks:
   tumlumtala-net:

@@ -1,13 +1,14 @@
 -include .env
 
-SERVICES := auth-service authorization-service users-service gateway
+SERVICES := auth-service authorization-service users-service gateway messenger-service
 
 # Service port registry. Every new service must reserve one unique TCP port
 # here before being added to the orchestration targets.
-USER_SERVICE_PORT ?= 25052
-AUTH_SERVICE_PORT ?= 25053
-AUTHZ_SERVICE_PORT ?= 25054
-SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
+USER_SERVICE_PORT      ?= 25052
+AUTH_SERVICE_PORT      ?= 25053
+AUTHZ_SERVICE_PORT     ?= 25054
+MESSENGER_SERVICE_PORT ?= 25056
+SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT) $(MESSENGER_SERVICE_PORT)
 
 .NOTPARALLEL:
 
@@ -16,9 +17,10 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-auth up-auth build-auth down-auth \
 	start-authz up-authz build-authz down-authz \
 	start-user up-user build-user down-user \
+	start-messenger up-messenger build-messenger down-messenger \
 	start-gateway up-gateway build-gateway down-gateway \
-	migrate-up migrate-auth migrate-authz migrate-user migrate-movie \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie seed-user-roles flush-cache \
+	migrate-up migrate-auth migrate-authz migrate-user migrate-movie migrate-messenger \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles flush-cache \
 	proto build-proto run-proto \
 	test \
 	frontend down-frontend
@@ -45,13 +47,16 @@ help:
 	@echo "  make migrate-fresh-seeder-user        Fresh/seed users-service"
 	@echo "  make migrate-movie                    Migrate movies-service"
 	@echo "  make migrate-fresh-seeder-movie       Fresh/seed movies-service"
+	@echo "  make migrate-messenger                Migrate messenger-service"
+	@echo "  make migrate-fresh-seeder-messenger   Fresh/seed messenger-service"
 	@echo "Ports:"
-	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT)"
+	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT), messenger-service=$(MESSENGER_SERVICE_PORT)"
 
 ports:
 	@echo "users-service          $(USER_SERVICE_PORT)"
 	@echo "auth-service           $(AUTH_SERVICE_PORT)"
 	@echo "authorization-service  $(AUTHZ_SERVICE_PORT)"
+	@echo "messenger-service      $(MESSENGER_SERVICE_PORT)"
 
 validate-ports:
 	@if [ "$(words $(sort $(SERVICE_PORTS)))" -ne "$(words $(SERVICE_PORTS))" ]; then \
@@ -68,16 +73,16 @@ validate-ports:
 dev: validate-ports start
 	@echo "✅ Development environment is ready"
 
-down: down-frontend down-auth down-authz down-user down-infra down-gateway
+down: down-frontend down-auth down-authz down-user down-messenger down-infra down-gateway
 	@echo "✅ All services stopped"
 
 down-frontend:
 	@bash scripts/kill-frontend.sh
 
-up: network up-infra up-user up-auth up-authz up-gateway
+up: network up-infra up-user up-auth up-authz up-messenger up-gateway
 	@echo "✅ All services up"
 
-build: network up-infra build-user build-auth build-authz build-gateway
+build: network up-infra build-user build-auth build-authz build-messenger build-gateway
 	@echo "✅ All services built and up"
 
 start: validate-ports down up
@@ -147,7 +152,7 @@ down-gateway:
 frontend:
 	@cd frontend && npm run dev
 
-migrate-up: migrate-auth migrate-authz migrate-user migrate-movie
+migrate-up: migrate-auth migrate-authz migrate-user migrate-movie migrate-messenger
 	@echo "✅ All migrations completed"
 
 migrate-auth:
@@ -159,7 +164,7 @@ migrate-authz:
 migrate-user:
 	@$(MAKE) -C users-service migrate-up
 
-migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie seed-user-roles flush-cache
+migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles flush-cache
 	@echo "✅ All databases recreated and seeded"
 
 seed-user-roles:
@@ -193,6 +198,24 @@ migrate-movie:
 
 migrate-fresh-seeder-movie:
 	@$(MAKE) -C movies-service migrate-fresh
+
+up-messenger: validate-ports
+	@$(MAKE) -C messenger-service start PORT=$(MESSENGER_SERVICE_PORT)
+
+build-messenger: validate-ports
+	@$(MAKE) -C messenger-service up PORT=$(MESSENGER_SERVICE_PORT)
+
+start-messenger: validate-ports
+	@$(MAKE) -C messenger-service start PORT=$(MESSENGER_SERVICE_PORT)
+
+down-messenger:
+	@$(MAKE) -C messenger-service down
+
+migrate-messenger:
+	@$(MAKE) -C messenger-service migrate-up
+
+migrate-fresh-seeder-messenger:
+	@$(MAKE) -C messenger-service migrate-fresh-seeder
 
 build-proto:
 	@$(MAKE) -C contracts build-proto

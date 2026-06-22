@@ -16,11 +16,13 @@ import (
 type UpdateUserUseCase struct {
 	repository repository.UserRepository
 	queries    queryservice.UserQueryService
+	events     repository.EventPublisher
 }
 
-func NewUpdateUserUseCase(repository repository.UserRepository, queries queryservice.UserQueryService) *UpdateUserUseCase {
-	return &UpdateUserUseCase{repository: repository, queries: queries}
+func NewUpdateUserUseCase(repo repository.UserRepository, queries queryservice.UserQueryService, events repository.EventPublisher) *UpdateUserUseCase {
+	return &UpdateUserUseCase{repository: repo, queries: queries, events: events}
 }
+
 func (uc *UpdateUserUseCase) Execute(ctx context.Context, input dto.UpdateUserInput) (*dto.UserDTO, error) {
 	return observability.TraceResult(ctx, "UpdateUser UseCase", func(ctx context.Context) (*dto.UserDTO, error) {
 		if err := validateUUID(input.UUID); err != nil {
@@ -54,6 +56,7 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, input dto.UpdateUserIn
 		); err != nil {
 			return nil, err
 		}
+		_ = uc.events.PublishUserUpdated(ctx, user.ID, user.UUID, user.Email, user.Fullname, string(user.Role))
 		return application.ToUserDTO(user), nil
 	},
 		observability.AttrServiceName(logger.ServiceUsers),

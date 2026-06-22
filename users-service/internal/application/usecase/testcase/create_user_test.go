@@ -14,7 +14,7 @@ import (
 
 func TestCreateUserHashesPassword(t *testing.T) {
 	store := &userStoreStub{}
-	result, err := usecase.NewCreateUserUseCase(store, newQueryStub()).Execute(
+	result, err := usecase.NewCreateUserUseCase(store, newQueryStub(), noopPublisher{}).Execute(
 		context.Background(),
 		dto.CreateUserInput{Email: " TEST@example.com ", Password: "password123", Fullname: "Test User"},
 	)
@@ -40,7 +40,7 @@ func TestCreateUserHashesPassword(t *testing.T) {
 
 func TestCreateUserRejectsInvalidRole(t *testing.T) {
 	store := &userStoreStub{}
-	_, err := usecase.NewCreateUserUseCase(store, newQueryStub()).Execute(
+	_, err := usecase.NewCreateUserUseCase(store, newQueryStub(), noopPublisher{}).Execute(
 		context.Background(),
 		dto.CreateUserInput{Email: "test@example.com", Password: "password123", Fullname: "Test", Role: "owner"},
 	)
@@ -51,7 +51,7 @@ func TestCreateUserRejectsInvalidRole(t *testing.T) {
 
 func TestCreateUserRejectsInvalidPassword(t *testing.T) {
 	store := &userStoreStub{}
-	_, err := usecase.NewCreateUserUseCase(store, newQueryStub()).Execute(
+	_, err := usecase.NewCreateUserUseCase(store, newQueryStub(), noopPublisher{}).Execute(
 		context.Background(),
 		dto.CreateUserInput{Email: "test@example.com", Password: "short", Fullname: "Test"},
 	)
@@ -63,7 +63,7 @@ func TestCreateUserRejectsInvalidPassword(t *testing.T) {
 func TestCreateUserRejectsDuplicateEmail(t *testing.T) {
 	existing := newTestUser()
 	store := &userStoreStub{}
-	_, err := usecase.NewCreateUserUseCase(store, newQueryStub(existing)).Execute(
+	_, err := usecase.NewCreateUserUseCase(store, newQueryStub(existing), noopPublisher{}).Execute(
 		context.Background(),
 		dto.CreateUserInput{Email: existing.Email, Password: "password123", Fullname: "Copy"},
 	)

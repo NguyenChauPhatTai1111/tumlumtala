@@ -5,13 +5,14 @@ import (
 	"errors"
 
 	userpb "github.com/tumlumtala/contracts/generated/user"
+	grpcCodes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/tumlumtala/users-service/internal/application/dto"
 	"github.com/tumlumtala/users-service/internal/application/usecase"
 	domainerrors "github.com/tumlumtala/users-service/internal/domain/errors"
 	"github.com/tumlumtala/users-service/internal/shared/logger"
 	"github.com/tumlumtala/users-service/internal/shared/observability"
-	grpcCodes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type UserController struct {

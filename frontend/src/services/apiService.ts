@@ -1,4 +1,16 @@
-import { apiRequest } from "@api/authApi";
+import { apiClient } from "@api/client";
+
+type ApiRequestOptions = {
+	method?: string;
+	data?: unknown;
+	params?: Record<string, unknown>;
+};
+
+const apiRequest = async (endpoint: string, options: ApiRequestOptions = {}) => {
+	const { method = "GET", data, params } = options;
+	const response = await apiClient.request({ url: endpoint, method, data, params });
+	return response.data;
+};
 
 /**
  * API Prefix - Centralized to avoid hardcoding /api/v1/ in every endpoint
@@ -54,7 +66,7 @@ export const apiService = {
 	 */
 	isAvailable: async (): Promise<boolean> => {
 		try {
-			await apiRequest(`${API_PREFIX}/health`, { method: "GET" });
+			await apiRequest("/health", { method: "GET" });
 			return true;
 		} catch {
 			return false;

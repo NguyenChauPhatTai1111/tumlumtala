@@ -9,11 +9,13 @@ import (
 
 	"github.com/google/uuid"
 	userpb "github.com/tumlumtala/contracts/generated/user"
+	grpcCodes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/tumlumtala/users-service/internal/application/usecase"
 	"github.com/tumlumtala/users-service/internal/domain/entity"
 	domainerrors "github.com/tumlumtala/users-service/internal/domain/errors"
-	grpcCodes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	kafkainfra "github.com/tumlumtala/users-service/internal/infrastructure/kafka"
 )
 
 // --- test doubles ---
@@ -115,12 +117,13 @@ func (s *controllerStore) Count(_ context.Context) (int64, error) {
 
 func newController(users ...*entity.User) *UserController {
 	store := newControllerStore(users...)
+	noop := kafkainfra.NoopPublisher{}
 	return NewUserController(
-		usecase.NewCreateUserUseCase(store, store),
+		usecase.NewCreateUserUseCase(store, store, noop),
 		usecase.NewGetUserUseCase(store),
 		usecase.NewListUsersUseCase(store),
-		usecase.NewUpdateUserUseCase(store, store),
-		usecase.NewDeleteUserUseCase(store),
+		usecase.NewUpdateUserUseCase(store, store, noop),
+		usecase.NewDeleteUserUseCase(store, store, noop),
 	)
 }
 

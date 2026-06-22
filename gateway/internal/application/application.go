@@ -23,6 +23,7 @@ import (
 	authhttp "github.com/tumlumtala/gateway/internal/modules/auth/http"
 	authservice "github.com/tumlumtala/gateway/internal/modules/auth/service"
 	authzgrpc "github.com/tumlumtala/gateway/internal/modules/authorization/grpcclient"
+	messengerhttp "github.com/tumlumtala/gateway/internal/modules/messenger/http"
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
@@ -148,6 +149,11 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 	userHandler := userhttp.NewUserHandler(userService)
 	healthHandler := healthhandler.NewHandler()
 
+	messengerProxy, err := messengerhttp.NewMessengerProxy(cfg.MessengerServiceURL)
+	if err != nil {
+		return nil, err
+	}
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(otelgin.Middleware(logger.ServiceGateway, otelgin.WithFilter(func(req *nethttp.Request) bool {
@@ -161,6 +167,7 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 	},
 		authhttp.NewAuthRoutes(authHandler),
 		userhttp.NewUserRoutes(userHandler, authzClient),
+		messengerhttp.NewMessengerRoutes(messengerProxy),
 		httproutes.NewHealthRoutes(healthHandler),
 		httproutes.NewMetricsRoutes(),
 	)

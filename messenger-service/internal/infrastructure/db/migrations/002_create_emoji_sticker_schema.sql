@@ -1,0 +1,55 @@
+CREATE TABLE IF NOT EXISTS emoji_packs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS emojis (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(120) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    pack_id INT NULL,
+    asset_url TEXT NOT NULL,
+    animation_type VARCHAR(50),
+    price INT NOT NULL DEFAULT 0,
+    status TINYINT NOT NULL DEFAULT 1,
+    source_type VARCHAR(20) NOT NULL DEFAULT 'unicode_icon',
+    source_value VARCHAR(2048) NOT NULL,
+    icon_text VARCHAR(32),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_emojis_pack FOREIGN KEY (pack_id) REFERENCES emoji_packs(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_emojis_pack_status ON emojis(pack_id, status);
+CREATE INDEX idx_emojis_code_status ON emojis(code, status);
+
+CREATE TABLE IF NOT EXISTS sticker_packs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT NULL,
+    thumbnail_url VARCHAR(500) NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stickers (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    pack_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_stickers_pack FOREIGN KEY (pack_id) REFERENCES sticker_packs(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_stickers_pack_name (pack_id, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_stickers_pack_id ON stickers(pack_id);
+CREATE INDEX idx_stickers_active ON stickers(is_active);
+CREATE INDEX idx_sticker_packs_active ON sticker_packs(is_active);

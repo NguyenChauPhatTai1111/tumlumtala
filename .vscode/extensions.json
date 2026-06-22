@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "esbenp.prettier-vscode",
+        "golang.go",
+        "DrBlury.protobuf-vsc",
+        "EditorConfig.EditorConfig"
+    ]
+}

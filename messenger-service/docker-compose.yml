@@ -1,0 +1,19 @@
+services:
+  messenger-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tumlumtala-messenger-service
+    env_file: .env
+    environment:
+      DB_HOST: tumlumtala-users-mysql
+      DB_PORT: "3306"
+    ports:
+      - "${PORT:-25056}:${PORT:-25056}"
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+networks:
+  tumlumtala-net:
+    external: true

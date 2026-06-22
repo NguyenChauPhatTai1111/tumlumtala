@@ -8,12 +8,15 @@ import { DashboardPage } from "@pages/DashboardPage";
 import NotFound from "@pages/NotFound";
 import { AuthGuard, GuestGuard } from "./AuthGuard";
 import MoviePageWrapper from "./MoviePageWrapper";
+import MessengerPageWrapper from "./MessengerPageWrapper";
+import { RouteErrorPage } from "@components/common/RouteErrorPage";
 
 const MoviePage = lazy(() => import("@pages/movie/MoviePage"));
 
 export const router = createBrowserRouter([
   {
     element: <GuestGuard />,
+    errorElement: <RouteErrorPage />,
     children: [
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <RegisterPage /> },
@@ -21,10 +24,12 @@ export const router = createBrowserRouter([
   },
   {
     element: <AuthGuard />,
+    errorElement: <RouteErrorPage />,
     children: [
       // Admin layout
       {
         element: <AppLayout />,
+        errorElement: <RouteErrorPage />,
         children: [
           { path: "/", element: <DashboardPage /> },
           { path: "/users", element: <UsersPage /> },
@@ -34,6 +39,13 @@ export const router = createBrowserRouter([
       {
         path: "/movie",
         element: <MoviePageWrapper MoviePage={MoviePage} />,
+        errorElement: <RouteErrorPage />,
+      },
+      // Messenger — full-screen, no AppLayout sidebar
+      {
+        path: "/messenger",
+        element: <MessengerPageWrapper />,
+        errorElement: <RouteErrorPage />,
       },
     ],
   },

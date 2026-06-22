@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -34,6 +35,7 @@ func (c DatabaseConfig) DSN() string {
 
 type Config struct {
 	Database       DatabaseConfig
+	KafkaBrokers   []string
 	Port           string
 	CORSOrigin     string
 	Environment    string
@@ -54,6 +56,7 @@ func Load() (Config, error) {
 			Host: env("DB_HOST", "localhost"), Port: env("DB_PORT", "3306"),
 			User: env("DB_USER", "tumlum"), Password: env("DB_PASSWORD", "tala"), Name: env("DB_NAME", "tumlumtala_users"),
 		},
+		KafkaBrokers:   strings.Split(env("KAFKA_BROKERS", "tumlumtala-kafka:9092"), ","),
 		Port: env("PORT", "25052"), CORSOrigin: env("CORS_ORIGIN", "http://localhost:3000"),
 		Environment:    env("APP_ENV", "local"),
 		AppVersion:     env("APP_VERSION", "local"),

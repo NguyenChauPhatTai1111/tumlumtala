@@ -69,7 +69,7 @@ func main() {
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(grpcmiddleware.UnaryServerLogging(log)),
 	)
-	bootstrap.Register(server, db)
+	bootstrap.Register(server, db, cfg.KafkaBrokers)
 	go func() { <-ctx.Done(); server.GracefulStop() }()
 	log.Info().Stringer("addr", lis.Addr()).Msg("users-service started")
 	if err := server.Serve(lis); err != nil {

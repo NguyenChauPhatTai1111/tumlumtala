@@ -9,6 +9,17 @@ import (
 	domainerrors "github.com/tumlumtala/users-service/internal/domain/errors"
 )
 
+// noopPublisher satisfies repository.EventPublisher without side effects.
+type noopPublisher struct{}
+
+func (noopPublisher) PublishUserCreated(_ context.Context, _ uint64, _, _, _, _ string) error {
+	return nil
+}
+func (noopPublisher) PublishUserUpdated(_ context.Context, _ uint64, _, _, _, _ string) error {
+	return nil
+}
+func (noopPublisher) PublishUserDeleted(_ context.Context, _ uint64, _ string) error { return nil }
+
 // --- userStoreStub: implements repository.UserRepository ---
 
 type userStoreStub struct{ created *entity.User }

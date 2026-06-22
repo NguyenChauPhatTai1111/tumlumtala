@@ -15,7 +15,7 @@ import (
 func TestUpdateUserChangesFields(t *testing.T) {
 	user := newTestUser()
 	store := &userStoreStub{}
-	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user))
+	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user), noopPublisher{})
 
 	result, err := uc.Execute(context.Background(), dto.UpdateUserInput{
 		UUID:     user.UUID,
@@ -41,7 +41,7 @@ func TestUpdateUserKeepsRoleWhenEmpty(t *testing.T) {
 	user := newTestUser()
 	user.Role = entity.RoleAdministrator
 	store := &userStoreStub{}
-	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user))
+	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user), noopPublisher{})
 
 	result, err := uc.Execute(context.Background(), dto.UpdateUserInput{
 		UUID:     user.UUID,
@@ -59,7 +59,7 @@ func TestUpdateUserKeepsRoleWhenEmpty(t *testing.T) {
 
 func TestUpdateUserNotFound(t *testing.T) {
 	store := &userStoreStub{}
-	uc := usecase.NewUpdateUserUseCase(store, newQueryStub())
+	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(), noopPublisher{})
 
 	_, err := uc.Execute(context.Background(), dto.UpdateUserInput{
 		UUID:     uuid.NewString(),
@@ -73,7 +73,7 @@ func TestUpdateUserNotFound(t *testing.T) {
 
 func TestUpdateUserRejectsInvalidUUID(t *testing.T) {
 	store := &userStoreStub{}
-	uc := usecase.NewUpdateUserUseCase(store, newQueryStub())
+	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(), noopPublisher{})
 
 	_, err := uc.Execute(context.Background(), dto.UpdateUserInput{
 		UUID:     "bad-uuid",
@@ -88,7 +88,7 @@ func TestUpdateUserRejectsInvalidUUID(t *testing.T) {
 func TestUpdateUserRejectsInvalidRole(t *testing.T) {
 	user := newTestUser()
 	store := &userStoreStub{}
-	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user))
+	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user), noopPublisher{})
 
 	_, err := uc.Execute(context.Background(), dto.UpdateUserInput{
 		UUID:     user.UUID,
@@ -104,7 +104,7 @@ func TestUpdateUserRejectsInvalidRole(t *testing.T) {
 func TestUpdateUserRejectsEmptyEmail(t *testing.T) {
 	user := newTestUser()
 	store := &userStoreStub{}
-	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user))
+	uc := usecase.NewUpdateUserUseCase(store, newQueryStub(user), noopPublisher{})
 
 	_, err := uc.Execute(context.Background(), dto.UpdateUserInput{
 		UUID:     user.UUID,

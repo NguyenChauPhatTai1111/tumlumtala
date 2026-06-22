@@ -1,0 +1,213 @@
+import {
+	buildGeneratedAvatar,
+	getConversationAvatar,
+	getConversationDisplayName,
+} from "@components/messenger/messengerUtils";
+import type { MessengerHeaderProps } from "@components/messenger/types/components";
+import {
+	averageGradientColors,
+	parseColorToRgb,
+} from "@components/messenger/utils/color";
+import ArrowBackIosIcon from "@mui/icons-material/ArrowBackIos";
+import CallIcon from "@mui/icons-material/Call";
+import GroupIcon from "@mui/icons-material/Group";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import NotificationsOffIcon from "@mui/icons-material/NotificationsOff";
+import SearchIcon from "@mui/icons-material/Search";
+import VideocamIcon from "@mui/icons-material/Videocam";
+import { Avatar, Box, IconButton, Typography } from "@mui/material";
+import { resolveCdnUrl } from "@/utils";
+
+export const MessengerHeader = ({
+	conversation,
+	currentUser,
+	useDefaultTheme = true,
+	chatSurface,
+	outgoingTextColor,
+	onInfo,
+	onSearch,
+	onMute,
+	showBackButton = false,
+	onBack,
+	overrideTextColor,
+}: MessengerHeaderProps) => {
+	const currentUserId = Number(currentUser?.id ?? 0);
+	const displayName = conversation
+		? getConversationDisplayName(conversation, currentUserId)
+		: "";
+	const avatarSrc =
+		(conversation
+			? resolveCdnUrl(getConversationAvatar(conversation, currentUserId))
+			: null) || buildGeneratedAvatar(displayName);
+	const participantsCount = conversation?.participants?.length ?? 0;
+	const customBorderColor = chatSurface ? "rgba(148,163,184,0.35)" : "divider";
+	const isNotificationEnabled = conversation?.notifications_enabled ?? false;
+
+	const avg = parseColorToRgb(averageGradientColors(chatSurface ?? undefined));
+	let headerColorChoices: {
+		title: string;
+		subtitle: string;
+		icon: string;
+		border: string;
+	};
+	let computedLuminance: number | null = null;
+
+	if (overrideTextColor) {
+		headerColorChoices = {
+			title: overrideTextColor,
+			subtitle: overrideTextColor,
+			icon: overrideTextColor,
+			border: customBorderColor,
+		};
+	} else if (avg) {
+		computedLuminance =
+			(0.2126 * avg.r + 0.7152 * avg.g + 0.0722 * avg.b) / 255;
+		const isLight = computedLuminance > 0.56;
+		headerColorChoices = {
+			title: isLight ? "text.primary" : "#fff",
+			subtitle: isLight ? "text.secondary" : "rgba(255,255,255,0.72)",
+			icon: isLight ? "text.primary" : "rgba(255,255,255,0.92)",
+			border: isLight ? "divider" : customBorderColor,
+		};
+	} else {
+		headerColorChoices = {
+			title: "text.primary",
+			subtitle: "text.secondary",
+			icon: "text.primary",
+			border: customBorderColor,
+		};
+	}
+
+	return (
+		<Box
+			onClick={onInfo}
+			sx={{
+				px: 2,
+				py: 1.5,
+				position: "relative",
+				zIndex: 10,
+				bgcolor: "transparent",
+				color: conversation?.outgoing_text_color || "text.primary",
+				borderBottom: "1px solid",
+				borderColor: useDefaultTheme ? "divider" : customBorderColor,
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "space-between",
+				gap: 2,
+				transition: "all 0.25s ease",
+				cursor: "pointer",
+				"& .MuiIconButton-root, & .MuiSvgIcon-root": { color: "inherit" },
+			}}
+		>
+			{/* LEFT */}
+			<Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
+				{showBackButton && onBack ? (
+					<IconButton
+						onClick={onBack}
+						size="small"
+						sx={{ color: headerColorChoices.icon }}
+					>
+						<ArrowBackIosIcon fontSize="small" />
+					</IconButton>
+				) : null}
+
+				<Avatar
+					src={avatarSrc}
+					sx={{
+						width: 48,
+						height: 48,
+						border: !useDefaultTheme ? "1px solid" : undefined,
+						borderColor: !useDefaultTheme
+							? headerColorChoices.border
+							: undefined,
+					}}
+				>
+					{conversation?.is_group && !avatarSrc ? (
+						<GroupIcon fontSize="medium" />
+					) : null}
+				</Avatar>
+
+				<Box sx={{ minWidth: 0 }}>
+					<Typography
+						variant="subtitle1"
+						fontWeight={700}
+						noWrap
+						sx={{ color: outgoingTextColor }}
+					>
+						{displayName || "Cuộc trò chuyện"}
+					</Typography>
+					{conversation ? (
+						<Typography
+							variant="body2"
+							noWrap
+							sx={{ color: outgoingTextColor, opacity: 0.5 }}
+						>
+							{conversation.is_group
+								? `${participantsCount} thành viên`
+								: "Trò chuyện riêng"}
+						</Typography>
+					) : null}
+				</Box>
+			</Box>
+
+			{/* RIGHT */}
+			<Box
+				onClick={(e) => e.stopPropagation()}
+				sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+			>
+				<IconButton
+					size="small"
+					sx={(theme) => ({
+						color: outgoingTextColor || theme.palette.primary.main,
+					})}
+				>
+					<CallIcon />
+				</IconButton>
+
+				<IconButton
+					size="small"
+					sx={(theme) => ({
+						color: outgoingTextColor || theme.palette.primary.main,
+					})}
+				>
+					<VideocamIcon />
+				</IconButton>
+
+				<IconButton
+					size="small"
+					onClick={onMute}
+					sx={(theme) => ({
+						color: outgoingTextColor || theme.palette.primary.main,
+					})}
+				>
+					{isNotificationEnabled ? (
+						<NotificationsIcon />
+					) : (
+						<NotificationsOffIcon />
+					)}
+				</IconButton>
+
+				<IconButton
+					size="small"
+					onClick={onSearch}
+					sx={(theme) => ({
+						color: outgoingTextColor || theme.palette.primary.main,
+					})}
+				>
+					<SearchIcon />
+				</IconButton>
+
+				<IconButton
+					size="small"
+					onClick={onInfo}
+					sx={(theme) => ({
+						color: outgoingTextColor || theme.palette.primary.main,
+					})}
+				>
+					<InfoOutlinedIcon />
+				</IconButton>
+			</Box>
+		</Box>
+	);
+};

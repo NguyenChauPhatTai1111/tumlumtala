@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/tumlumtala/users-service/internal/application"
 	"github.com/tumlumtala/users-service/internal/application/dto"
 	"github.com/tumlumtala/users-service/internal/application/queryservice"
@@ -14,23 +16,23 @@ import (
 	"github.com/tumlumtala/users-service/internal/domain/repository"
 	"github.com/tumlumtala/users-service/internal/shared/logger"
 	"github.com/tumlumtala/users-service/internal/shared/observability"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type CreateUserUseCase struct {
 	repository repository.UserRepository
 	queries    queryservice.UserQueryService
+	events     repository.EventPublisher
 }
 
-func NewCreateUserUseCase(repository repository.UserRepository, queries queryservice.UserQueryService) *CreateUserUseCase {
-	return &CreateUserUseCase{repository: repository, queries: queries}
+func NewCreateUserUseCase(repo repository.UserRepository, queries queryservice.UserQueryService, events repository.EventPublisher) *CreateUserUseCase {
+	return &CreateUserUseCase{repository: repo, queries: queries, events: events}
 }
 
 func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserInput) (*dto.UserDTO, error) {
 	return observability.TraceResult(ctx, "CreateUser UseCase", func(ctx context.Context) (*dto.UserDTO, error) {
 		email, fullname, err := normalizeUser(input.Email, input.Fullname)
 		if err != nil || len(input.Password) < 8 {
-			return nil, domainerrors.ErrInvalidInput
+		       	return nil, domainerrors.ErrInvalidInput
 		}
 		role, err := normalizeRole(input.Role, entity.RoleMember)
 		if err != nil {
@@ -77,6 +79,8 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 		); err != nil {
 			return nil, err
 		}
+
+		_ = uc.events.PublishUserCreated(ctx, user.ID, user.UUID, user.Email, user.Fullname, string(user.Role))
 
 		return application.ToUserDTO(user), nil
 	},

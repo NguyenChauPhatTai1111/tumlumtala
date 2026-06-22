@@ -8,6 +8,7 @@ import (
 	"github.com/tumlumtala/users-service/internal/config"
 	database "github.com/tumlumtala/users-service/internal/infrastructure/db"
 	"github.com/tumlumtala/users-service/internal/infrastructure/db/seeders"
+	kafkainfra "github.com/tumlumtala/users-service/internal/infrastructure/kafka"
 	mysqlquery "github.com/tumlumtala/users-service/internal/infrastructure/persistence/queryservice"
 	mysqlrepo "github.com/tumlumtala/users-service/internal/infrastructure/persistence/repository"
 )
@@ -30,9 +31,10 @@ func main() {
 
 	repository := mysqlrepo.NewMySQLUserRepository(db)
 	queries := mysqlquery.NewMySQLUserQueryService(db)
+	noop := kafkainfra.NoopPublisher{}
 	userSeeder := seeders.NewUserSeeder(
-		usecase.NewCreateUserUseCase(repository, queries),
-		usecase.NewUpdateUserUseCase(repository, queries),
+		usecase.NewCreateUserUseCase(repository, queries, noop),
+		usecase.NewUpdateUserUseCase(repository, queries, noop),
 		queries,
 	)
 	if err := seeders.Run(ctx, userSeeder); err != nil {
