@@ -20,7 +20,7 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-messenger up-messenger build-messenger down-messenger \
 	start-gateway up-gateway build-gateway down-gateway \
 	migrate-up migrate-auth migrate-authz migrate-user migrate-movie migrate-messenger \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles flush-cache \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles backfill-snapshots flush-cache \
 	proto build-proto run-proto \
 	test \
 	frontend down-frontend
@@ -164,7 +164,7 @@ migrate-authz:
 migrate-user:
 	@$(MAKE) -C users-service migrate-up
 
-migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles flush-cache
+migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles backfill-snapshots flush-cache
 	@echo "✅ All databases recreated and seeded"
 
 seed-user-roles:
@@ -179,6 +179,16 @@ seed-user-roles:
 			END \
 			FROM tumlumtala_users.users;"'
 	@echo "✅ user_roles seeded"
+
+backfill-snapshots:
+	@echo "→ backfilling user_snapshots in tumlumtala_messenger..."
+	@docker exec tumlumtala-users-mysql \
+		sh -c 'MYSQL_PWD=root mysql -uroot -e "\
+			INSERT INTO tumlumtala_messenger.user_snapshots (id, uuid, email, fullname, role, created_at, updated_at) \
+			SELECT id, uuid, email, fullname, role, created_at, updated_at FROM tumlumtala_users.users \
+			ON DUPLICATE KEY UPDATE \
+				email=VALUES(email), fullname=VALUES(fullname), role=VALUES(role), updated_at=VALUES(updated_at);"'
+	@echo "✅ user_snapshots backfilled"
 
 flush-cache:
 	@docker exec tumlumtala-redis redis-cli -a redis_password FLUSHDB 2>/dev/null || true
