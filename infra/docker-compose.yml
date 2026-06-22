@@ -24,6 +24,8 @@ services:
       - "25673:15672" 
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     networks:
       - tumlumtala-net
     restart: unless-stopped
