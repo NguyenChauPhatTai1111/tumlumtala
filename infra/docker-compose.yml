@@ -11,6 +11,25 @@ services:
     networks:
       - tumlumtala-net
 
+  rabbitmq:
+    image: rabbitmq:4.1-alpine
+    container_name: tumlumtala-rabbitmq
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "25672:5672"  
+      - "25673:15672" 
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v3.8.0
     container_name: tumlumtala-prometheus
@@ -138,6 +157,7 @@ services:
 
 volumes:
   redis_data:
+  rabbitmq_data:
   prometheus_data:
   loki_data:
   grafana_data:
