@@ -82,7 +82,7 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "216686:16686"
+      - "16686:16686"
       - "24317:4317"
       - "24318:4318"
     networks:
