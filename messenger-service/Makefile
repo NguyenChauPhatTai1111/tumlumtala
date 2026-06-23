@@ -109,5 +109,9 @@ migrate-fresh-seeder-no-upload: fresh-db
 	@$(MAKE) migrate-up
 	@SKIP_CDN_UPLOAD=true $(MAKE) seeder
 
+migrate-fresh-seeder-no-sticker-upload: fresh-db
+	@$(MAKE) migrate-up
+	@SKIP_STICKER_UPLOAD=true $(MAKE) seeder
+
 build:
 	@$(COMPOSE) build messenger-service

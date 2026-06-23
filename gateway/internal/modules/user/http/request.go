@@ -11,3 +11,9 @@ type UpdateUserRequest struct {
 	Fullname string `json:"fullname"`
 	Role     string `json:"role"`
 }
+
+type UpdateProfileRequest struct {
+	Email    string `json:"email" binding:"omitempty,email"`
+	Fullname string `json:"fullname"`
+	Avatar   string `json:"avatar"`
+}

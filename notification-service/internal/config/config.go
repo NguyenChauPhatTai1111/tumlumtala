@@ -8,6 +8,7 @@ type Config struct {
 	RabbitMQ RabbitMQConfig
 	Redis    RedisConfig
 	SMTP     SMTPConfig
+	Zalo     ZaloConfig
 }
 
 func Load() Config {
@@ -24,11 +25,24 @@ func Load() Config {
 		},
 
 		RabbitMQ: RabbitMQConfig{
-			Host:     utils.GetEnv("RABBITMQ_HOST", "rabbitmq"),
-			Port:     utils.GetEnvInt("RABBITMQ_PORT", 5672),
-			User:     utils.GetEnv("RABBITMQ_USER", "admin"),
-			Password: utils.GetEnv("RABBITMQ_PASSWORD", "admin"),
-			VHost:    utils.GetEnv("RABBITMQ_VHOST", "/"),
+			Host:            utils.GetEnv("RABBITMQ_HOST", "rabbitmq"),
+			Port:            utils.GetEnvInt("RABBITMQ_PORT", 5672),
+			User:            utils.GetEnv("RABBITMQ_USER", "admin"),
+			Password:        utils.GetEnv("RABBITMQ_PASSWORD", "admin"),
+			VHost:           utils.GetEnv("RABBITMQ_VHOST", "/"),
+			Exchange:        utils.GetEnv("RABBITMQ_EXCHANGE", "notification.exchange"),
+			Queue:           utils.GetEnv("RABBITMQ_QUEUE", "notification.send"),
+			RoutingKey:      utils.GetEnv("RABBITMQ_ROUTING_KEY", "notification.send"),
+			RetryExchange:   utils.GetEnv("RABBITMQ_RETRY_EXCHANGE", "notification.retry.exchange"),
+			RetryQueue:      utils.GetEnv("RABBITMQ_RETRY_QUEUE", "notification.retry"),
+			RetryRoutingKey: utils.GetEnv("RABBITMQ_RETRY_ROUTING_KEY", "notification.retry"),
+			DLQExchange:     utils.GetEnv("RABBITMQ_DLQ_EXCHANGE", "notification.dlq.exchange"),
+			DLQQueue:        utils.GetEnv("RABBITMQ_DLQ_QUEUE", "notification.dlq"),
+			DLQRoutingKey:   utils.GetEnv("RABBITMQ_DLQ_ROUTING_KEY", "notification.dlq"),
+			Prefetch:        utils.GetEnvInt("RABBITMQ_PREFETCH", 16),
+			Workers:         utils.GetEnvInt("NOTIFICATION_WORKERS", 4),
+			MaxRetries:      utils.GetEnvInt("NOTIFICATION_MAX_RETRIES", 3),
+			RetryDelayMs:    utils.GetEnvInt("NOTIFICATION_RETRY_DELAY_MS", 30000),
 		},
 
 		Redis: RedisConfig{
@@ -44,6 +58,12 @@ func Load() Config {
 			Username: utils.GetEnv("SMTP_USERNAME", ""),
 			Password: utils.GetEnv("SMTP_PASSWORD", ""),
 			From:     utils.GetEnv("SMTP_FROM", ""),
+			FromName: utils.GetEnv("SMTP_FROM_NAME", "Tumlumtala"),
+		},
+
+		Zalo: ZaloConfig{
+			Endpoint: utils.GetEnv("ZALO_ENDPOINT", ""),
+			Token:    utils.GetEnv("ZALO_TOKEN", ""),
 		},
 	}
 }

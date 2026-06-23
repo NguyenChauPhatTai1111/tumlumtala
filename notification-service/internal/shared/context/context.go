@@ -6,11 +6,11 @@ type key string
 
 const (
 	requestIDKey key = "request_id"
-	traceIDKey key = "trace_id"
+	traceIDKey   key = "trace_id"
 )
 
 func WithRequestID(ctx context.Context, requestID string) context.Context {
-	return  context.WithValue(ctx, requestIDKey, requestID)
+	return context.WithValue(ctx, requestIDKey, requestID)
 }
 
 func RequestID(ctx context.Context) string {

@@ -27,6 +27,7 @@ import (
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
+	bunnycdn "github.com/tumlumtala/gateway/pkg/bunnycdn"
 	"github.com/tumlumtala/gateway/internal/shared/logger"
 	"github.com/tumlumtala/gateway/internal/shared/metrics"
 	"github.com/tumlumtala/gateway/internal/shared/observability"
@@ -146,7 +147,17 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 	authService := authservice.NewAuthService(authgrpc.NewAuthClient(grpcRegistry.Clients.Auth))
 	userService := userservice.NewUserService(usergrpc.NewUserClient(grpcRegistry.Clients.User))
 	authHandler := authhttp.NewAuthHandler(authService)
-	userHandler := userhttp.NewUserHandler(userService)
+
+	var avatarUploader userhttp.AvatarUploader
+	if cfg.BunnyCDN.StorageZone != "" && cfg.BunnyCDN.APIKey != "" && cfg.BunnyCDN.CDNBaseURL != "" {
+		bunnyClient, err := bunnycdn.NewClient(cfg.BunnyCDN.StorageZone, cfg.BunnyCDN.APIKey, cfg.BunnyCDN.StorageBaseURL, cfg.BunnyCDN.CDNBaseURL)
+		if err != nil {
+			log.Warn().Err(err).Msg("BunnyCDN not configured — avatar upload disabled")
+		} else {
+			avatarUploader = bunnyClient
+		}
+	}
+	userHandler := userhttp.NewUserHandler(userService, avatarUploader)
 	healthHandler := healthhandler.NewHandler()
 
 	messengerProxy, err := messengerhttp.NewMessengerProxy(cfg.MessengerServiceURL)

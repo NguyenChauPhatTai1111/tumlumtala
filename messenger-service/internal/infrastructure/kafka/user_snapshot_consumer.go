@@ -23,6 +23,7 @@ type userEvent struct {
 	UUID     string `json:"uuid"`
 	Email    string `json:"email"`
 	Fullname string `json:"fullname"`
+	Avatar   string `json:"avatar"`
 	Role     string `json:"role"`
 }
 
@@ -74,14 +75,15 @@ func (c *UserSnapshotConsumer) handleUpsert(ctx context.Context, payload []byte)
 		return err
 	}
 	return c.db.WithContext(ctx).Exec(`
-		INSERT INTO user_snapshots (id, uuid, email, fullname, role, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO user_snapshots (id, uuid, email, fullname, avatar, role, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			email = VALUES(email),
 			fullname = VALUES(fullname),
+			avatar = VALUES(avatar),
 			role = VALUES(role),
 			updated_at = VALUES(updated_at)
-	`, ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Role, time.Now().UTC()).Error
+	`, ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role, time.Now().UTC()).Error
 }
 
 func (c *UserSnapshotConsumer) handleDelete(ctx context.Context, payload []byte) error {

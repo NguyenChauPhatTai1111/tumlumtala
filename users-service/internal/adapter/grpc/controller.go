@@ -48,7 +48,7 @@ func mapError(err error) error {
 }
 
 func toProto(user *dto.UserDTO) *userpb.User {
-	return &userpb.User{Id: user.ID, Uuid: user.UUID, Email: user.Email, Fullname: user.Fullname, Role: user.Role, CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00"), UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")}
+	return &userpb.User{Id: user.ID, Uuid: user.UUID, Email: user.Email, Fullname: user.Fullname, Avatar: user.Avatar, Role: user.Role, CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00"), UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")}
 }
 
 func (c *UserController) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
@@ -105,7 +105,7 @@ func (c *UserController) ListUsers(ctx context.Context, req *userpb.ListUsersReq
 }
 
 func (c *UserController) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.User, error) {
-	user, err := c.update.Execute(ctx, dto.UpdateUserInput{UUID: req.GetUuid(), Email: req.GetEmail(), Fullname: req.GetFullname(), Role: req.GetRole()})
+	user, err := c.update.Execute(ctx, dto.UpdateUserInput{UUID: req.GetUuid(), Email: req.GetEmail(), Fullname: req.GetFullname(), Avatar: req.GetAvatar(), Role: req.GetRole()})
 	if err != nil {
 		return nil, mapError(err)
 	}

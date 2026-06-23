@@ -1,3 +1,28 @@
 services:
-  notification-service:
-    image: 
+  notification-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    env_file:
+      - .env
+    ports:
+      - "28888:8888"
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+  notification-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    env_file:
+      - .env
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+networks:
+  tumlumtala-net:
+    external: true

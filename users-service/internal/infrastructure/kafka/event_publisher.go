@@ -20,6 +20,7 @@ type userCreatedPayload struct {
 	UUID      string    `json:"uuid"`
 	Email     string    `json:"email"`
 	Fullname  string    `json:"fullname"`
+	Avatar    string    `json:"avatar"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -29,6 +30,7 @@ type userUpdatedPayload struct {
 	UUID     string `json:"uuid"`
 	Email    string `json:"email"`
 	Fullname string `json:"fullname"`
+	Avatar   string `json:"avatar"`
 	Role     string `json:"role"`
 }
 
@@ -51,15 +53,15 @@ func NewEventPublisher(brokers []string) *EventPublisher {
 	}
 }
 
-func (p *EventPublisher) PublishUserCreated(ctx context.Context, userID uint64, uuid, email, fullname, role string) error {
+func (p *EventPublisher) PublishUserCreated(ctx context.Context, userID uint64, uuid, email, fullname, avatar, role string) error {
 	return p.publish(ctx, topicUserCreated, uuid, userCreatedPayload{
-		ID: userID, UUID: uuid, Email: email, Fullname: fullname, Role: role, CreatedAt: time.Now().UTC(),
+		ID: userID, UUID: uuid, Email: email, Fullname: fullname, Avatar: avatar, Role: role, CreatedAt: time.Now().UTC(),
 	})
 }
 
-func (p *EventPublisher) PublishUserUpdated(ctx context.Context, userID uint64, uuid, email, fullname, role string) error {
+func (p *EventPublisher) PublishUserUpdated(ctx context.Context, userID uint64, uuid, email, fullname, avatar, role string) error {
 	return p.publish(ctx, topicUserUpdated, uuid, userUpdatedPayload{
-		ID: userID, UUID: uuid, Email: email, Fullname: fullname, Role: role,
+		ID: userID, UUID: uuid, Email: email, Fullname: fullname, Avatar: avatar, Role: role,
 	})
 }
 

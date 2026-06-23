@@ -20,10 +20,10 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-messenger up-messenger build-messenger down-messenger \
 	start-gateway up-gateway build-gateway down-gateway \
 	migrate-up migrate-auth migrate-authz migrate-user migrate-movie migrate-messenger \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-messenger-no-upload seed-user-roles backfill-snapshots flush-cache \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-messenger-no-upload migrate-fresh-seeder-messenger-no-sticker-upload seed-user-roles backfill-snapshots flush-cache \
 	proto build-proto run-proto \
 	test \
-	frontend down-frontend
+	frontend down-frontend logs
 
 help:
 	@echo "Development:"
@@ -48,7 +48,8 @@ help:
 	@echo "  make migrate-movie                    Migrate movies-service"
 	@echo "  make migrate-fresh-seeder-movie       Fresh/seed movies-service"
 	@echo "  make migrate-messenger                Migrate messenger-service"
-	@echo "  make migrate-fresh-seeder-messenger   Fresh/seed messenger-service"
+	@echo "  make migrate-fresh-seeder-messenger                  Fresh/seed messenger-service"
+	@echo "  make migrate-fresh-seeder-messenger-no-sticker-upload  Fresh/seed messenger-service (skip sticker CDN upload)"
 	@echo "Ports:"
 	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT), messenger-service=$(MESSENGER_SERVICE_PORT)"
 
@@ -71,7 +72,10 @@ validate-ports:
 	@echo "✅ Service ports are valid and unique"
 
 dev: validate-ports start
-	@echo "✅ Development environment is ready"
+	@echo "→ Starting frontend dev server..."
+	@cd frontend && npm run dev &
+	@echo "✅ All services up. Streaming logs (Ctrl+C to stop logs and all services)..."
+	@trap 'exit 0' INT TERM; bash scripts/logs.sh; wait
 
 down: down-frontend down-auth down-authz down-user down-messenger down-infra down-gateway
 	@echo "✅ All services stopped"
@@ -149,6 +153,9 @@ start-gateway:
 down-gateway:
 	@$(MAKE) -C gateway down
 
+logs:
+	@bash scripts/logs.sh
+
 frontend:
 	@cd frontend && npm run dev
 
@@ -184,10 +191,10 @@ backfill-snapshots:
 	@echo "→ backfilling user_snapshots in tumlumtala_messenger..."
 	@docker exec tumlumtala-users-mysql \
 		sh -c 'MYSQL_PWD=root mysql -uroot -e "\
-			INSERT INTO tumlumtala_messenger.user_snapshots (id, uuid, email, fullname, role, created_at, updated_at) \
-			SELECT id, uuid, email, fullname, role, created_at, updated_at FROM tumlumtala_users.users \
+			INSERT INTO tumlumtala_messenger.user_snapshots (id, uuid, email, fullname, avatar, role, created_at, updated_at) \
+			SELECT id, uuid, email, fullname, COALESCE(avatar, \x27\x27), role, created_at, updated_at FROM tumlumtala_users.users \
 			ON DUPLICATE KEY UPDATE \
-				email=VALUES(email), fullname=VALUES(fullname), role=VALUES(role), updated_at=VALUES(updated_at);"'
+				uuid=VALUES(uuid), email=VALUES(email), fullname=VALUES(fullname), avatar=VALUES(avatar), role=VALUES(role), updated_at=VALUES(updated_at);"'
 	@echo "✅ user_snapshots backfilled"
 
 flush-cache:
@@ -229,6 +236,9 @@ migrate-fresh-seeder-messenger:
 
 migrate-fresh-seeder-messenger-no-upload:
 	@$(MAKE) -C messenger-service migrate-fresh-seeder-no-upload
+
+migrate-fresh-seeder-messenger-no-sticker-upload:
+	@$(MAKE) -C messenger-service migrate-fresh-seeder-no-sticker-upload
 
 build-proto:
 	@$(MAKE) -C contracts build-proto

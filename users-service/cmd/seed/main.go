@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tumlumtala/users-service/internal/application/usecase"
@@ -16,6 +18,9 @@ import (
 )
 
 func main() {
+	log.SetFlags(0)
+	log.SetOutput(database.NewVNWriter(os.Stdout))
+
 	only := flag.String("only", "", "Run only specific seeders (comma-separated)")
 	flag.Parse()
 
@@ -26,6 +31,18 @@ func main() {
 				onlyList = append(onlyList, t)
 			}
 		}
+	}
+
+	// Resolve project root so seeders can locate seed-assets regardless of cwd.
+	// SEED_ROOT env var overrides; fallback to the current working directory.
+	if root := os.Getenv("SEED_ROOT"); root != "" {
+		seeders.RootDir = root
+	} else {
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatal(err)
+		}
+		seeders.RootDir = filepath.Clean(cwd)
 	}
 
 	ctx := context.Background()
