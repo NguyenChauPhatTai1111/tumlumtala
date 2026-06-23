@@ -7,4 +7,6 @@ type SMTPConfig struct {
 	Password string
 	From     string
 	FromName string
+	APIKey   string
+	APIURL   string
 }

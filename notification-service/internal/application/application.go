@@ -10,6 +10,7 @@ import (
 	"tumlumtala/notification-service/internal/config"
 	"tumlumtala/notification-service/internal/infrastructure/rabbitmq"
 	"tumlumtala/notification-service/internal/modules/notification/domain"
+	"tumlumtala/notification-service/internal/modules/notification/handler/eventhandler"
 	"tumlumtala/notification-service/internal/modules/notification/provider/email"
 	providerfactory "tumlumtala/notification-service/internal/modules/notification/provider/factory"
 	"tumlumtala/notification-service/internal/modules/notification/provider/sms"
@@ -105,25 +106,86 @@ func (a *Application) StartGRPC(ctx context.Context) error {
 }
 
 func (a *Application) StartWorker(ctx context.Context) error {
+	commandConsumer, err := a.newCommandConsumer()
+	if err != nil {
+		return err
+	}
+	defer commandConsumer.Close()
+
+	eventConsumer, err := a.newEventConsumer()
+	if err != nil {
+		return err
+	}
+	defer eventConsumer.Close()
+
+	a.log.Info().
+		Int("workers", a.cfg.RabbitMQ.Workers).
+		Str("command_queue", a.cfg.RabbitMQ.Queue).
+		Str("event_queue", a.cfg.RabbitMQ.EventQueue).
+		Msg("notification worker started")
+
+	return a.runConsumers(ctx, commandConsumer, eventConsumer)
+}
+
+func (a *Application) newCommandConsumer() (*rabbitmq.Consumer, error) {
 	conn, err := rabbitmq.Dial(a.cfg.RabbitMQ)
 	if err != nil {
-		return fmt.Errorf("connect rabbitmq worker: %w", err)
+		return nil, fmt.Errorf("connect rabbitmq worker: %w", err)
 	}
 
 	notificationProcessor := processor.NewNotificationProcessor(a.factory)
 	consumer, err := rabbitmq.NewConsumer(conn, a.cfg.RabbitMQ, a.publisher, notificationProcessor, a.log)
 	if err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("create rabbitmq consumer: %w", err)
+		return nil, fmt.Errorf("create rabbitmq consumer: %w", err)
 	}
-	defer consumer.Close()
+	return consumer, nil
+}
 
-	a.log.Info().Int("workers", a.cfg.RabbitMQ.Workers).Msg("notification worker started")
-	err = consumer.Run(ctx)
-	if errors.Is(err, context.Canceled) {
-		return nil
+func (a *Application) newEventConsumer() (*rabbitmq.EventConsumer, error) {
+	eventConn, err := rabbitmq.Dial(a.cfg.RabbitMQ)
+	if err != nil {
+		return nil, fmt.Errorf("connect rabbitmq event worker: %w", err)
 	}
-	return err
+
+	sendUC := usecase.NewSendNotificationUseCase(a.publisher)
+	router := a.newEventRouter(sendUC)
+
+	eventConsumer, err := rabbitmq.NewEventConsumer(eventConn, a.cfg.RabbitMQ, router, a.log)
+	if err != nil {
+		_ = eventConn.Close()
+		return nil, fmt.Errorf("create rabbitmq event consumer: %w", err)
+	}
+	return eventConsumer, nil
+}
+
+func (a *Application) newEventRouter(sendUC *usecase.SendNotificationUseCase) *eventhandler.Router {
+	router := eventhandler.NewRouter()
+	userCreatedHandler := eventhandler.NewUserCreatedHandler(sendUC)
+	router.Register("user.created", userCreatedHandler.Handle)
+	return router
+}
+
+type workerConsumer interface {
+	Run(context.Context) error
+}
+
+func (a *Application) runConsumers(ctx context.Context, consumers ...workerConsumer) error {
+	errCh := make(chan error, len(consumers))
+	for _, consumer := range consumers {
+		go func(consumer workerConsumer) {
+			errCh <- consumer.Run(ctx)
+		}(consumer)
+	}
+
+	for range consumers {
+		err := <-errCh
+		if errors.Is(err, context.Canceled) {
+			continue
+		}
+		return err
+	}
+	return nil
 }
 
 func (a *Application) Close() error {

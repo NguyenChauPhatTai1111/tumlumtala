@@ -6,6 +6,7 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/rabbitmq/amqp091-go v1.12.0
 	github.com/tumlumtala/contracts v0.0.0
 	golang.org/x/crypto v0.51.0
 	google.golang.org/grpc v1.81.1

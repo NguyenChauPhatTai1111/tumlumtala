@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	contractevents "github.com/tumlumtala/contracts/events"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/tumlumtala/users-service/internal/application"
@@ -19,20 +20,26 @@ import (
 )
 
 type CreateUserUseCase struct {
-	repository repository.UserRepository
-	queries    queryservice.UserQueryService
-	events     repository.EventPublisher
+	repository   repository.UserRepository
+	queries      queryservice.UserQueryService
+	events       repository.EventPublisher
+	domainEvents DomainEventPublisher
 }
 
 func NewCreateUserUseCase(repo repository.UserRepository, queries queryservice.UserQueryService, events repository.EventPublisher) *CreateUserUseCase {
 	return &CreateUserUseCase{repository: repo, queries: queries, events: events}
 }
 
+func (uc *CreateUserUseCase) WithDomainEvents(domainEvents DomainEventPublisher) *CreateUserUseCase {
+	uc.domainEvents = domainEvents
+	return uc
+}
+
 func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserInput) (*dto.UserDTO, error) {
 	return observability.TraceResult(ctx, "CreateUser UseCase", func(ctx context.Context) (*dto.UserDTO, error) {
 		email, fullname, err := normalizeUser(input.Email, input.Fullname)
 		if err != nil || len(input.Password) < 8 {
-		       	return nil, domainerrors.ErrInvalidInput
+			return nil, domainerrors.ErrInvalidInput
 		}
 		role, err := normalizeRole(input.Role, entity.RoleMember)
 		if err != nil {
@@ -81,6 +88,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 		}
 
 		_ = uc.events.PublishUserCreated(ctx, user.ID, user.UUID, user.Email, user.Fullname, string(user.Role))
+		uc.publishRabbitMQUserCreated(ctx, user)
 
 		return application.ToUserDTO(user), nil
 	},
@@ -89,4 +97,24 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 		observability.AttrOperation("create_user"),
 		observability.AttrResourceType("user"),
 	)
+}
+
+func (uc *CreateUserUseCase) publishRabbitMQUserCreated(ctx context.Context, user *entity.User) {
+	if uc.domainEvents == nil {
+		return
+	}
+
+	// Event contract thuộc application/usecase; RabbitMQ publisher chỉ nhận routing key và payload.
+	event := contractevents.UserCreatedEvent{
+		ID:        user.ID,
+		UUID:      user.UUID,
+		Email:     user.Email,
+		Fullname:  user.Fullname,
+		Role:      string(user.Role),
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := uc.domainEvents.Publish(ctx, "user.created", event); err != nil {
+		log := logger.FromContext(ctx, logger.Nop())
+		log.Error().Err(err).Str("routing_key", "user.created").Msg("publish rabbitmq user event failed")
+	}
 }

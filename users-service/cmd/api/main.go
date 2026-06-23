@@ -10,6 +10,7 @@ import (
 	bootstrap "github.com/tumlumtala/users-service/internal/bootstrap"
 	"github.com/tumlumtala/users-service/internal/config"
 	database "github.com/tumlumtala/users-service/internal/infrastructure/db"
+	rabbitmqinfra "github.com/tumlumtala/users-service/internal/infrastructure/rabbitmq"
 	"github.com/tumlumtala/users-service/internal/shared/grpcmiddleware"
 	"github.com/tumlumtala/users-service/internal/shared/logger"
 	"github.com/tumlumtala/users-service/internal/shared/observability"
@@ -69,7 +70,12 @@ func main() {
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(grpcmiddleware.UnaryServerLogging(log)),
 	)
-	bootstrap.Register(server, db, cfg.KafkaBrokers)
+	rabbitCfg := rabbitmqinfra.Config{
+		URL:          cfg.RabbitMQ.URL,
+		ExchangeName: cfg.RabbitMQ.ExchangeName,
+		ExchangeType: cfg.RabbitMQ.ExchangeType,
+	}
+	bootstrap.Register(server, db, cfg.KafkaBrokers, rabbitCfg, log)
 	go func() { <-ctx.Done(); server.GracefulStop() }()
 	log.Info().Stringer("addr", lis.Addr()).Msg("users-service started")
 	if err := server.Serve(lis); err != nil {

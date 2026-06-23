@@ -36,6 +36,7 @@ func (c DatabaseConfig) DSN() string {
 type Config struct {
 	Database       DatabaseConfig
 	KafkaBrokers   []string
+	RabbitMQ       RabbitMQConfig
 	Port           string
 	CORSOrigin     string
 	Environment    string
@@ -47,6 +48,12 @@ type Config struct {
 	OTLPEndpoint   string
 }
 
+type RabbitMQConfig struct {
+	URL          string
+	ExchangeName string
+	ExchangeType string
+}
+
 func Load() (Config, error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		return Config{}, fmt.Errorf("load .env: %w", err)
@@ -56,8 +63,9 @@ func Load() (Config, error) {
 			Host: env("DB_HOST", "localhost"), Port: env("DB_PORT", "3306"),
 			User: env("DB_USER", "tumlum"), Password: env("DB_PASSWORD", "tala"), Name: env("DB_NAME", "tumlumtala_users"),
 		},
-		KafkaBrokers:   strings.Split(env("KAFKA_BROKERS", "tumlumtala-kafka:9092"), ","),
-		Port: env("PORT", "25052"), CORSOrigin: env("CORS_ORIGIN", "http://localhost:3000"),
+		KafkaBrokers: strings.Split(env("KAFKA_BROKERS", "tumlumtala-kafka:9092"), ","),
+		RabbitMQ:     RabbitMQConfig{URL: env("RABBITMQ_URL", "amqp://admin:admin@rabbitmq:5672/"), ExchangeName: env("RABBITMQ_DOMAIN_EXCHANGE", "domain.events"), ExchangeType: env("RABBITMQ_DOMAIN_EXCHANGE_TYPE", "topic")},
+		Port:         env("PORT", "25052"), CORSOrigin: env("CORS_ORIGIN", "http://localhost:3000"),
 		Environment:    env("APP_ENV", "local"),
 		AppVersion:     env("APP_VERSION", "local"),
 		LogLevel:       env("LOG_LEVEL", "INFO"),
