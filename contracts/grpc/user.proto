@@ -35,6 +35,7 @@ message User {
   string updated_at = 5;
   string role = 6;
   string uuid = 7;
+  string avatar = 8;
 }
 
 message GetUserRequest { string uuid = 1; }
@@ -54,6 +55,7 @@ message UpdateUserRequest {
   string email = 2;
   string fullname = 3;
   string role = 4;
+  string avatar = 5;
 }
 
 message DeleteUserRequest { string uuid = 1; }

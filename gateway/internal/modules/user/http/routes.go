@@ -30,6 +30,8 @@ func (r *UserRoutes) RegisterPublic(router *gin.RouterGroup) {
 
 func (r *UserRoutes) Register(router *gin.RouterGroup) {
 	router.GET("/me", r.userController.Me)
+	router.PUT("/me", r.userController.UpdateMe)
+	router.POST("/me/avatar", r.userController.UploadAvatar)
 
 	canRead := middleware.Authorize(r.authz, "user-service", "user", "read")
 	canUpdate := middleware.Authorize(r.authz, "user-service", "user", "update")

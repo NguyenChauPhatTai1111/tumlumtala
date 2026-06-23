@@ -14,6 +14,7 @@ type UserClient interface {
 	GetUser(context.Context, string) (domain.User, error)
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
 	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
+	UpdateProfile(context.Context, domain.UpdateProfileInput) (domain.User, error)
 	DeleteUser(context.Context, string) error
 }
 
@@ -61,6 +62,16 @@ func (s *UserService) UpdateUser(ctx context.Context, input domain.UpdateUserInp
 	input.Email = strings.TrimSpace(input.Email)
 	input.Fullname = strings.TrimSpace(input.Fullname)
 	return s.userClient.UpdateUser(ctx, input)
+}
+
+func (s *UserService) UpdateProfile(ctx context.Context, input domain.UpdateProfileInput) (domain.User, error) {
+	if strings.TrimSpace(input.UUID) == "" {
+		return domain.User{}, apperrors.New(apperrors.CodeBadRequest, "uuid is required", errors.New("missing uuid"))
+	}
+	input.Email = strings.TrimSpace(input.Email)
+	input.Fullname = strings.TrimSpace(input.Fullname)
+	input.Avatar = strings.TrimSpace(input.Avatar)
+	return s.userClient.UpdateProfile(ctx, input)
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, uuid string) error {

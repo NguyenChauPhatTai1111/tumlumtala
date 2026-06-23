@@ -31,9 +31,12 @@ import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { Suspense, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import PersonIcon from "@mui/icons-material/Person";
 import { logout } from "@api/authApi";
 import { authStore } from "@store/authStore";
 import { useThemeMode } from "@store/themeStore";
+import { useCurrentUser, currentUserCache } from "@hooks/user/useCurrentUser";
+import { ProfileDialog } from "@components/user/dialog/ProfileDialog";
 
 const DRAWER_WIDTH = 240;
 const DRAWER_COLLAPSED = 64;
@@ -168,6 +171,9 @@ export const AppLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const { user } = useCurrentUser();
 
   const handleLogout = async () => {
     setAnchorEl(null);
@@ -176,9 +182,23 @@ export const AppLayout = () => {
     } catch {
       /* ignore */
     }
+    currentUserCache.clear();
     authStore.clearToken();
     navigate("/login", { replace: true });
   };
+
+  const handleProfile = () => {
+    setAnchorEl(null);
+    setProfileOpen(true);
+  };
+
+  const displayName = user?.fullname || user?.email || "Admin";
+  const avatarInitials = displayName
+    .split(" ")
+    .map((w: string) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -252,7 +272,7 @@ export const AppLayout = () => {
                 variant="h6"
                 sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}
               >
-                Xin chào, Admin
+                Xin chào, {displayName}
               </Typography>
             </Box>
 
@@ -270,9 +290,14 @@ export const AppLayout = () => {
                 sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", ml: 1 }}
               >
                 <Typography sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}>
-                  Admin
+                  {displayName}
                 </Typography>
-                <Avatar sx={{ width: 34, height: 34, bgcolor: "primary.main" }}>A</Avatar>
+                <Avatar
+                  src={user?.avatar || undefined}
+                  sx={{ width: 34, height: 34, bgcolor: "primary.main", fontSize: 14 }}
+                >
+                  {!user?.avatar && avatarInitials}
+                </Avatar>
               </Box>
 
               <Menu
@@ -282,6 +307,11 @@ export const AppLayout = () => {
                 transformOrigin={{ horizontal: "right", vertical: "top" }}
                 anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
               >
+                <MenuItem onClick={handleProfile}>
+                  <PersonIcon fontSize="small" sx={{ mr: 1 }} />
+                  Hồ sơ của tôi
+                </MenuItem>
+                <Divider />
                 <MenuItem onClick={handleLogout}>
                   <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
                   Đăng xuất
@@ -306,6 +336,8 @@ export const AppLayout = () => {
           </Suspense>
         </Box>
       </Box>
+
+      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </Box>
   );
 };

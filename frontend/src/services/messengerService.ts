@@ -883,7 +883,7 @@ export const searchUsers = async (
 		params.append("search", searchQuery.trim());
 	}
 
-	const response = await apiRequest(`/api/v1/user?${params.toString()}`, {
+	const response = await apiRequest(`/user?${params.toString()}`, {
 		method: "GET",
 	});
 

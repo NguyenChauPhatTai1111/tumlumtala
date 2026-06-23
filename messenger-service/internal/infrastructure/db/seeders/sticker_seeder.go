@@ -182,7 +182,7 @@ var packDefs = []stickerPackDef{
 
 func (s *StickerSeeder) Run(db *gorm.DB) error {
 	ctx := context.Background()
-	skipUpload := os.Getenv("SKIP_CDN_UPLOAD") == "true"
+	skipUpload := os.Getenv("SKIP_CDN_UPLOAD") == "true" || os.Getenv("SKIP_STICKER_UPLOAD") == "true"
 
 	var client *bunnycdn.Client
 	if !skipUpload {
