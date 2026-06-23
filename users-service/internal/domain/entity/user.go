@@ -20,6 +20,7 @@ type User struct {
 	Email     string
 	Password  string
 	Fullname  string
+	Avatar    string
 	Role      Role
 	CreatedAt time.Time
 	UpdatedAt time.Time

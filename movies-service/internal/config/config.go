@@ -3,14 +3,16 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Config struct {
-	Port        string
-	CORSOrigin  string
-	TMDBAPIKey  string
-	DB          DatabaseConfig
-	JWTSecret   string
+	Port         string
+	CORSOrigin   string
+	TMDBAPIKey   string
+	DB           DatabaseConfig
+	JWTSecret    string
+	KafkaBrokers []string
 }
 
 type DatabaseConfig struct {
@@ -31,7 +33,8 @@ func Load() (*Config, error) {
 		Port:       getEnv("PORT", "25055"),
 		CORSOrigin: getEnv("CORS_ORIGIN", "http://localhost:3000"),
 		TMDBAPIKey: os.Getenv("TMDB_API_KEY"),
-		JWTSecret:  os.Getenv("JWT_SECRET"),
+		JWTSecret:    os.Getenv("JWT_SECRET"),
+		KafkaBrokers: strings.Split(getEnv("KAFKA_BROKERS", "tumlumtala-kafka:9092"), ","),
 		DB: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "3306"),

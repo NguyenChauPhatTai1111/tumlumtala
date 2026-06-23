@@ -3,10 +3,8 @@ package seeders
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -182,7 +180,7 @@ var packDefs = []stickerPackDef{
 
 func (s *StickerSeeder) Run(db *gorm.DB) error {
 	ctx := context.Background()
-	skipUpload := os.Getenv("SKIP_CDN_UPLOAD") == "true"
+	skipUpload := os.Getenv("SKIP_CDN_UPLOAD") == "true" || os.Getenv("SKIP_STICKER_UPLOAD") == "true"
 
 	var client *bunnycdn.Client
 	if !skipUpload {
@@ -277,36 +275,35 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 
 // uploadStickerFile finds a file by base name (any extension) in dir/folder/, uploads to CDN, returns public URL.
 func uploadStickerFile(ctx context.Context, client *bunnycdn.Client, assetsDir, folder, baseName string) (string, error) {
-	dir := filepath.Join(assetsDir, folder)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", fmt.Errorf("read dir %s: %w", dir, err)
-	}
+	// dir := filepath.Join(assetsDir, folder)
+	// entries, err := os.ReadDir(dir)
+	// if err != nil {
+	// 	return "", fmt.Errorf("read dir %s: %w", dir, err)
+	// }
 
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		nameNoExt := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
-		if nameNoExt != baseName {
-			continue
-		}
+	// for _, e := range entries {
+	// 	if e.IsDir() {
+	// 		continue
+	// 	}
+	// 	nameNoExt := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+	// 	if nameNoExt != baseName {
+	// 		continue
+	// 	}
 
-		localPath := filepath.Join(dir, e.Name())
-		raw, err := os.ReadFile(localPath)
-		if err != nil {
-			return "", fmt.Errorf("read %s: %w", localPath, err)
-		}
+	// 	localPath := filepath.Join(dir, e.Name())
+	// 	raw, err := os.ReadFile(localPath)
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("read %s: %w", localPath, err)
+	// 	}
 
-		mimeType := http.DetectContentType(raw)
-		remotePath := fmt.Sprintf("stickers/%s/%s", folder, e.Name())
-		url, err := client.Upload(ctx, remotePath, raw, mimeType)
-		if err != nil {
-			return "", fmt.Errorf("upload %s: %w", remotePath, err)
-		}
-		return url, nil
-	}
+	// 	mimeType := http.DetectContentType(raw)
+	// 	remotePath := fmt.Sprintf("stickers/%s/%s", folder, e.Name())
+	// 	url, err := client.Upload(ctx, remotePath, raw, mimeType)
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("upload %s: %w", remotePath, err)
+	// 	}
+	// 	return url, nil
+	// }
 
 	return "", fmt.Errorf("file not found: %s/%s.*", folder, baseName)
 }
-

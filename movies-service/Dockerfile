@@ -1,8 +1,15 @@
 FROM golang:1.25-alpine AS build
-WORKDIR /src
-COPY go.mod go.sum* ./
+WORKDIR /workspace
+
+# Copy local dependencies first (referenced via replace directives)
+COPY kafka-service/   kafka-service/
+COPY contracts/       contracts/
+
+# Copy movies-service
+WORKDIR /workspace/movies-service
+COPY movies-service/go.mod movies-service/go.sum* ./
 RUN go mod download
-COPY . .
+COPY movies-service/ .
 RUN CGO_ENABLED=0 go build -o /movies-service ./cmd/api
 
 FROM alpine:3.22

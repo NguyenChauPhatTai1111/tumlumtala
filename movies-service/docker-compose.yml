@@ -1,8 +1,8 @@
 services:
   movies-service:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: movies-service/Dockerfile
     container_name: tumlumtala-movies-service
     env_file: .env
     environment:

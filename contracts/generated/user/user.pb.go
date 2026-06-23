@@ -174,6 +174,7 @@ type User struct {
 	UpdatedAt     string                 `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	Role          string                 `protobuf:"bytes,6,opt,name=role,proto3" json:"role,omitempty"`
 	Uuid          string                 `protobuf:"bytes,7,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Avatar        string                 `protobuf:"bytes,8,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -253,6 +254,13 @@ func (x *User) GetRole() string {
 func (x *User) GetUuid() string {
 	if x != nil {
 		return x.Uuid
+	}
+	return ""
+}
+
+func (x *User) GetAvatar() string {
+	if x != nil {
+		return x.Avatar
 	}
 	return ""
 }
@@ -411,6 +419,7 @@ type UpdateUserRequest struct {
 	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	Fullname      string                 `protobuf:"bytes,3,opt,name=fullname,proto3" json:"fullname,omitempty"`
 	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	Avatar        string                 `protobuf:"bytes,5,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -469,6 +478,13 @@ func (x *UpdateUserRequest) GetFullname() string {
 func (x *UpdateUserRequest) GetRole() string {
 	if x != nil {
 		return x.Role
+	}
+	return ""
+}
+
+func (x *UpdateUserRequest) GetAvatar() string {
+	if x != nil {
+		return x.Avatar
 	}
 	return ""
 }
@@ -576,7 +592,7 @@ const file_grpc_user_proto_rawDesc = "" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
 	"\bfullname\x18\x03 \x01(\tR\bfullname\x12\x12\n" +
 	"\x04role\x18\x04 \x01(\tR\x04role\x12\x12\n" +
-	"\x04uuid\x18\x05 \x01(\tR\x04uuid\"\xae\x01\n" +
+	"\x04uuid\x18\x05 \x01(\tR\x04uuid\"\xc6\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -586,7 +602,8 @@ const file_grpc_user_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x05 \x01(\tR\tupdatedAt\x12\x12\n" +
 	"\x04role\x18\x06 \x01(\tR\x04role\x12\x12\n" +
-	"\x04uuid\x18\a \x01(\tR\x04uuid\"$\n" +
+	"\x04uuid\x18\a \x01(\tR\x04uuid\x12\x16\n" +
+	"\x06avatar\x18\b \x01(\tR\x06avatar\"$\n" +
 	"\x0eGetUserRequest\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\"@\n" +
 	"\x10ListUsersRequest\x12\x14\n" +
@@ -595,12 +612,13 @@ const file_grpc_user_proto_rawDesc = "" +
 	"\x11ListUsersResponse\x12 \n" +
 	"\x05users\x18\x01 \x03(\v2\n" +
 	".user.UserR\x05users\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"m\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\x85\x01\n" +
 	"\x11UpdateUserRequest\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
 	"\bfullname\x18\x03 \x01(\tR\bfullname\x12\x12\n" +
-	"\x04role\x18\x04 \x01(\tR\x04role\"'\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12\x16\n" +
+	"\x06avatar\x18\x05 \x01(\tR\x06avatar\"'\n" +
 	"\x11DeleteUserRequest\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\".\n" +
 	"\x12DeleteUserResponse\x12\x18\n" +

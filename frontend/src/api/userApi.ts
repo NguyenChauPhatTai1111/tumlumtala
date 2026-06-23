@@ -14,6 +14,12 @@ export interface UpdateUserPayload {
   role?: string;
 }
 
+export interface UpdateProfilePayload {
+  email?: string;
+  fullname?: string;
+  avatar?: string;
+}
+
 export const createUser = async (data: CreateUserPayload): Promise<IUser> => {
   const res = await apiClient.post("/users", data);
   return res.data.data;
@@ -36,4 +42,23 @@ export const updateUser = async (uuid: string, data: UpdateUserPayload): Promise
 
 export const deleteUser = async (uuid: string): Promise<void> => {
   await apiClient.delete(`/users/${uuid}`);
+};
+
+export const getMe = async (): Promise<IUser> => {
+  const res = await apiClient.get("/me");
+  return res.data.data;
+};
+
+export const updateMe = async (data: UpdateProfilePayload): Promise<IUser> => {
+  const res = await apiClient.put("/me", data);
+  return res.data.data;
+};
+
+export const uploadAvatar = async (file: File): Promise<IUser> => {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await apiClient.post("/me/avatar", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data;
 };

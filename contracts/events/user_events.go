@@ -8,6 +8,7 @@ type UserCreatedEvent struct {
 	UUID      string    `json:"uuid"`
 	Email     string    `json:"email"`
 	Fullname  string    `json:"fullname"`
+	Avatar    string    `json:"avatar"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -18,6 +19,7 @@ type UserUpdatedEvent struct {
 	UUID     string `json:"uuid"`
 	Email    string `json:"email"`
 	Fullname string `json:"fullname"`
+	Avatar   string `json:"avatar"`
 	Role     string `json:"role"`
 }
 
@@ -25,4 +27,15 @@ type UserUpdatedEvent struct {
 type UserDeletedEvent struct {
 	ID   uint64 `json:"id"`
 	UUID string `json:"uuid"`
+}
+
+// UserUpsertedEvent published by cmd/replay for bulk re-sync.
+// Same fields as UserUpdatedEvent — consumers treat it as an idempotent upsert.
+type UserUpsertedEvent struct {
+	ID       uint64 `json:"id"`
+	UUID     string `json:"uuid"`
+	Email    string `json:"email"`
+	Fullname string `json:"fullname"`
+	Avatar   string `json:"avatar"`
+	Role     string `json:"role"`
 }

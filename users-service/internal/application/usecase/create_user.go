@@ -38,8 +38,8 @@ func (uc *CreateUserUseCase) WithDomainEvents(domainEvents DomainEventPublisher)
 func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserInput) (*dto.UserDTO, error) {
 	return observability.TraceResult(ctx, "CreateUser UseCase", func(ctx context.Context) (*dto.UserDTO, error) {
 		email, fullname, err := normalizeUser(input.Email, input.Fullname)
-		if err != nil || len(input.Password) < 8 {
-			return nil, domainerrors.ErrInvalidInput
+		if err != nil || len(input.Password) < 6 {
+		       	return nil, domainerrors.ErrInvalidInput
 		}
 		role, err := normalizeRole(input.Role, entity.RoleMember)
 		if err != nil {
@@ -87,8 +87,8 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 			return nil, err
 		}
 
-		_ = uc.events.PublishUserCreated(ctx, user.ID, user.UUID, user.Email, user.Fullname, string(user.Role))
 		uc.publishRabbitMQUserCreated(ctx, user)
+		_ = uc.events.PublishUserCreated(ctx, user.ID, user.UUID, user.Email, user.Fullname, user.Avatar, string(user.Role))
 
 		return application.ToUserDTO(user), nil
 	},

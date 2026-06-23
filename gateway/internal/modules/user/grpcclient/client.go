@@ -14,6 +14,7 @@ type UserClient interface {
 	GetUser(context.Context, string) (domain.User, error)
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
 	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
+	UpdateProfile(context.Context, domain.UpdateProfileInput) (domain.User, error)
 	DeleteUser(context.Context, string) error
 }
 
@@ -74,6 +75,19 @@ func (c *userClient) UpdateUser(ctx context.Context, input domain.UpdateUserInpu
 	return mapUser(resp), nil
 }
 
+func (c *userClient) UpdateProfile(ctx context.Context, input domain.UpdateProfileInput) (domain.User, error) {
+	resp, err := c.client.UpdateUser(ctx, &userpb.UpdateUserRequest{
+		Uuid:     input.UUID,
+		Email:    input.Email,
+		Fullname: input.Fullname,
+		Avatar:   input.Avatar,
+	})
+	if err != nil {
+		return domain.User{}, apperrors.FromGRPC(err)
+	}
+	return mapUser(resp), nil
+}
+
 func (c *userClient) DeleteUser(ctx context.Context, uuid string) error {
 	_, err := c.client.DeleteUser(ctx, &userpb.DeleteUserRequest{Uuid: uuid})
 	if err != nil {
@@ -98,6 +112,7 @@ func mapUser(u *userpb.User) domain.User {
 		UUID:      u.GetUuid(),
 		Email:     u.GetEmail(),
 		Fullname:  u.GetFullname(),
+		Avatar:    u.GetAvatar(),
 		Role:      u.GetRole(),
 		CreatedAt: u.GetCreatedAt(),
 		UpdatedAt: u.GetUpdatedAt(),

@@ -18,9 +18,17 @@ type User struct {
 	UUID      string
 	Email     string
 	Fullname  string
+	Avatar    string
 	Role      string
 	CreatedAt string
 	UpdatedAt string
+}
+
+type UpdateProfileInput struct {
+	UUID     string
+	Email    string
+	Fullname string
+	Avatar   string
 }
 
 type ListUsersInput struct {

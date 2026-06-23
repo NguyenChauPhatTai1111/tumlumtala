@@ -7,13 +7,13 @@ type CreateUserInput struct {
 }
 
 type UpdateUserInput struct {
-	UUID, Email, Fullname, Role string
+	UUID, Email, Fullname, Avatar, Role string
 }
 
 type UserDTO struct {
-	ID                          uint64
-	UUID, Email, Fullname, Role string
-	CreatedAt, UpdatedAt        time.Time
+	ID                                  uint64
+	UUID, Email, Fullname, Avatar, Role string
+	CreatedAt, UpdatedAt                time.Time
 }
 
 type UserListDTO struct {

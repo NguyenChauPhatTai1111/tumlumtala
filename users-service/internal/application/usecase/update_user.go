@@ -46,7 +46,7 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, input dto.UpdateUserIn
 		if err != nil {
 			return nil, err
 		}
-		user.Email, user.Fullname, user.Role, user.UpdatedAt = email, fullname, role, time.Now().UTC()
+		user.Email, user.Fullname, user.Avatar, user.Role, user.UpdatedAt = email, fullname, input.Avatar, role, time.Now().UTC()
 		if err := observability.Trace(ctx, "PersistUser", func(ctx context.Context) error {
 			return uc.repository.Update(ctx, user)
 		},
@@ -56,7 +56,7 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, input dto.UpdateUserIn
 		); err != nil {
 			return nil, err
 		}
-		_ = uc.events.PublishUserUpdated(ctx, user.ID, user.UUID, user.Email, user.Fullname, string(user.Role))
+		_ = uc.events.PublishUserUpdated(ctx, user.ID, user.UUID, user.Email, user.Fullname, user.Avatar, string(user.Role))
 		return application.ToUserDTO(user), nil
 	},
 		observability.AttrServiceName(logger.ServiceUsers),
