@@ -6,14 +6,17 @@ DATABASE_NAME       ?= tumlumtala_messenger
 DATABASE_USER       ?= tumlum
 DATABASE_PASSWORD   ?= tala
 DATABASE_ROOT_PASSWORD ?= root
-MIGRATIONS_DIR := internal/infrastructure/db/migrations
+MIGRATIONS_DIR         := internal/infrastructure/db/migrations
+MIGRATIONS_MAIN_DIR    := internal/infrastructure/db/migrations/main
+MIGRATIONS_SNAPSHOT_DIR := internal/infrastructure/db/migrations/snapshots
 MYSQL_HOST_PORT ?= 23306
 MESSENGER_PORT  ?= 25056
 
 .NOTPARALLEL:
 
 .PHONY: help up start down wait-db ensure-db fresh-db \
-	migrate-up migrate-fresh-seeder migrate-fresh-seeder-no-upload \
+	migrate-up migrate-main migrate-snapshots \
+	migrate-fresh-seeder migrate-fresh-seeder-no-upload \
 	seeder build
 
 help:
@@ -58,36 +61,37 @@ fresh-db: wait-db
 # Example: make migrate-up SKIP_MIGRATIONS="002_create_emoji_sticker_schema.sql"
 SKIP_MIGRATIONS ?=
 
-migrate-up: ensure-db
-	@echo ""
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "  messenger-service migrations"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+define run-sql-dir
 	@set -e; found=0; \
-	for file in $$(find "$(MIGRATIONS_DIR)" -maxdepth 1 -type f -name '*.sql' | sort); do \
+	for file in $$(find "$(1)" -maxdepth 1 -type f -name '*.sql' | sort); do \
 		found=1; \
 		name=$$(basename $$file); \
-		skip=0; \
-		for s in $(SKIP_MIGRATIONS); do \
-			if [ "$$name" = "$$s" ]; then skip=1; break; fi; \
-		done; \
-		if [ "$$skip" -eq 1 ]; then \
-			printf "⏭  skip   %s\n" "$$name"; \
-			continue; \
-		fi; \
-		printf "→  run    %s\n" "$$name"; \
+		printf "→ %s\n" "$$name"; \
 		docker exec -i \
 			-e MYSQL_DATABASE="$(DATABASE_NAME)" \
 			-e MYSQL_USER="$(DATABASE_USER)" \
 			-e MYSQL_PASSWORD="$(DATABASE_PASSWORD)" \
 			$(MYSQL_CONTAINER) sh -c 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -u"$$MYSQL_USER" "$$MYSQL_DATABASE"' < "$$file"; \
-		printf "✓  done   %s\n" "$$name"; \
+		printf "✓ %s\n" "$$name"; \
 	done; \
-	if [ "$$found" -eq 0 ]; then echo "  (no migration files found)"; fi
-	@echo ""
-	@echo "✅ messenger-service migrations completed"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo ""
+	if [ "$$found" -eq 0 ]; then echo "  (no SQL files in $(1))"; fi
+endef
+
+# migrate-main: creates the core tables (messages, emojis, stickers, themes).
+migrate-main: ensure-db
+	@echo "→ [messenger-service] main migrations"
+	$(call run-sql-dir,$(MIGRATIONS_MAIN_DIR))
+	@echo "✅ messenger-service main migrations done"
+
+# migrate-snapshots: creates the user_snapshots table.
+# Run this before make replay so the table exists for consumers to insert into.
+migrate-snapshots: ensure-db
+	@echo "→ [messenger-service] snapshot migrations"
+	$(call run-sql-dir,$(MIGRATIONS_SNAPSHOT_DIR))
+	@echo "✅ messenger-service snapshot migrations done"
+
+# migrate-up runs both phases for convenience.
+migrate-up: migrate-main migrate-snapshots
 
 SEEDER_ONLY ?=
 SEEDER_SKIP ?=

@@ -11,6 +11,8 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/rs/zerolog v1.35.1
+	github.com/tumlumtala/contracts v0.0.0
+	github.com/tumlumtala/kafka-service v0.0.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.1
 )
@@ -50,3 +52,7 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/tumlumtala/contracts => ../contracts
+
+replace github.com/tumlumtala/kafka-service => ../kafka-service

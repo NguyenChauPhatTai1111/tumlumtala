@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -14,6 +15,7 @@ import (
 	httphandler "github.com/tumlumtala/movies-service/internal/adapter/http"
 	"github.com/tumlumtala/movies-service/internal/config"
 	database "github.com/tumlumtala/movies-service/internal/infrastructure/db"
+	kafkainfra "github.com/tumlumtala/movies-service/internal/infrastructure/kafka"
 	certuc "github.com/tumlumtala/movies-service/internal/module/application/usecase/certification"
 	likeduc "github.com/tumlumtala/movies-service/internal/module/application/usecase/liked"
 	searchuc "github.com/tumlumtala/movies-service/internal/module/application/usecase/search"
@@ -41,10 +43,13 @@ func main() {
 	sqlDB, _ := db.DB()
 	defer sqlDB.Close()
 
+	// Start Kafka consumer to keep user_snapshots in sync.
+	userSnapshotConsumer := kafkainfra.NewUserSnapshotConsumer(db, cfg.KafkaBrokers, slog.Default())
+	go userSnapshotConsumer.Run(ctx)
+
 	repo := repository.NewRepository(db)
 	tmdbClient := tmdb.NewClient(cfg.TMDBAPIKey)
 
-	// Command use cases — write only.
 	certFetch := certuc.NewBatchUseCase(repo, tmdbClient)
 
 	handler := httphandler.NewHandler(

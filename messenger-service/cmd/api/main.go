@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -50,8 +51,9 @@ func main() {
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 
-	// Start Kafka consumer to sync user_snapshots
-	userSnapshotConsumer := kafkainfra.NewUserSnapshotConsumer(db, cfg.KafkaBrokers)
+	// Start Kafka consumer to sync user_snapshots.
+	// slog.Default() bridges to the process-level structured logger.
+	userSnapshotConsumer := kafkainfra.NewUserSnapshotConsumer(db, cfg.KafkaBrokers, slog.Default())
 	go userSnapshotConsumer.Run(ctx)
 
 	bootstrap.Register(engine, db, cfg)

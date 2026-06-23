@@ -7,10 +7,11 @@ DATABASE_USER ?= tumlum
 DATABASE_PASSWORD ?= tala
 MIGRATIONS_DIR := internal/infrastructure/db/migrations
 SEEDER_CMD := ./cmd/seed
+REPLAY_CMD := ./cmd/replay
 
 .NOTPARALLEL:
 
-.PHONY: help up start down wait-db ensure-db fresh-db migrate-up seed migrate-fresh-seeder test build
+.PHONY: help up start down wait-db ensure-db fresh-db migrate-up seed replay migrate-fresh-seeder test build
 
 help:
 	@echo "  make up                               Build và start users-service"
@@ -64,7 +65,20 @@ SEEDER_ONLY ?=
 seed: wait-db
 	@echo "→ run Go UserSeeder"
 	@DB_HOST=localhost DB_PORT=$${MYSQL_HOST_PORT:-23306} DB_NAME="$(DATABASE_NAME)" DB_USER="$(DATABASE_USER)" DB_PASSWORD="$(DATABASE_PASSWORD)" \
+		KAFKA_BROKERS=localhost:$${KAFKA_HOST_PORT:-29092} \
 		go run $(SEEDER_CMD) $(if $(SEEDER_ONLY),-only=$(SEEDER_ONLY))
+
+# replay publishes user.created events for every user in the DB so that all
+# consumer services (messenger, movies, …) can sync their user_snapshots tables.
+# Run this after a fresh seed while consumer services are running.
+REPLAY_FLAGS ?= --no-wait
+
+replay: wait-db
+	@echo "→ publishing user.upserted events to Kafka"
+	@DB_HOST=localhost DB_PORT=$${MYSQL_HOST_PORT:-23306} DB_NAME="$(DATABASE_NAME)" DB_USER="$(DATABASE_USER)" DB_PASSWORD="$(DATABASE_PASSWORD)" \
+		KAFKA_BROKERS=localhost:$${KAFKA_HOST_PORT:-29092} \
+		go run $(REPLAY_CMD) $(REPLAY_FLAGS)
+	@echo "✅ user.upserted events published — consumers will sync when they start"
 
 migrate-fresh-seeder: fresh-db migrate-up seed
 	@echo "✅ users-service database recreated and seeded"

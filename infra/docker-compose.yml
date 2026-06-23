@@ -140,6 +140,25 @@ services:
       timeout: 10s
       retries: 5
 
+  kafka-init:
+    image: redpandadata/redpanda:v24.3.14
+    container_name: tumlumtala-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - tumlumtala-net
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        rpk topic create \
+          user.created user.updated user.deleted user.upserted \
+          user.created.dlq user.updated.dlq user.deleted.dlq user.upserted.dlq \
+          --brokers tumlumtala-kafka:9092 \
+          --partitions 1 --replicas 1 2>&1 | grep -v "TOPIC_ALREADY_EXISTS" || true
+        echo "✅ Kafka topics ready"
+    restart: "no"
+
   kafka-console:
     image: redpandadata/console:v2.8.3
     container_name: tumlumtala-kafka-console

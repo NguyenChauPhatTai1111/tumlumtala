@@ -2,100 +2,101 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
-	"log"
+	"fmt"
+	"log/slog"
 	"time"
 
-	"github.com/segmentio/kafka-go"
 	"gorm.io/gorm"
+
+	"github.com/tumlumtala/contracts/events"
+	"github.com/tumlumtala/kafka-service/consumer"
+	"github.com/tumlumtala/kafka-service/envelope"
+	"github.com/tumlumtala/kafka-service/producer"
+	"github.com/tumlumtala/kafka-service/topics"
 )
 
-const (
-	topicUserCreated = "user.created"
-	topicUserUpdated = "user.updated"
-	topicUserDeleted = "user.deleted"
+const groupID = "messenger-service"
 
-	groupID = "messenger-service"
-)
-
-type userEvent struct {
-	ID       uint64 `json:"id"`
-	UUID     string `json:"uuid"`
-	Email    string `json:"email"`
-	Fullname string `json:"fullname"`
-	Avatar   string `json:"avatar"`
-	Role     string `json:"role"`
-}
-
+// UserSnapshotConsumer maintains the local user_snapshots table by consuming
+// user lifecycle events from Kafka. Any processing failure is retried
+// (exponential backoff) then routed to a DLQ topic.
 type UserSnapshotConsumer struct {
-	db      *gorm.DB
+	store   SnapshotStore
 	brokers []string
+	log     *slog.Logger
 }
 
-func NewUserSnapshotConsumer(db *gorm.DB, brokers []string) *UserSnapshotConsumer {
-	return &UserSnapshotConsumer{db: db, brokers: brokers}
+func NewUserSnapshotConsumer(db *gorm.DB, brokers []string, log *slog.Logger) *UserSnapshotConsumer {
+	return &UserSnapshotConsumer{
+		store:   newGormSnapshotStore(db),
+		brokers: brokers,
+		log:     log,
+	}
 }
 
-// Run starts all topic consumers. Blocks until ctx is cancelled.
+// newWithStore is used in tests to inject a stub SnapshotStore.
+func newWithStore(store SnapshotStore, brokers []string, log *slog.Logger) *UserSnapshotConsumer {
+	return &UserSnapshotConsumer{store: store, brokers: brokers, log: log}
+}
+
+// Run starts one consumer per user event topic and blocks until ctx is cancelled.
 func (c *UserSnapshotConsumer) Run(ctx context.Context) {
-	go c.consume(ctx, topicUserCreated, c.handleUpsert)
-	go c.consume(ctx, topicUserUpdated, c.handleUpsert)
-	go c.consume(ctx, topicUserDeleted, c.handleDelete)
+	dlq := producer.New(producer.Config{
+		Brokers:     c.brokers,
+		ServiceName: "messenger-service",
+	})
+	defer dlq.Close()
+
+	baseCfg := consumer.Config{
+		Brokers:    c.brokers,
+		GroupID:    groupID,
+		MaxRetries: 3,
+		Workers:    2,
+	}
+
+	createdCfg := baseCfg
+	createdCfg.Topic = topics.UserCreated
+	updatedCfg := baseCfg
+	updatedCfg.Topic = topics.UserUpdated
+	upsertedCfg := baseCfg
+	upsertedCfg.Topic = topics.UserUpserted
+	deletedCfg := baseCfg
+	deletedCfg.Topic = topics.UserDeleted
+
+	created := consumer.New(createdCfg, dlq, c.handleUpsert, c.log)
+	updated := consumer.New(updatedCfg, dlq, c.handleUpsert, c.log)
+	upserted := consumer.New(upsertedCfg, dlq, c.handleUpsert, c.log)
+	deleted := consumer.New(deletedCfg, dlq, c.handleDelete, c.log)
+
+	go created.Run(ctx)
+	go updated.Run(ctx)
+	go upserted.Run(ctx)
+	go deleted.Run(ctx)
+
 	<-ctx.Done()
 }
 
-func (c *UserSnapshotConsumer) consume(ctx context.Context, topic string, handle func(context.Context, []byte) error) {
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  c.brokers,
-		Topic:    topic,
-		GroupID:  groupID,
-		MinBytes: 1,
-		MaxBytes: 1e6,
-	})
-	defer func() { _ = r.Close() }()
+func (c *UserSnapshotConsumer) handleUpsert(ctx context.Context, env envelope.Envelope) error {
+	var id uint64
+	var userUUID, email, fullname, avatar, role string
 
-	for {
-		msg, err := r.ReadMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			log.Printf("[kafka] read error topic=%s: %v", topic, err)
-			continue
-		}
-		if err := handle(ctx, msg.Value); err != nil {
-			log.Printf("[kafka] handle error topic=%s: %v", topic, err)
-		}
+	if ev, err := consumer.Unmarshal[events.UserCreatedEvent](env); err == nil {
+		id, userUUID, email, fullname, avatar, role = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role
+	} else if ev, err := consumer.Unmarshal[events.UserUpdatedEvent](env); err == nil {
+		id, userUUID, email, fullname, avatar, role = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role
+	} else if ev, err := consumer.Unmarshal[events.UserUpsertedEvent](env); err == nil {
+		id, userUUID, email, fullname, avatar, role = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role
+	} else {
+		return fmt.Errorf("handleUpsert: cannot unmarshal envelope topic=%s", env.Topic)
 	}
+
+	return c.store.Upsert(ctx, id, userUUID, email, fullname, avatar, role, time.Now().UTC())
 }
 
-func (c *UserSnapshotConsumer) handleUpsert(ctx context.Context, payload []byte) error {
-	var ev userEvent
-	if err := json.Unmarshal(payload, &ev); err != nil {
+func (c *UserSnapshotConsumer) handleDelete(ctx context.Context, env envelope.Envelope) error {
+	ev, err := consumer.Unmarshal[events.UserDeletedEvent](env)
+	if err != nil {
 		return err
 	}
-	return c.db.WithContext(ctx).Exec(`
-		INSERT INTO user_snapshots (id, uuid, email, fullname, avatar, role, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE
-			email = VALUES(email),
-			fullname = VALUES(fullname),
-			avatar = VALUES(avatar),
-			role = VALUES(role),
-			updated_at = VALUES(updated_at)
-	`, ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role, time.Now().UTC()).Error
+	return c.store.Delete(ctx, ev.ID)
 }
-
-func (c *UserSnapshotConsumer) handleDelete(ctx context.Context, payload []byte) error {
-	var ev struct {
-		ID uint64 `json:"id"`
-	}
-	if err := json.Unmarshal(payload, &ev); err != nil {
-		return err
-	}
-	return c.db.WithContext(ctx).
-		Table("user_snapshots").
-		Where("id = ?", ev.ID).
-		Delete(nil).Error
-}
-

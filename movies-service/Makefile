@@ -6,11 +6,14 @@ DATABASE_NAME ?= tumlumtala_movies
 DATABASE_USER ?= tumlum
 DATABASE_PASSWORD ?= tala
 DATABASE_ROOT_PASSWORD ?= root
-MIGRATIONS_DIR := internal/infrastructure/db/migrations
+MIGRATIONS_DIR          := internal/infrastructure/db/migrations
+MIGRATIONS_MAIN_DIR     := internal/infrastructure/db/migrations/main
+MIGRATIONS_SNAPSHOT_DIR := internal/infrastructure/db/migrations/snapshots
 
 .NOTPARALLEL:
 
-.PHONY: help up start down wait-db ensure-db fresh-db migrate-up migrate-fresh build
+.PHONY: help up start down wait-db ensure-db fresh-db \
+	migrate-up migrate-main migrate-snapshots migrate-fresh build
 
 help:
 	@echo "  make up                     Build và start movies-service"
@@ -47,19 +50,36 @@ fresh-db: wait-db
 		-e MYSQL_ROOT_PASSWORD="$(DATABASE_ROOT_PASSWORD)" \
 		$(MYSQL_CONTAINER) sh -s -- fresh < scripts/database.sh
 
-migrate-up: ensure-db
+define run-sql-dir
 	@set -e; found=0; \
-	for file in $$(find "$(MIGRATIONS_DIR)" -maxdepth 1 -type f -name '*.sql' | sort); do \
+	for file in $$(find "$(1)" -maxdepth 1 -type f -name '*.sql' | sort); do \
 		found=1; \
-		echo "→ migrate $$file"; \
+		name=$$(basename $$file); \
+		printf "→ %s\n" "$$name"; \
 		docker exec -i \
 			-e MYSQL_DATABASE="$(DATABASE_NAME)" \
 			-e MYSQL_USER="$(DATABASE_USER)" \
 			-e MYSQL_PASSWORD="$(DATABASE_PASSWORD)" \
 			$(MYSQL_CONTAINER) sh -c 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -u"$$MYSQL_USER" "$$MYSQL_DATABASE"' < "$$file"; \
+		printf "✓ %s\n" "$$name"; \
 	done; \
-	if [ "$$found" -eq 0 ]; then echo "No movies migrations found"; fi
-	@echo "✅ movies-service migrated"
+	if [ "$$found" -eq 0 ]; then echo "  (no SQL files in $(1))"; fi
+endef
+
+# migrate-main: creates core movie tables.
+migrate-main: ensure-db
+	@echo "→ [movies-service] main migrations"
+	$(call run-sql-dir,$(MIGRATIONS_MAIN_DIR))
+	@echo "✅ movies-service main migrations done"
+
+# migrate-snapshots: creates user_snapshots table.
+migrate-snapshots: ensure-db
+	@echo "→ [movies-service] snapshot migrations"
+	$(call run-sql-dir,$(MIGRATIONS_SNAPSHOT_DIR))
+	@echo "✅ movies-service snapshot migrations done"
+
+# migrate-up runs both phases.
+migrate-up: migrate-main migrate-snapshots
 
 migrate-fresh: fresh-db migrate-up
 	@echo "✅ movies-service database recreated"

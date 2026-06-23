@@ -19,8 +19,14 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-user up-user build-user down-user \
 	start-messenger up-messenger build-messenger down-messenger \
 	start-gateway up-gateway build-gateway down-gateway \
-	migrate-up migrate-auth migrate-authz migrate-user migrate-movie migrate-messenger \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-messenger-no-upload migrate-fresh-seeder-messenger-no-sticker-upload seed-user-roles backfill-snapshots flush-cache \
+	migrate-up migrate-all migrate-main migrate-snapshots \
+	migrate-user migrate-auth migrate-authz \
+	migrate-movie-main migrate-messenger-main \
+	migrate-messenger-snapshots migrate-movie-snapshots \
+	seed-main seed-users seed-messenger seed-movie seed-user-roles \
+	migrate-movie migrate-messenger \
+	replay-snapshots replay replay-user-snapshots \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-messenger-no-upload migrate-fresh-seeder-messenger-no-sticker-upload seed-user-roles flush-cache \
 	proto build-proto run-proto \
 	test \
 	frontend down-frontend logs
@@ -50,6 +56,7 @@ help:
 	@echo "  make migrate-messenger                Migrate messenger-service"
 	@echo "  make migrate-fresh-seeder-messenger                  Fresh/seed messenger-service"
 	@echo "  make migrate-fresh-seeder-messenger-no-sticker-upload  Fresh/seed messenger-service (skip sticker CDN upload)"
+	@echo "  make replay-user-snapshots            Publish user.created events → sync user_snapshots toàn service"
 	@echo "Ports:"
 	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT), messenger-service=$(MESSENGER_SERVICE_PORT)"
 
@@ -159,8 +166,20 @@ logs:
 frontend:
 	@cd frontend && npm run dev
 
-migrate-up: migrate-auth migrate-authz migrate-user migrate-movie migrate-messenger
-	@echo "✅ All migrations completed"
+# ── Phase 1: migrate main tables ────────────────────────────────────────────
+# Creates all primary tables (users, movies, messages, emojis, …).
+# Does NOT touch snapshot tables.
+migrate-main: migrate-user migrate-movie-main migrate-messenger-main migrate-auth migrate-authz
+	@echo "✅ Phase 1 done — main tables migrated"
+
+migrate-user:
+	@$(MAKE) -C users-service migrate-up
+
+migrate-movie-main:
+	@$(MAKE) -C movies-service migrate-main
+
+migrate-messenger-main:
+	@$(MAKE) -C messenger-service migrate-main
 
 migrate-auth:
 	@$(MAKE) -C auth-service migrate-up
@@ -168,11 +187,55 @@ migrate-auth:
 migrate-authz:
 	@$(MAKE) -C authorization-service migrate-up
 
-migrate-user:
-	@$(MAKE) -C users-service migrate-up
+# ── Phase 2: seed main data ──────────────────────────────────────────────────
+seed-main: seed-users seed-messenger seed-movie seed-user-roles
+	@echo "✅ Phase 2 done — main data seeded"
 
-migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles backfill-snapshots flush-cache
-	@echo "✅ All databases recreated and seeded"
+seed-users:
+	@$(MAKE) -C users-service seed SEED_NOOP_KAFKA=1
+
+seed-messenger:
+	@$(MAKE) -C messenger-service seeder
+
+seed-movie:
+	@true   # placeholder — add: $(MAKE) -C movies-service seed when seeder exists
+
+# ── Phase 3: migrate snapshot tables ────────────────────────────────────────
+# Creates user_snapshots in each consumer service DB.
+migrate-snapshots: migrate-messenger-snapshots migrate-movie-snapshots
+	@echo "✅ Phase 3 done — snapshot tables created"
+
+migrate-messenger-snapshots:
+	@$(MAKE) -C messenger-service migrate-snapshots
+
+migrate-movie-snapshots:
+	@$(MAKE) -C movies-service migrate-snapshots
+
+# ── Phase 4: replay user events → sync snapshots ────────────────────────────
+# Publishes user.upserted for every user; consumers INSERT INTO user_snapshots.
+# Idempotent — safe to run multiple times.
+replay-snapshots:
+	@$(MAKE) -C users-service replay
+
+# ── Full setup shortcut ──────────────────────────────────────────────────────
+# Convenience alias: run all 4 phases in order.
+# Use when setting up from scratch or after a fresh seed.
+migrate-all: migrate-main seed-main migrate-snapshots replay-snapshots
+	@echo ""
+	@echo "✅ Full setup complete"
+	@echo "   Phase 1: main tables    ✓"
+	@echo "   Phase 2: main data      ✓"
+	@echo "   Phase 3: snapshot tables ✓"
+	@echo "   Phase 4: user.upserted events published ✓"
+
+# ── migrate-up: legacy alias — runs all migrations without seeding ───────────
+migrate-up: migrate-main migrate-snapshots
+	@echo "✅ All migrations completed"
+
+# ── migrate-fresh-seeder ─────────────────────────────────────────────────────
+# Fresh drop + recreate all databases, then run migrate-all.
+migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles flush-cache migrate-snapshots replay-snapshots
+	@echo "✅ All databases recreated, seeded, and snapshots synced"
 
 seed-user-roles:
 	@echo "→ seeding user_roles from tumlumtala_users..."
@@ -187,15 +250,10 @@ seed-user-roles:
 			FROM tumlumtala_users.users;"'
 	@echo "✅ user_roles seeded"
 
-backfill-snapshots:
-	@echo "→ backfilling user_snapshots in tumlumtala_messenger..."
-	@docker exec tumlumtala-users-mysql \
-		sh -c 'MYSQL_PWD=root mysql -uroot -e "\
-			INSERT INTO tumlumtala_messenger.user_snapshots (id, uuid, email, fullname, avatar, role, created_at, updated_at) \
-			SELECT id, uuid, email, fullname, COALESCE(avatar, \x27\x27), role, created_at, updated_at FROM tumlumtala_users.users \
-			ON DUPLICATE KEY UPDATE \
-				uuid=VALUES(uuid), email=VALUES(email), fullname=VALUES(fullname), avatar=VALUES(avatar), role=VALUES(role), updated_at=VALUES(updated_at);"'
-	@echo "✅ user_snapshots backfilled"
+# replay / replay-user-snapshots — convenience aliases for Phase 4 alone.
+replay-user-snapshots: replay-snapshots
+
+replay: replay-snapshots
 
 flush-cache:
 	@docker exec tumlumtala-redis redis-cli -a redis_password FLUSHDB 2>/dev/null || true
