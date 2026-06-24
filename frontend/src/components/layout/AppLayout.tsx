@@ -23,6 +23,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MovieIcon from "@mui/icons-material/Movie";
+import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import ChatIcon from "@mui/icons-material/Chat";
 import PeopleIcon from "@mui/icons-material/People";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
@@ -45,6 +46,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", icon: <DashboardIcon />, path: "/" },
   { label: "Người dùng", icon: <PeopleIcon />, path: "/users" },
   { label: "Phim", icon: <MovieIcon />, path: "/movie" },
+  { label: "Âm nhạc", icon: <MusicNoteIcon />, path: "/music" },
   { label: "Tin nhắn", icon: <ChatIcon />, path: "/messenger" },
 ];
 

@@ -25,6 +25,7 @@ import (
 	authzgrpc "github.com/tumlumtala/gateway/internal/modules/authorization/grpcclient"
 	messengerhttp "github.com/tumlumtala/gateway/internal/modules/messenger/http"
 	movieshttp "github.com/tumlumtala/gateway/internal/modules/movies/http"
+	musicshttp "github.com/tumlumtala/gateway/internal/modules/musics/http"
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
@@ -171,6 +172,11 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		return nil, err
 	}
 
+	musicsProxy, err := musicshttp.NewMusicsProxy(cfg.MusicsServiceURL)
+	if err != nil {
+		return nil, err
+	}
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(otelgin.Middleware(logger.ServiceGateway, otelgin.WithFilter(func(req *nethttp.Request) bool {
@@ -186,6 +192,7 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		userhttp.NewUserRoutes(userHandler, authzClient),
 		messengerhttp.NewMessengerRoutes(messengerProxy),
 		movieshttp.NewMoviesRoutes(moviesProxy),
+		musicshttp.NewMusicsRoutes(musicsProxy),
 		httproutes.NewHealthRoutes(healthHandler),
 		httproutes.NewMetricsRoutes(),
 	)

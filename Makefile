@@ -8,7 +8,8 @@ USER_SERVICE_PORT      ?= 25052
 AUTH_SERVICE_PORT      ?= 25053
 AUTHZ_SERVICE_PORT     ?= 25054
 MESSENGER_SERVICE_PORT ?= 25056
-SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT) $(MESSENGER_SERVICE_PORT)
+MUSICS_SERVICE_PORT    ?= 25057
+SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT) $(MESSENGER_SERVICE_PORT) $(MUSICS_SERVICE_PORT)
 
 .NOTPARALLEL:
 
@@ -18,15 +19,16 @@ SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT)
 	start-authz up-authz build-authz down-authz \
 	start-user up-user build-user down-user \
 	start-messenger up-messenger build-messenger down-messenger \
+	start-musics up-musics build-musics down-musics \
 	start-gateway up-gateway build-gateway down-gateway \
 	migrate-up migrate-all migrate-main migrate-snapshots \
 	migrate-user migrate-auth migrate-authz \
-	migrate-movie-main migrate-messenger-main \
-	migrate-messenger-snapshots migrate-movie-snapshots \
+	migrate-movie-main migrate-messenger-main migrate-musics-main \
+	migrate-messenger-snapshots migrate-movie-snapshots migrate-musics-snapshots \
 	seed-main seed-users seed-messenger seed-movie seed-user-roles \
-	migrate-movie migrate-messenger \
+	migrate-movie migrate-messenger migrate-musics \
 	replay-snapshots replay replay-user-snapshots \
-	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-messenger-no-upload migrate-fresh-seeder-messenger-no-sticker-upload seed-user-roles flush-cache \
+	migrate-fresh-seeder migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-musics migrate-fresh-seeder-messenger-no-upload migrate-fresh-seeder-messenger-no-sticker-upload seed-user-roles flush-cache \
 	proto build-proto run-proto \
 	test \
 	frontend down-frontend logs
@@ -56,15 +58,18 @@ help:
 	@echo "  make migrate-messenger                Migrate messenger-service"
 	@echo "  make migrate-fresh-seeder-messenger                  Fresh/seed messenger-service"
 	@echo "  make migrate-fresh-seeder-messenger-no-sticker-upload  Fresh/seed messenger-service (skip sticker CDN upload)"
+	@echo "  make migrate-musics                   Migrate musics-service"
+	@echo "  make migrate-fresh-seeder-musics      Fresh/seed musics-service"
 	@echo "  make replay-user-snapshots            Publish user.created events → sync user_snapshots toàn service"
 	@echo "Ports:"
-	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT), messenger-service=$(MESSENGER_SERVICE_PORT)"
+	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT), messenger-service=$(MESSENGER_SERVICE_PORT), musics-service=$(MUSICS_SERVICE_PORT)"
 
 ports:
 	@echo "users-service          $(USER_SERVICE_PORT)"
 	@echo "auth-service           $(AUTH_SERVICE_PORT)"
 	@echo "authorization-service  $(AUTHZ_SERVICE_PORT)"
 	@echo "messenger-service      $(MESSENGER_SERVICE_PORT)"
+	@echo "musics-service         $(MUSICS_SERVICE_PORT)"
 
 validate-ports:
 	@if [ "$(words $(sort $(SERVICE_PORTS)))" -ne "$(words $(SERVICE_PORTS))" ]; then \
@@ -169,7 +174,7 @@ frontend:
 # ── Phase 1: migrate main tables ────────────────────────────────────────────
 # Creates all primary tables (users, movies, messages, emojis, …).
 # Does NOT touch snapshot tables.
-migrate-main: migrate-user migrate-movie-main migrate-messenger-main migrate-auth migrate-authz
+migrate-main: migrate-user migrate-movie-main migrate-messenger-main migrate-musics-main migrate-auth migrate-authz
 	@echo "✅ Phase 1 done — main tables migrated"
 
 migrate-user:
@@ -180,6 +185,9 @@ migrate-movie-main:
 
 migrate-messenger-main:
 	@$(MAKE) -C messenger-service migrate-main
+
+migrate-musics-main:
+	@$(MAKE) -C musics-service migrate-main
 
 migrate-auth:
 	@$(MAKE) -C auth-service migrate-up
@@ -202,7 +210,7 @@ seed-movie:
 
 # ── Phase 3: migrate snapshot tables ────────────────────────────────────────
 # Creates user_snapshots in each consumer service DB.
-migrate-snapshots: migrate-messenger-snapshots migrate-movie-snapshots
+migrate-snapshots: migrate-messenger-snapshots migrate-movie-snapshots migrate-musics-snapshots
 	@echo "✅ Phase 3 done — snapshot tables created"
 
 migrate-messenger-snapshots:
@@ -210,6 +218,9 @@ migrate-messenger-snapshots:
 
 migrate-movie-snapshots:
 	@$(MAKE) -C movies-service migrate-snapshots
+
+migrate-musics-snapshots:
+	@$(MAKE) -C musics-service migrate-snapshots
 
 # ── Phase 4: replay user events → sync snapshots ────────────────────────────
 # Publishes user.upserted for every user; consumers INSERT INTO user_snapshots.
@@ -234,7 +245,7 @@ migrate-up: migrate-main migrate-snapshots
 
 # ── migrate-fresh-seeder ─────────────────────────────────────────────────────
 # Fresh drop + recreate all databases, then run migrate-all.
-migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger seed-user-roles flush-cache migrate-snapshots replay-snapshots
+migrate-fresh-seeder: migrate-fresh-seeder-auth migrate-fresh-seeder-authz migrate-fresh-seeder-user migrate-fresh-seeder-movie migrate-fresh-seeder-messenger migrate-fresh-seeder-musics seed-user-roles flush-cache migrate-snapshots replay-snapshots
 	@echo "✅ All databases recreated, seeded, and snapshots synced"
 
 seed-user-roles:
@@ -273,6 +284,24 @@ migrate-movie:
 
 migrate-fresh-seeder-movie:
 	@$(MAKE) -C movies-service migrate-fresh
+
+migrate-musics:
+	@$(MAKE) -C musics-service migrate-up
+
+migrate-fresh-seeder-musics:
+	@$(MAKE) -C musics-service migrate-fresh
+
+up-musics: validate-ports
+	@$(MAKE) -C musics-service start PORT=$(MUSICS_SERVICE_PORT)
+
+build-musics: validate-ports
+	@$(MAKE) -C musics-service up PORT=$(MUSICS_SERVICE_PORT)
+
+start-musics: validate-ports
+	@$(MAKE) -C musics-service start PORT=$(MUSICS_SERVICE_PORT)
+
+down-musics:
+	@$(MAKE) -C musics-service down
 
 up-messenger: validate-ports
 	@$(MAKE) -C messenger-service start PORT=$(MESSENGER_SERVICE_PORT)

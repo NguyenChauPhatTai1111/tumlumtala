@@ -18,6 +18,7 @@ interface MovieHomeTabProps {
 		loading: boolean;
 		error: boolean;
 		page: number;
+		pageOffset: number;
 		totalPages: number;
 		heroIndices: ReadonlySet<number>;
 		load: (page: number, append: boolean) => Promise<void>;
@@ -108,12 +109,12 @@ export function MovieHomeTab({
 					onPlay={onPlay}
 					onFilter={onFilter}
 					onLoadMore={onLoadMore}
-					canLoadMore={latest.page < latest.totalPages}
+					canLoadMore={latest.pageOffset + latest.page < latest.totalPages}
 					loadingMore={latest.loading}
 					loadMoreError={latest.error}
 					scrollRoot={scrollContainer}
 					page={latest.page}
-					totalPages={latest.totalPages}
+					totalPages={latest.totalPages - latest.pageOffset}
 					maxScrollPages={HOME_INFINITE_SCROLL_MAX_PAGES}
 					onPageChange={onPageChange}
 				/>

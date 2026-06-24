@@ -89,26 +89,24 @@ export const MovieGrid = ({
 	onLoadMoreRef.current = onLoadMore;
 
 	useEffect(() => {
-		// Don't observe while already loading or when there's nothing more to load
 		if (!infiniteScrollActive || !canLoadMore || loadingMore) return;
-		const el = sentinelRef.current;
-		if (!el) return;
+		const sentinel = sentinelRef.current;
+		if (!sentinel) return;
 
-		// Guard against double-fire within the same observer lifecycle
-		let fired = false;
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting && !fired) {
-					fired = true;
-					onLoadMoreRef.current?.();
-				}
-			},
-			// rootMargin pre-loads before sentinel is fully visible, matching the
-			// old "trigger 8 items before the end" behaviour
-			{ root: scrollRoot ?? null, rootMargin: "400px 0px", threshold: 0 },
-		);
-		observer.observe(el);
-		return () => observer.disconnect();
+		const check = () => {
+			const rect = sentinel.getBoundingClientRect();
+			const containerHeight = scrollRoot
+				? scrollRoot.getBoundingClientRect().bottom
+				: window.innerHeight;
+			if (rect.top <= containerHeight + 400) {
+				onLoadMoreRef.current?.();
+			}
+		};
+
+		const target: EventTarget = scrollRoot ?? window;
+		target.addEventListener("scroll", check, { passive: true });
+		check();
+		return () => target.removeEventListener("scroll", check);
 	}, [infiniteScrollActive, canLoadMore, scrollRoot, loadingMore]);
 
 	const gridSx = {

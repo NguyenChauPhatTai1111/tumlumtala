@@ -51,6 +51,7 @@ interface MovieSearchTabProps {
 		error: boolean;
 		movies: OphimMovieItem[];
 		page: number;
+		pageOffset: number;
 		totalPages: number;
 		load: (
 			keyword: string,
@@ -64,6 +65,7 @@ interface MovieSearchTabProps {
 		error: boolean;
 		movies: OphimMovieItem[];
 		page: number;
+		pageOffset: number;
 		totalPages: number;
 	};
 	likedSlugs: Set<string>;
@@ -284,12 +286,12 @@ export function MovieSearchTab({
 							onPlay={onPlay}
 							onFilter={onFilter}
 							onLoadMore={onLoadMoreSearch}
-							canLoadMore={search.page < search.totalPages}
+							canLoadMore={search.pageOffset + search.page < search.totalPages}
 							loadingMore={search.loading}
 							loadMoreError={search.error}
 							scrollRoot={scrollContainer}
 							page={search.page}
-							totalPages={search.totalPages}
+							totalPages={search.totalPages - search.pageOffset}
 							onPageChange={onPageChangeSearch}
 						/>
 					)}
@@ -323,12 +325,12 @@ export function MovieSearchTab({
 					onPlay={onPlay}
 					onFilter={onFilter}
 					onLoadMore={onLoadMoreList}
-					canLoadMore={list.page < list.totalPages}
+					canLoadMore={list.pageOffset + list.page < list.totalPages}
 					loadingMore={list.loading}
 					loadMoreError={list.error}
 					scrollRoot={scrollContainer}
 					page={list.page}
-					totalPages={list.totalPages}
+					totalPages={list.totalPages - list.pageOffset}
 					onPageChange={onPageChangeList}
 				/>
 			)}

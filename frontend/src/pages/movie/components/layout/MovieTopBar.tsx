@@ -30,6 +30,7 @@ interface MovieTopBarProps {
 	likedCount?: number;
 	mode: "light" | "dark";
 	setMode: (mode: "light" | "dark") => void;
+	scrolled?: boolean;
 }
 
 const TABS: { value: MovieTab; label: (likedCount?: number) => string }[] = [
@@ -50,6 +51,7 @@ export function MovieTopBar({
 	likedCount,
 	mode,
 	setMode,
+	scrolled = false,
 }: MovieTopBarProps) {
 	const theme = useTheme();
 
@@ -58,8 +60,15 @@ export function MovieTopBar({
 			sx={{
 				flexShrink: 0,
 				zIndex: 100,
-				backgroundColor: alpha(theme.palette.background.default, 0.5),
-				backdropFilter: "blur(12px)",
+				backgroundColor: alpha(
+					theme.palette.background.default,
+					scrolled ? 0.75 : 0,
+				),
+				backdropFilter: scrolled ? "blur(16px)" : "none",
+				transition: "background-color 0.3s ease, backdrop-filter 0.3s ease",
+				borderBottom: scrolled
+					? `1px solid ${alpha(theme.palette.divider, 0.15)}`
+					: "1px solid transparent",
 			}}
 		>
 			<Box

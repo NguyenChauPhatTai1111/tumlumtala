@@ -241,7 +241,7 @@ export function HeroSlider({
 								draggable={false}
 								onError={(e) => {
 									const img = e.currentTarget as HTMLImageElement;
-									if (img.src !== "/placeholder-backdrop.svg") {
+									if (!img.src.endsWith("/placeholder-backdrop.svg")) {
 										img.onerror = null;
 										img.src = "/placeholder-backdrop.svg";
 									}
@@ -570,7 +570,7 @@ export function HeroSlider({
 						draggable={false}
 						onError={(e) => {
 							const img = e.currentTarget as HTMLImageElement;
-							if (img.src !== "/placeholder-backdrop.svg") {
+							if (!img.src.endsWith("/placeholder-backdrop.svg")) {
 								img.onerror = null;
 								img.src = "/placeholder-backdrop.svg";
 							}

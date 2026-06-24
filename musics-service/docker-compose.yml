@@ -1,0 +1,19 @@
+services:
+  musics-service:
+    build:
+      context: ..
+      dockerfile: musics-service/Dockerfile
+    container_name: tumlumtala-musics-service
+    env_file: .env
+    environment:
+      DB_HOST: tumlumtala-users-mysql
+      DB_PORT: "3306"
+    ports:
+      - "${PORT:-25057}:${PORT:-25057}"
+    networks:
+      - tumlumtala-net
+    restart: unless-stopped
+
+networks:
+  tumlumtala-net:
+    external: true

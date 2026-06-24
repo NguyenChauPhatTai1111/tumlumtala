@@ -188,6 +188,7 @@ export const useRecordWatchMutation = () => {
 
 export const useLatestMovies = (heroCount: number) => {
 	const [page, setPage] = useState(1);
+	const [pageOffset, setPageOffset] = useState(0);
 	const [movies, setMovies] = useState<OphimMovieItem[]>([]);
 	const [heroIndices, setHeroIndices] = useState<ReadonlySet<number>>(
 		new Set(),
@@ -211,9 +212,12 @@ export const useLatestMovies = (heroCount: number) => {
 						indices.add(Math.floor(Math.random() * pool));
 					}
 					setHeroIndices(indices);
+					setPageOffset(p - 1);
+					setPage(1);
+				} else {
+					setPage((prev) => prev + 1);
 				}
 				setTotalPages(data.pagination.totalPages);
-				setPage(p);
 			} catch {
 				setError(true);
 			} finally {
@@ -223,11 +227,12 @@ export const useLatestMovies = (heroCount: number) => {
 		[heroCount],
 	);
 
-	return { page, movies, heroIndices, totalPages, loading, error, load };
+	return { page, pageOffset, movies, heroIndices, totalPages, loading, error, load };
 };
 
 export const useSearchMovies = () => {
 	const [page, setPage] = useState(1);
+	const [pageOffset, setPageOffset] = useState(0);
 	const [movies, setMovies] = useState<OphimMovieItem[]>([]);
 	const [totalPages, setTotalPages] = useState(1);
 	const [loading, setLoading] = useState(false);
@@ -246,7 +251,12 @@ export const useSearchMovies = () => {
 				const data = await searchMovies(kw, p, MOVIE_PAGE_SIZE, filter);
 				setMovies((prev) => (append ? [...prev, ...data.items] : data.items));
 				setTotalPages(data.pagination.totalPages);
-				setPage(p);
+				if (!append) {
+					setPageOffset(p - 1);
+					setPage(1);
+				} else {
+					setPage((prev) => prev + 1);
+				}
 			} catch {
 				setError(true);
 			} finally {
@@ -259,9 +269,10 @@ export const useSearchMovies = () => {
 	const reset = useCallback(() => {
 		setMovies([]);
 		setPage(1);
+		setPageOffset(0);
 	}, []);
 
-	return { page, movies, totalPages, loading, error, load, reset };
+	return { page, pageOffset, movies, totalPages, loading, error, load, reset };
 };
 
 export const useLikedMovies = () => {
@@ -407,6 +418,7 @@ export const useSaveSearchKeyword = (
 
 export const useListMovies = () => {
 	const [page, setPage] = useState(1);
+	const [pageOffset, setPageOffset] = useState(0);
 	const [movies, setMovies] = useState<OphimMovieItem[]>([]);
 	const [totalPages, setTotalPages] = useState(1);
 	const [loading, setLoading] = useState(false);
@@ -446,7 +458,12 @@ export const useListMovies = () => {
 
 				setMovies((prev) => (append ? [...prev, ...data.items] : data.items));
 				setTotalPages(data.pagination.totalPages);
-				setPage(p);
+				if (!append) {
+					setPageOffset(p - 1);
+					setPage(1);
+				} else {
+					setPage((prev) => prev + 1);
+				}
 			} catch {
 				setError(true);
 			} finally {
@@ -459,11 +476,12 @@ export const useListMovies = () => {
 	const reset = useCallback(() => {
 		setMovies([]);
 		setPage(1);
+		setPageOffset(0);
 		setTotalPages(1);
 		setError(false);
 	}, []);
 
-	return { page, movies, totalPages, loading, error, load, reset };
+	return { page, pageOffset, movies, totalPages, loading, error, load, reset };
 };
 
 export type { OphimMovieItem, OphimV1CatalogItem };

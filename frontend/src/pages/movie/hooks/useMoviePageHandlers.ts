@@ -154,16 +154,16 @@ export function useMoviePageHandlers({
 
 	// ── Load more callbacks ──
 	const handleLoadMoreLatest = useCallback(() => {
-		if (latest.loading || latest.page >= latest.totalPages) return;
-		void latest.load(latest.page + 1, true);
+		if (latest.loading || latest.pageOffset + latest.page >= latest.totalPages) return;
+		void latest.load(latest.pageOffset + latest.page + 1, true);
 	}, [latest]);
 
 	const handleLoadMoreList = useCallback(() => {
-		if (!committedFilter || list.loading || list.page >= list.totalPages)
+		if (!committedFilter || list.loading || list.pageOffset + list.page >= list.totalPages)
 			return;
 		void list.load(
 			committedFilter.listSlug,
-			list.page + 1,
+			list.pageOffset + list.page + 1,
 			true,
 			committedFilter.sortField,
 			committedFilter.sortType,
@@ -174,11 +174,11 @@ export function useMoviePageHandlers({
 	}, [committedFilter, list]);
 
 	const handleLoadMoreSearch = useCallback(() => {
-		if (!hasSearch || search.loading || search.page >= search.totalPages)
+		if (!hasSearch || search.loading || search.pageOffset + search.page >= search.totalPages)
 			return;
 		void search.load(
 			searchKeyword,
-			search.page + 1,
+			search.pageOffset + search.page + 1,
 			true,
 			listFilterRef.current,
 		);
@@ -194,21 +194,29 @@ export function useMoviePageHandlers({
 		void history.load(history.page + 1, true);
 	}, [history]);
 
+	const scrollToTop = useCallback(() => {
+		if (!scrollContainer) return;
+		// Double rAF: first frame commits layout, second frame paints — scroll after paint
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				scrollContainer.scrollTo({ top: 0, behavior: "instant" });
+			});
+		});
+	}, [scrollContainer]);
+
 	// ── Page change with scroll-to-top ──
 	const handlePageChangeLatest = useCallback(
 		(p: number) => {
-			void latest.load(p, false);
-			scrollContainer?.scrollTo({ top: 0, behavior: "smooth" });
+			void latest.load(latest.pageOffset + p, false).then(scrollToTop);
 		},
-		[latest, scrollContainer],
+		[latest, scrollToTop],
 	);
 
 	const handlePageChangeSearch = useCallback(
 		(p: number) => {
-			void search.load(searchKeyword, p, false, listFilterRef.current);
-			scrollContainer?.scrollTo({ top: 0, behavior: "smooth" });
+			void search.load(searchKeyword, search.pageOffset + p, false, listFilterRef.current).then(scrollToTop);
 		},
-		[search, searchKeyword, listFilterRef, scrollContainer],
+		[search, searchKeyword, listFilterRef, scrollToTop],
 	);
 
 	const handlePageChangeList = useCallback(
@@ -216,33 +224,30 @@ export function useMoviePageHandlers({
 			if (!committedFilter) return;
 			void list.load(
 				committedFilter.listSlug,
-				p,
+				list.pageOffset + p,
 				false,
 				committedFilter.sortField,
 				committedFilter.sortType,
 				committedFilter.genreSlug,
 				committedFilter.countrySlug,
 				committedFilter.yearSlug,
-			);
-			scrollContainer?.scrollTo({ top: 0, behavior: "smooth" });
+			).then(scrollToTop);
 		},
-		[committedFilter, list, scrollContainer],
+		[committedFilter, list, scrollToTop],
 	);
 
 	const handlePageChangeLiked = useCallback(
 		(p: number) => {
-			void liked.load(p, false);
-			scrollContainer?.scrollTo({ top: 0, behavior: "smooth" });
+			void liked.load(p, false).then(scrollToTop);
 		},
-		[liked, scrollContainer],
+		[liked, scrollToTop],
 	);
 
 	const handlePageChangeHistory = useCallback(
 		(p: number) => {
-			void history.load(p, false);
-			scrollContainer?.scrollTo({ top: 0, behavior: "smooth" });
+			void history.load(p, false).then(scrollToTop);
 		},
-		[history, scrollContainer],
+		[history, scrollToTop],
 	);
 
 	const handleRetryList = useCallback(() => {

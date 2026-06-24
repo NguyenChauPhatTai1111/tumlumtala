@@ -209,6 +209,7 @@ export default function MoviePage({
 				likedCount={likedQuery.data?.length}
 				mode={mode}
 				setMode={setMode}
+				scrolled={showBackToTop}
 			/>
 
 			{/* ── Scrollable content ── */}

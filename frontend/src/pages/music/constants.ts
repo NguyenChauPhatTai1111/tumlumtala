@@ -1,0 +1,1 @@
+export const LOAD_MORE_TRIGGER_INDEX = 39;

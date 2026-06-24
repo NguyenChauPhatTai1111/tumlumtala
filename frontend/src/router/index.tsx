@@ -9,6 +9,7 @@ import NotFound from "@pages/NotFound";
 import { AuthGuard, GuestGuard } from "./AuthGuard";
 import MoviePageWrapper from "./MoviePageWrapper";
 import MessengerPageWrapper from "./MessengerPageWrapper";
+import MusicPageWrapper from "./MusicPageWrapper";
 import { RouteErrorPage } from "@components/common/RouteErrorPage";
 
 const MoviePage = lazy(() => import("@pages/movie/MoviePage"));
@@ -39,6 +40,12 @@ export const router = createBrowserRouter([
       {
         path: "/movie",
         element: <MoviePageWrapper MoviePage={MoviePage} />,
+        errorElement: <RouteErrorPage />,
+      },
+      // Music page — full-screen, no AppLayout sidebar
+      {
+        path: "/music",
+        element: <MusicPageWrapper />,
         errorElement: <RouteErrorPage />,
       },
       // Messenger — full-screen, no AppLayout sidebar

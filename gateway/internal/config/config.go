@@ -42,6 +42,7 @@ type Config struct {
 	OrderServiceAddr         string
 	MessengerServiceURL      string
 	MoviesServiceURL         string
+	MusicsServiceURL         string
 	RequestTimeout           time.Duration
 	RateLimitPerMin          int
 	Redis                    RedisConfig
@@ -69,6 +70,7 @@ func Load() Config {
 		OrderServiceAddr:         getEnv("ORDER_SERVICE_ADDR", "localhost:250055"),
 		MessengerServiceURL:      getEnv("MESSENGER_SERVICE_URL", "http://localhost:25056"),
 		MoviesServiceURL:         getEnv("MOVIES_SERVICE_URL", "http://localhost:25055"),
+		MusicsServiceURL:         getEnv("MUSICS_SERVICE_URL", "http://localhost:25057"),
 		RequestTimeout:           time.Duration(getEnvInt("REQUEST_TIMEOUT_SECONDS", 5)) * time.Second,
 		RateLimitPerMin:          getEnvInt("RATE_LIMIT_PER_MINUTE", 120),
 		Redis: RedisConfig{
