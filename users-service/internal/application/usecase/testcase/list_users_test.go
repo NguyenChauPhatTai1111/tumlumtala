@@ -13,7 +13,7 @@ func TestListUsersDefaultLimit(t *testing.T) {
 	users := makeUsers(5)
 	uc := usecase.NewListUsersUseCase(newQueryStub(users...))
 
-	result, err := uc.Execute(context.Background(), 0, 0)
+	result, err := uc.Execute(context.Background(), 0, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestListUsersCapsLimitAt100(t *testing.T) {
 	users := makeUsers(3)
 	uc := usecase.NewListUsersUseCase(newQueryStub(users...))
 
-	result, err := uc.Execute(context.Background(), 999, 0)
+	result, err := uc.Execute(context.Background(), 999, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestListUsersCapsLimitAt100(t *testing.T) {
 func TestListUsersNegativeOffsetReturnsError(t *testing.T) {
 	uc := usecase.NewListUsersUseCase(newQueryStub())
 
-	_, err := uc.Execute(context.Background(), 10, -1)
+	_, err := uc.Execute(context.Background(), 10, -1, "")
 	if !errors.Is(err, domainerrors.ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput, got %v", err)
 	}
@@ -50,7 +50,7 @@ func TestListUsersNegativeOffsetReturnsError(t *testing.T) {
 func TestListUsersEmptyResult(t *testing.T) {
 	uc := usecase.NewListUsersUseCase(newQueryStub())
 
-	result, err := uc.Execute(context.Background(), 10, 0)
+	result, err := uc.Execute(context.Background(), 10, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 COPY contracts /contracts
+COPY kafka-service /kafka-service
 COPY users-service/go.mod users-service/go.sum* ./
 RUN go mod download
 COPY users-service .

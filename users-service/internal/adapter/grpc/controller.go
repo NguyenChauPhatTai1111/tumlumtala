@@ -93,7 +93,7 @@ func (c *UserController) GetUser(ctx context.Context, req *userpb.GetUserRequest
 }
 
 func (c *UserController) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
-	result, err := c.list.Execute(ctx, req.GetLimit(), req.GetOffset())
+	result, err := c.list.Execute(ctx, req.GetLimit(), req.GetOffset(), req.GetSearch())
 	if err != nil {
 		return nil, mapError(err)
 	}

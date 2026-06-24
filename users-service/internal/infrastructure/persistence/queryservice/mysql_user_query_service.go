@@ -33,9 +33,14 @@ func (q *MySQLUserQueryService) GetByEmail(ctx context.Context, email string) (*
 	return user.ToEntity(), nil
 }
 
-func (q *MySQLUserQueryService) List(ctx context.Context, limit, offset int32) ([]entity.User, error) {
+func (q *MySQLUserQueryService) List(ctx context.Context, limit, offset int32, search string) ([]entity.User, error) {
 	var records []model.User
-	err := q.db.WithContext(ctx).Order("created_at DESC").Limit(int(limit)).Offset(int(offset)).Find(&records).Error
+	db := q.db.WithContext(ctx).Order("created_at DESC")
+	if search != "" {
+		like := "%" + search + "%"
+		db = db.Where("fullname LIKE ? OR email LIKE ?", like, like)
+	}
+	err := db.Limit(int(limit)).Offset(int(offset)).Find(&records).Error
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +51,13 @@ func (q *MySQLUserQueryService) List(ctx context.Context, limit, offset int32) (
 	return users, nil
 }
 
-func (q *MySQLUserQueryService) Count(ctx context.Context) (int64, error) {
+func (q *MySQLUserQueryService) Count(ctx context.Context, search string) (int64, error) {
 	var total int64
-	err := q.db.WithContext(ctx).Model(&model.User{}).Count(&total).Error
+	db := q.db.WithContext(ctx).Model(&model.User{})
+	if search != "" {
+		like := "%" + search + "%"
+		db = db.Where("fullname LIKE ? OR email LIKE ?", like, like)
+	}
+	err := db.Count(&total).Error
 	return total, err
 }

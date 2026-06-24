@@ -62,7 +62,7 @@ func (s *queryStub) GetByEmail(_ context.Context, email string) (*entity.User, e
 	return u, nil
 }
 
-func (s *queryStub) List(_ context.Context, limit, offset int32) ([]entity.User, error) {
+func (s *queryStub) List(_ context.Context, limit, offset int32, search string) ([]entity.User, error) {
 	seen := make(map[uint64]bool)
 	all := make([]entity.User, 0)
 	for _, u := range s.users {
@@ -82,7 +82,7 @@ func (s *queryStub) List(_ context.Context, limit, offset int32) ([]entity.User,
 	return all[start:end], nil
 }
 
-func (s *queryStub) Count(_ context.Context) (int64, error) {
+func (s *queryStub) Count(_ context.Context, _ string) (int64, error) {
 	seen := make(map[uint64]bool)
 	for _, u := range s.users {
 		seen[u.ID] = true

@@ -17,7 +17,7 @@ func NewListUsersUseCase(queries queryservice.UserQueryService) *ListUsersUseCas
 	return &ListUsersUseCase{queries: queries}
 }
 
-func (uc *ListUsersUseCase) Execute(ctx context.Context, limit, offset int32) (*dto.UserListDTO, error) {
+func (uc *ListUsersUseCase) Execute(ctx context.Context, limit, offset int32, search string) (*dto.UserListDTO, error) {
 	return observability.TraceResult(ctx, "ListUsers UseCase", func(ctx context.Context) (*dto.UserListDTO, error) {
 		if limit <= 0 {
 			limit = 20
@@ -28,11 +28,11 @@ func (uc *ListUsersUseCase) Execute(ctx context.Context, limit, offset int32) (*
 		if offset < 0 {
 			return nil, domainerrors.ErrInvalidInput
 		}
-		users, err := uc.queries.List(ctx, limit, offset)
+		users, err := uc.queries.List(ctx, limit, offset, search)
 		if err != nil {
 			return nil, err
 		}
-		total, err := uc.queries.Count(ctx)
+		total, err := uc.queries.Count(ctx, search)
 		if err != nil {
 			return nil, err
 		}

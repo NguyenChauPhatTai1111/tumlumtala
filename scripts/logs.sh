@@ -14,6 +14,7 @@ stream_container tumlumtala-auth-service          "auth"      "75"
 stream_container tumlumtala-authorization-service "authz"     "75"
 stream_container tumlumtala-users-service         "users"     "75"
 stream_container tumlumtala-messenger-service     "messenger" "75"
+stream_container tumlumtala-movies-service        "movies"    "75"
 stream_container tumlumtala-gateway               "gateway"   "75"
 
 trap 'kill $(jobs -p) 2>/dev/null' INT TERM EXIT

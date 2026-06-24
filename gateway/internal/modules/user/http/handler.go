@@ -92,11 +92,17 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 
 func (h *UserHandler) ListUsers(c *gin.Context) {
 	limit := parseQueryInt32(c, "limit", 10)
-	offset := parseQueryInt32(c, "offset", 0)
+	page := parseQueryInt32(c, "page", 1)
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+	search := c.Query("search")
 
 	result, err := h.service.ListUsers(c.Request.Context(), domain.ListUsersInput{
 		Limit:  limit,
 		Offset: offset,
+		Search: search,
 	})
 	if err != nil {
 		response.Error(c, err)
@@ -112,6 +118,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 		"users":  users,
 		"total":  result.Total,
 		"limit":  limit,
+		"page":   page,
 		"offset": offset,
 	})
 }

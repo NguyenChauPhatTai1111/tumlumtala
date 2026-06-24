@@ -85,7 +85,7 @@ func main() {
 
 	queries := mysqlquery.NewMySQLUserQueryService(userDB)
 
-	total, err := queries.Count(ctx)
+	total, err := queries.Count(ctx, "")
 	if err != nil {
 		log.Fatalf("count users: %v", err)
 	}
@@ -107,7 +107,7 @@ func main() {
 	published := 0
 	var offset int32
 	for {
-		users, err := queries.List(ctx, batchSize, offset)
+		users, err := queries.List(ctx, batchSize, offset, "")
 		if err != nil {
 			log.Fatalf("list users offset=%d: %v", offset, err)
 		}

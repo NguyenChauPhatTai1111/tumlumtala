@@ -4,6 +4,7 @@ import {
 	getConversationDisplayName,
 } from "@components/messenger/messengerUtils";
 import type { ConversationItemProps } from "@components/messenger/types/conversation";
+import type { Participant } from "@/types/messenger";
 import AttachFileOutlinedIcon from "@mui/icons-material/AttachFileOutlined";
 import GroupIcon from "@mui/icons-material/Group";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -154,7 +155,7 @@ export const ConversationItem = ({
 				? (conversation.last_read_message_id ?? lastMessageId)
 				: lastMessageId;
 		return (conversation.participants ?? []).filter(
-			(p) =>
+			(p: Participant) =>
 				p.id !== currentUserId &&
 				p.last_read_seq != null &&
 				p.last_read_seq >= threshold,
@@ -473,7 +474,7 @@ export const ConversationItem = ({
 										},
 									}}
 								>
-									{readRecipients.map((p) => (
+									{readRecipients.map((p: Participant) => (
 										<Tooltip key={p.id} title={p.fullname}>
 											<Avatar
 												src={

@@ -883,22 +883,23 @@ export const searchUsers = async (
 		params.append("search", searchQuery.trim());
 	}
 
-	const response = await apiRequest(`/user?${params.toString()}`, {
+	const response = await apiRequest(`/users?${params.toString()}`, {
 		method: "GET",
 	});
 
-	// Handle response structure: { status, message, data: [...], pagination: {...} }
 	const root = toRecord(response);
-	const users = Array.isArray(root.data) ? root.data : [];
-	const pagination = toRecord(root.pagination);
+	const data = toRecord(root.data);
+	const users = Array.isArray(data.users) ? data.users : [];
+	const total = Number(data.total ?? users.length);
+	const totalPages = Math.ceil(total / limit) || 1;
 
 	return {
 		items: users.map(toUser),
-		total: Number(pagination.total ?? users.length),
-		page: Number(pagination.page ?? page),
-		limit: Number(pagination.limit ?? limit),
-		total_pages: Number(pagination.total_pages ?? 1),
-		has_next: Boolean(pagination.has_next),
-		has_prev: Boolean(pagination.has_prev),
+		total,
+		page,
+		limit,
+		total_pages: totalPages,
+		has_next: page < totalPages,
+		has_prev: page > 1,
 	};
 };

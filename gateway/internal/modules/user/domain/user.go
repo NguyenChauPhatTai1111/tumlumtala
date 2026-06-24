@@ -34,6 +34,7 @@ type UpdateProfileInput struct {
 type ListUsersInput struct {
 	Limit  int32
 	Offset int32
+	Search string
 }
 
 type ListUsersResult struct {

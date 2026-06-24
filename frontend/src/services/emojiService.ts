@@ -1,6 +1,6 @@
 import { apiClient } from "@api/client";
 import type { IEmoji } from "@/types/emoji";
-import { apiService } from "./apiService";
+import { API_PREFIX, apiService } from "./apiService";
 
 type ApiRequestOptions = {
 	method?: string;

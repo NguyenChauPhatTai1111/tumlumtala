@@ -83,7 +83,7 @@ func (s *controllerStore) GetByEmail(_ context.Context, email string) (*entity.U
 	return u, nil
 }
 
-func (s *controllerStore) List(_ context.Context, limit, offset int32) ([]entity.User, error) {
+func (s *controllerStore) List(_ context.Context, limit, offset int32, search string) ([]entity.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	seen := make(map[uint64]bool)
@@ -105,7 +105,7 @@ func (s *controllerStore) List(_ context.Context, limit, offset int32) ([]entity
 	return all[start:end], nil
 }
 
-func (s *controllerStore) Count(_ context.Context) (int64, error) {
+func (s *controllerStore) Count(_ context.Context, _ string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	seen := make(map[uint64]bool)

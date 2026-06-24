@@ -12,6 +12,7 @@ users-service  ──▶  user.created    ──▶  messenger-service  (user_sn
 ```
 
 Mỗi message được bọc trong `Envelope` (xem `kafka-service/envelope/envelope.go`):
+
 - `event_id` — UUID duy nhất, dùng để dedup
 - `topic`, `attempt`, `published_at`
 - `payload` — JSON của event cụ thể
@@ -45,12 +46,12 @@ make migrate-all
 
 Chạy lần lượt:
 
-| Phase | Make target | Nội dung |
-|-------|-------------|----------|
-| 1 | `migrate-main` | Tạo bảng chính: users, movies, messages, auth, … |
-| 2 | `seed-main` | Seed dữ liệu chính |
-| 3 | `migrate-snapshots` | Tạo bảng snapshot trong các consumer service |
-| 4 | `replay-snapshots` | Publish `user.upserted` → consumer tự sync |
+| Phase | Make target         | Nội dung                                         |
+| ----- | ------------------- | ------------------------------------------------ |
+| 1     | `migrate-main`      | Tạo bảng chính: users, movies, messages, auth, … |
+| 2     | `seed-main`         | Seed dữ liệu chính                               |
+| 3     | `migrate-snapshots` | Tạo bảng snapshot trong các consumer service     |
+| 4     | `replay-snapshots`  | Publish `user.upserted` → consumer tự sync       |
 
 Có thể chạy từng phase riêng:
 
@@ -156,15 +157,15 @@ Hoặc thêm vào `infra/docker-compose.yml` trong service `kafka-init`:
 
 ```yaml
 kafka-init:
-  command:
-    - |
-      rpk topic create \
-        user.created user.updated user.deleted user.upserted \
-        user.created.dlq user.updated.dlq user.deleted.dlq user.upserted.dlq \
-        movie.created movie.updated movie.deleted movie.upserted \
-        movie.created.dlq movie.updated.dlq movie.deleted.dlq movie.upserted.dlq \
-        --brokers tumlumtala-kafka:9092 \
-        --partitions 1 --replicas 1 2>&1 | grep -v "TOPIC_ALREADY_EXISTS" || true
+    command:
+        - |
+            rpk topic create \
+              user.created user.updated user.deleted user.upserted \
+              user.created.dlq user.updated.dlq user.deleted.dlq user.upserted.dlq \
+              movie.created movie.updated movie.deleted movie.upserted \
+              movie.created.dlq movie.updated.dlq movie.deleted.dlq movie.upserted.dlq \
+              --brokers tumlumtala-kafka:9092 \
+              --partitions 1 --replicas 1 2>&1 | grep -v "TOPIC_ALREADY_EXISTS" || true
 ```
 
 ### Bước 6 — Thêm migrate-snapshots target vào Makefile consumer service
@@ -211,6 +212,7 @@ replay-movie-snapshots:
 File: `messenger-service/internal/infrastructure/kafka/movie_snapshot_consumer_test.go`
 
 Dùng pattern stub như `user_snapshot_consumer_test.go`:
+
 - `movieSnapshotStoreStub` implement `MovieSnapshotStore`
 - Test: MovieCreatedEvent, MovieUpdatedEvent, MovieUpsertedEvent, InvalidPayload, StoreError
 
@@ -234,13 +236,13 @@ Dùng pattern stub như `user_snapshot_consumer_test.go`:
 
 ## Kafka topics hiện tại
 
-| Topic | Publisher | Consumer | Mô tả |
-|-------|-----------|----------|-------|
-| `user.created` | users-service | messenger, movies | User mới đăng ký |
-| `user.updated` | users-service | messenger, movies | User cập nhật profile |
-| `user.deleted` | users-service | messenger, movies | User bị xoá |
+| Topic           | Publisher              | Consumer          | Mô tả                    |
+| --------------- | ---------------------- | ----------------- | ------------------------ |
+| `user.created`  | users-service          | messenger, movies | User mới đăng ký         |
+| `user.updated`  | users-service          | messenger, movies | User cập nhật profile    |
+| `user.deleted`  | users-service          | messenger, movies | User bị xoá              |
 | `user.upserted` | users-service (replay) | messenger, movies | Bulk re-sync, idempotent |
-| `user.*.dlq` | consumer (on failure) | — | Dead letter queue |
+| `user.*.dlq`    | consumer (on failure)  | —                 | Dead letter queue        |
 
 ---
 

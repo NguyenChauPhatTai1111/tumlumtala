@@ -1,5 +1,5 @@
-import { apiRequest } from "@api/authApi";
-import { API_PREFIX, apiService } from "./apiService";
+import { apiClient } from "@api/client";
+import { apiService } from "./apiService";
 
 interface PagedResponse<T> {
 	items: T[];
@@ -83,18 +83,16 @@ export interface LikeMoviePayload {
 
 // Watch history
 export const getMovieWatchHistory = () =>
-	apiService.get<MovieWatchHistoryRow[]>(`${API_PREFIX}/movie/history`);
+	apiService.get<MovieWatchHistoryRow[]>(`/movie/history`);
 
 export const getMovieWatchHistoryPaged = async (
 	page = 1,
 	limit = 48,
 ): Promise<PagedResponse<MovieWatchHistoryRow>> => {
-	const res = await apiRequest(`${API_PREFIX}/movie/history`, {
-		params: { page, limit },
-	});
-	const p = res.pagination ?? {};
+	const res = await apiClient.get(`/movie/history`, { params: { page, limit } });
+	const p = res.data?.pagination ?? {};
 	return {
-		items: (res.data as MovieWatchHistoryRow[]) ?? [],
+		items: (res.data?.data as MovieWatchHistoryRow[]) ?? [],
 		total: p.total ?? 0,
 		page: p.page ?? page,
 		limit: p.limit ?? limit,
@@ -103,10 +101,10 @@ export const getMovieWatchHistoryPaged = async (
 };
 
 export const recordMovieWatch = (payload: AddWatchHistoryPayload) =>
-	apiService.post<MovieWatchHistoryRow>(`${API_PREFIX}/movie/history`, payload);
+	apiService.post<MovieWatchHistoryRow>(`/movie/history`, payload);
 
 export const deleteMovieHistory = (slug: string) =>
-	apiService.delete(`${API_PREFIX}/movie/history/${encodeURIComponent(slug)}`);
+	apiService.delete(`/movie/history/${encodeURIComponent(slug)}`);
 
 export const updateWatchPosition = (
 	slug: string,
@@ -115,13 +113,13 @@ export const updateWatchPosition = (
 	duration?: number,
 ) =>
 	apiService.patch(
-		`${API_PREFIX}/movie/history/${encodeURIComponent(slug)}/position?episode_slug=${encodeURIComponent(episodeSlug)}`,
+		`/movie/history/${encodeURIComponent(slug)}/position?episode_slug=${encodeURIComponent(episodeSlug)}`,
 		{ position, duration: duration ?? 0 },
 	);
 
 export const getWatchPosition = (slug: string, episodeSlug: string) =>
 	apiService.get<MovieWatchHistoryRow | null>(
-		`${API_PREFIX}/movie/history/${encodeURIComponent(slug)}/position?episode_slug=${encodeURIComponent(episodeSlug)}`,
+		`/movie/history/${encodeURIComponent(slug)}/position?episode_slug=${encodeURIComponent(episodeSlug)}`,
 	);
 
 export interface EpisodePositionRow {
@@ -133,43 +131,39 @@ export interface EpisodePositionRow {
 
 export const getEpisodePositions = (baseSlug: string) =>
 	apiService.get<EpisodePositionRow[]>(
-		`${API_PREFIX}/movie/history/${encodeURIComponent(baseSlug)}/positions`,
+		`/movie/history/${encodeURIComponent(baseSlug)}/positions`,
 	);
 
 // Search history
 export const getMovieSearchHistory = () =>
-	apiService.get<MovieSearchHistoryRow[]>(`${API_PREFIX}/movie/search-history`);
+	apiService.get<MovieSearchHistoryRow[]>(`/movie/search-history`);
 
 export const saveMovieSearchKeyword = (keyword: string) =>
-	apiService.post(`${API_PREFIX}/movie/search-history`, { keyword });
+	apiService.post(`/movie/search-history`, { keyword });
 
 export const deleteMovieSearchHistoryItem = (id: number) =>
-	apiService.delete(`${API_PREFIX}/movie/search-history/${id}`);
+	apiService.delete(`/movie/search-history/${id}`);
 
 export const deleteMovieSearchHistoryAll = () =>
-	apiService.delete(`${API_PREFIX}/movie/search-history`);
+	apiService.delete(`/movie/search-history`);
 
 export const deleteMovieWatchHistoryAll = () =>
-	apiService.delete(`${API_PREFIX}/movie/history`);
+	apiService.delete(`/movie/history`);
 
 // Liked
 export const getLikedMovies = async (): Promise<MovieLikedRow[]> => {
-	const res = await apiRequest(`${API_PREFIX}/movie/liked`, {
-		params: { page: 1, limit: 500 },
-	});
-	return (res.data as MovieLikedRow[]) ?? [];
+	const res = await apiClient.get(`/movie/liked`, { params: { page: 1, limit: 500 } });
+	return (res.data?.data as MovieLikedRow[]) ?? [];
 };
 
 export const getLikedMoviesPaged = async (
 	page = 1,
 	limit = 48,
 ): Promise<PagedResponse<MovieLikedRow>> => {
-	const res = await apiRequest(`${API_PREFIX}/movie/liked`, {
-		params: { page, limit },
-	});
-	const p = res.pagination ?? {};
+	const res = await apiClient.get(`/movie/liked`, { params: { page, limit } });
+	const p = res.data?.pagination ?? {};
 	return {
-		items: (res.data as MovieLikedRow[]) ?? [],
+		items: (res.data?.data as MovieLikedRow[]) ?? [],
 		total: p.total ?? 0,
 		page: p.page ?? page,
 		limit: p.limit ?? limit,
@@ -178,10 +172,10 @@ export const getLikedMoviesPaged = async (
 };
 
 export const likeMovie = (payload: LikeMoviePayload) =>
-	apiService.post<MovieLikedRow>(`${API_PREFIX}/movie/liked`, payload);
+	apiService.post<MovieLikedRow>(`/movie/liked`, payload);
 
 export const unlikeMovie = (slug: string) =>
-	apiService.delete(`${API_PREFIX}/movie/liked/${encodeURIComponent(slug)}`);
+	apiService.delete(`/movie/liked/${encodeURIComponent(slug)}`);
 
 // Certifications
 export interface CertificationInput {
@@ -194,20 +188,11 @@ export const batchGetCertifications = async (
 	movies: CertificationInput[],
 ): Promise<Record<string, string>> => {
 	if (!movies.length) return {};
-	const moviesServiceUrl =
-		(import.meta.env.VITE_MOVIES_SERVICE_URL ?? "http://localhost:25055") +
-		`${API_PREFIX}/movie/certifications/batch`;
-	const res = await fetch(moviesServiceUrl, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}`,
-		},
-		credentials: "include",
-		body: JSON.stringify(movies),
-	});
-	if (!res.ok) return {};
-	return res.json() as Promise<Record<string, string>>;
+	const res = await apiClient.post<Record<string, string>>(
+		`/movie/certifications/batch`,
+		movies,
+	);
+	return res.data ?? {};
 };
 
 // Seasons / Episodes cache
@@ -252,7 +237,7 @@ export interface UpsertEpisodeInput {
 
 export const getCachedSeasons = (baseSlug: string) =>
 	apiService.get<CachedSeason[]>(
-		`${API_PREFIX}/movie/seasons/${encodeURIComponent(baseSlug)}`,
+		`/movie/seasons/${encodeURIComponent(baseSlug)}`,
 	);
 
 export const upsertCachedSeasons = (
@@ -260,13 +245,13 @@ export const upsertCachedSeasons = (
 	seasons: UpsertSeasonInput[],
 ) =>
 	apiService.post<CachedSeason[]>(
-		`${API_PREFIX}/movie/seasons/${encodeURIComponent(baseSlug)}`,
+		`/movie/seasons/${encodeURIComponent(baseSlug)}`,
 		{ seasons },
 	);
 
 export const getCachedEpisodes = (baseSlug: string, seasonNumber: number) =>
 	apiService.get<CachedEpisode[]>(
-		`${API_PREFIX}/movie/seasons/${encodeURIComponent(baseSlug)}/episodes?season=${seasonNumber}`,
+		`/movie/seasons/${encodeURIComponent(baseSlug)}/episodes?season=${seasonNumber}`,
 	);
 
 export const upsertCachedEpisodes = (
@@ -275,7 +260,7 @@ export const upsertCachedEpisodes = (
 	episodes: UpsertEpisodeInput[],
 ) =>
 	apiService.post<CachedEpisode[]>(
-		`${API_PREFIX}/movie/seasons/${encodeURIComponent(baseSlug)}/episodes`,
+		`/movie/seasons/${encodeURIComponent(baseSlug)}/episodes`,
 		{
 			season_number: seasonNumber,
 			episodes,

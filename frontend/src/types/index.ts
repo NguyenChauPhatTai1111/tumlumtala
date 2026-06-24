@@ -1,3 +1,5 @@
+export type { Conversation } from "./messenger";
+
 export type UserGender = "male" | "female" | "other";
 
 export interface IUser {
@@ -18,6 +20,9 @@ export interface IUser {
   status?: string;
   level?: string;
   version?: number | string;
+  idempotency_key?: string;
+  idempotencyKey?: string;
+  IdempotencyKey?: string;
 }
 
 export interface TokenPair {

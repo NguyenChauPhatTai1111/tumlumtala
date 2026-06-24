@@ -65,7 +65,7 @@ func main() {
 	)
 
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(gin.Logger(), gin.Recovery())
 	httphandler.RegisterRoutes(r, handler, cfg.JWTSecret)
 
 	srv := &http.Server{

@@ -1,8 +1,8 @@
 services:
   messenger-service:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: messenger-service/Dockerfile
     container_name: tumlumtala-messenger-service
     env_file: .env
     environment:

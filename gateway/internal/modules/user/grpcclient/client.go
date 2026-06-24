@@ -50,6 +50,7 @@ func (c *userClient) ListUsers(ctx context.Context, input domain.ListUsersInput)
 	resp, err := c.client.ListUsers(ctx, &userpb.ListUsersRequest{
 		Limit:  input.Limit,
 		Offset: input.Offset,
+		Search: input.Search,
 	})
 	if err != nil {
 		return domain.ListUsersResult{}, apperrors.FromGRPC(err)

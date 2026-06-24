@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ func ServeWS(
 	validateToken JWTValidator,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		conn, err := Upgrade(w, r)
 		if err != nil {
 			return
@@ -28,15 +30,6 @@ func ServeWS(
 		token := r.Header.Get("Authorization")
 		if strings.TrimSpace(token) == "" {
 			token = r.URL.Query().Get("token")
-		}
-		token = strings.TrimSpace(token)
-		if strings.HasPrefix(strings.ToLower(token), "bearer ") {
-			token = strings.TrimSpace(token[7:])
-		}
-
-		if token == "" {
-			_ = conn.Close()
-			return
 		}
 
 		userID, err := validateToken(r.Context(), token)
@@ -63,8 +56,19 @@ func ServeWS(
 
 // ParseUserIDFromToken parses a JWT token whose user_id claim is a UUID string,
 // then looks up the numeric user ID from user_snapshots.
+//
+// Self-healing: if the user exists in the JWT but not yet in user_snapshots
+// (e.g. after a fresh deploy before Kafka consumer has synced), the snapshot
+// is upserted on-the-fly from JWT claims so the connection never fails due to
+// a missing sync. This eliminates the need to run the seeder or wait for Kafka
+// before users can connect via WebSocket.
 func ParseUserIDFromToken(jwtSecret string, db *gorm.DB) JWTValidator {
 	return func(ctx context.Context, tokenStr string) (uint, error) {
+		tokenStr = strings.TrimSpace(tokenStr)
+		if strings.HasPrefix(strings.ToLower(tokenStr), "bearer ") {
+			tokenStr = strings.TrimSpace(tokenStr[7:])
+		}
+
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
@@ -80,7 +84,6 @@ func ParseUserIDFromToken(jwtSecret string, db *gorm.DB) JWTValidator {
 			return 0, jwt.ErrTokenInvalidClaims
 		}
 
-		// user_id in JWT is a UUID string — look up numeric ID from user_snapshots.
 		uuidStr, _ := claims["user_id"].(string)
 		if uuidStr == "" {
 			return 0, jwt.ErrTokenInvalidClaims
@@ -89,6 +92,38 @@ func ParseUserIDFromToken(jwtSecret string, db *gorm.DB) JWTValidator {
 		var row struct {
 			ID uint `gorm:"column:id"`
 		}
+		err = db.WithContext(ctx).
+			Raw("SELECT id FROM user_snapshots WHERE uuid = ? LIMIT 1", uuidStr).
+			Scan(&row).Error
+		if err != nil {
+			return 0, err
+		}
+
+		if row.ID != 0 {
+			return row.ID, nil
+		}
+
+		// Snapshot missing — upsert from JWT claims so the connection succeeds
+		// immediately without waiting for Kafka or a manual seeder run.
+		email, _ := claims["email"].(string)
+		role, _ := claims["role"].(string)
+		if role == "" {
+			role = "member"
+		}
+
+		now := time.Now().UTC()
+		if err := db.WithContext(ctx).Exec(`
+			INSERT INTO user_snapshots (uuid, email, fullname, avatar, role, created_at, updated_at)
+			VALUES (?, ?, '', '', ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+				email      = VALUES(email),
+				role       = VALUES(role),
+				updated_at = VALUES(updated_at)
+		`, uuidStr, email, role, now, now).Error; err != nil {
+			return 0, err
+		}
+
+		// Re-fetch the auto-assigned ID.
 		if err := db.WithContext(ctx).
 			Raw("SELECT id FROM user_snapshots WHERE uuid = ? LIMIT 1", uuidStr).
 			Scan(&row).Error; err != nil || row.ID == 0 {
