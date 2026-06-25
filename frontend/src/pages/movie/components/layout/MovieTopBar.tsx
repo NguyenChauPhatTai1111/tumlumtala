@@ -18,6 +18,7 @@ import {
 	useTheme,
 } from "@mui/material";
 import type { MovieTab } from "@pages/movie/hooks/useMoviePageState";
+import type { MovieSource } from "@/services/movieService";
 
 interface MovieTopBarProps {
 	tab: MovieTab;
@@ -31,6 +32,8 @@ interface MovieTopBarProps {
 	mode: "light" | "dark";
 	setMode: (mode: "light" | "dark") => void;
 	scrolled?: boolean;
+	movieSource: MovieSource;
+	onMovieSourceChange: (source: MovieSource) => void;
 }
 
 const TABS: { value: MovieTab; label: (likedCount?: number) => string }[] = [
@@ -52,6 +55,8 @@ export function MovieTopBar({
 	mode,
 	setMode,
 	scrolled = false,
+	movieSource,
+	onMovieSourceChange,
 }: MovieTopBarProps) {
 	const theme = useTheme();
 
@@ -164,6 +169,46 @@ export function MovieTopBar({
 							) : null,
 						}}
 					/>
+
+					{/* Movie source toggle */}
+					<Tooltip title="Nguồn phim">
+						<ToggleButtonGroup
+							value={movieSource}
+							exclusive
+							size="small"
+							onChange={(_, val: MovieSource | null) => {
+								if (val) onMovieSourceChange(val);
+							}}
+							sx={{ flexShrink: 0, display: { xs: "none", md: "flex" } }}
+						>
+							<ToggleButton
+								value="kkphim"
+								aria-label="KKPhim"
+								sx={{
+									"&.Mui-selected": { color: "primary.main" },
+									textTransform: "none",
+									fontSize: 11,
+									fontWeight: 700,
+									px: 1.25,
+								}}
+							>
+								KK
+							</ToggleButton>
+							<ToggleButton
+								value="ophim"
+								aria-label="OPhim"
+								sx={{
+									"&.Mui-selected": { color: "primary.main" },
+									textTransform: "none",
+									fontSize: 11,
+									fontWeight: 700,
+									px: 1.25,
+								}}
+							>
+								OP
+							</ToggleButton>
+						</ToggleButtonGroup>
+					</Tooltip>
 
 					{/* Image mode toggle */}
 					<ToggleButtonGroup

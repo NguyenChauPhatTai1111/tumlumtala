@@ -26,7 +26,7 @@ import type {
 	OphimMovieItem,
 	OphimV1CatalogItem,
 } from "@pages/movie/types";
-import { formatDuration, getTrailerEmbedUrl } from "@pages/movie/utils";
+import { formatDuration, getTrailerEmbedUrl, stripHtml } from "@pages/movie/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
 	useCallback,
@@ -911,7 +911,7 @@ export const MovieDetailDialog = ({
 												{(tmdbOverview || detail?.content) && (
 													<Typography variant="body2" sx={{ lineHeight: 1.7 }}>
 														{tmdbOverview ??
-															detail?.content?.replace(/<[^>]*>/g, "")}
+															detail?.content ? stripHtml(detail.content) : undefined}
 													</Typography>
 												)}
 											</Box>

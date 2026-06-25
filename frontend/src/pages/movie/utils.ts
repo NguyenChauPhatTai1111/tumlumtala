@@ -5,6 +5,18 @@ import type {
 import { COUNTRY_FLAG_MAP } from "./constants";
 import type { OphimMovieItem } from "./types";
 
+export const stripHtml = (html: string): string =>
+	html
+		.replace(/<[^>]*>/g, "")
+		.replace(/&nbsp;/g, " ")
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#039;/g, "'")
+		.replace(/\s{2,}/g, " ")
+		.trim();
+
 export const getCountryFlag = (slug: string): string =>
 	COUNTRY_FLAG_MAP[slug] ?? "🌐";
 

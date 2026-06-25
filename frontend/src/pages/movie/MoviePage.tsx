@@ -5,7 +5,14 @@ import {
 	Stack,
 	Tooltip,
 } from "@mui/material";
-import { getMovieDetail } from "@/services/movieService";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+	getMovieDetail,
+	getMovieSource,
+	MOVIE_SOURCE_STORAGE_KEY,
+	type MovieSource,
+} from "@/services/movieService";
 import { MovieDetailDialog } from "./components/detail/MovieDetailDialog";
 import { MovieBottomNav } from "./components/layout/MovieBottomNav";
 import { MovieFooter } from "./components/layout/MovieFooter";
@@ -34,6 +41,9 @@ export default function MoviePage({
 	mode: "light" | "dark";
 	setMode: (v: "light" | "dark") => void;
 }) {
+	const queryClient = useQueryClient();
+	const [movieSource, setMovieSource] = useState<MovieSource>(getMovieSource);
+
 	const state = useMoviePageState();
 	const {
 		tab,
@@ -85,6 +95,13 @@ export default function MoviePage({
 		handleBrowseCountry,
 		handleBrowseYear,
 	} = state;
+
+	const handleMovieSourceChange = (source: MovieSource) => {
+		localStorage.setItem(MOVIE_SOURCE_STORAGE_KEY, source);
+		setMovieSource(source);
+		void queryClient.invalidateQueries();
+		void latest.load(1, false);
+	};
 
 	const deleteSearchHistoryItemMutation = useDeleteSearchHistoryItemMutation();
 	const bulkDeleteSearchHistoryMutation = useBulkDeleteSearchHistoryMutation();
@@ -210,6 +227,8 @@ export default function MoviePage({
 				mode={mode}
 				setMode={setMode}
 				scrolled={showBackToTop}
+				movieSource={movieSource}
+				onMovieSourceChange={handleMovieSourceChange}
 			/>
 
 			{/* ── Scrollable content ── */}

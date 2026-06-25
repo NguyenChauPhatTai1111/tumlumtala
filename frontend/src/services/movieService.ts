@@ -1,3 +1,13 @@
+import {
+	ophimGetCountries,
+	ophimGetGenres,
+	ophimGetHomeMovies,
+	ophimGetMovieDetail,
+	ophimGetMoviesByFilter,
+	ophimGetMoviesByListSlug,
+	ophimGetLatestMovies as ophimGetLatest,
+	ophimSearchMovies,
+} from "@/services/ophimService";
 import type {
 	KKPhimDetailResponse,
 	KKPhimLatestResponse,
@@ -7,6 +17,18 @@ import type {
 	OphimV1ListData,
 	OphimV1Response,
 } from "@/pages/movie/types";
+
+const ENV_SOURCE = (import.meta.env.VITE_MOVIE_SOURCE_API ?? "kkphim").toLowerCase();
+export const MOVIE_SOURCE_STORAGE_KEY = "movieSource";
+export type MovieSource = "kkphim" | "ophim";
+
+export const getMovieSource = (): MovieSource => {
+	const stored = localStorage.getItem(MOVIE_SOURCE_STORAGE_KEY);
+	if (stored === "kkphim" || stored === "ophim") return stored;
+	return ENV_SOURCE === "ophim" ? "ophim" : "kkphim";
+};
+
+const isOphim = () => getMovieSource() === "ophim";
 
 const BASE = "https://phimapi.com";
 const CDN = "https://phimimg.com";
@@ -93,10 +115,7 @@ const v1List = (path: string) =>
 
 // ── Home / latest ────────────────────────────────────────────────────────────
 
-export const getHomeMovies = (page = 1, limit = 48) =>
-	getLatestMovies(page, limit);
-
-export const getLatestMovies = (page = 1, limit = 48) =>
+const kkphimGetLatestMovies = (page = 1, limit = 48) =>
 	fetchJson<KKPhimLatestResponse>(
 		`${BASE}/danh-sach/phim-moi-cap-nhat-v3?page=${page}&limit=${limit}`,
 	).then((r) => ({
@@ -108,6 +127,12 @@ export const getLatestMovies = (page = 1, limit = 48) =>
 			totalPages: Math.max(1, r.pagination?.totalPages ?? 1),
 		},
 	}));
+
+export const getLatestMovies = (page = 1, limit = 48) =>
+	isOphim() ? ophimGetLatest(page, limit) : kkphimGetLatestMovies(page, limit);
+
+export const getHomeMovies = (page = 1, limit = 48) =>
+	isOphim() ? ophimGetHomeMovies(page, limit) : getLatestMovies(page, limit);
 
 // ── Sort / filter types ───────────────────────────────────────────────────────
 
@@ -124,7 +149,7 @@ export interface MovieSearchFilter {
 
 // ── Search ───────────────────────────────────────────────────────────────────
 
-export const searchMovies = (
+const kkphimSearchMovies = (
 	keyword: string,
 	page = 1,
 	limit = 48,
@@ -142,7 +167,17 @@ export const searchMovies = (
 	return v1List(`/tim-kiem?${qs.toString()}`);
 };
 
-export const getMoviesByListSlug = (
+export const searchMovies = (
+	keyword: string,
+	page = 1,
+	limit = 48,
+	filter?: MovieSearchFilter,
+) =>
+	isOphim()
+		? ophimSearchMovies(keyword, page, limit, filter)
+		: kkphimSearchMovies(keyword, page, limit, filter);
+
+const kkphimGetMoviesByListSlug = (
 	slug: string,
 	page = 1,
 	limit = 48,
@@ -156,17 +191,32 @@ export const getMoviesByListSlug = (
 	);
 };
 
+export const getMoviesByListSlug = (
+	slug: string,
+	page = 1,
+	limit = 48,
+	sortField: MovieSortField = "modified.time",
+	sortType: MovieSortType = "desc",
+) =>
+	isOphim()
+		? ophimGetMoviesByListSlug(slug, page, limit, sortField, sortType)
+		: kkphimGetMoviesByListSlug(slug, page, limit, sortField, sortType);
+
 // ── Genres ───────────────────────────────────────────────────────────────────
 
 export const getGenres = () =>
-	fetchJson<OphimV1CatalogItem[]>(`${BASE}/the-loai`);
+	isOphim()
+		? ophimGetGenres()
+		: fetchJson<OphimV1CatalogItem[]>(`${BASE}/the-loai`);
 
 // ── Countries ────────────────────────────────────────────────────────────────
 
 export const getCountries = () =>
-	fetchJson<OphimV1CatalogItem[]>(`${BASE}/quoc-gia`).then((items) =>
-		items.map(normalizeCountryItem),
-	);
+	isOphim()
+		? ophimGetCountries()
+		: fetchJson<OphimV1CatalogItem[]>(`${BASE}/quoc-gia`).then((items) =>
+				items.map(normalizeCountryItem),
+			);
 
 // ── Years ────────────────────────────────────────────────────────────────────
 
@@ -190,7 +240,7 @@ export interface MovieFilterParams {
 	sortType?: MovieSortType;
 }
 
-export const getMoviesByFilter = (
+const kkphimGetMoviesByFilter = (
 	params: MovieFilterParams,
 	page = 1,
 	limit = 48,
@@ -205,9 +255,18 @@ export const getMoviesByFilter = (
 	return v1List(`/the-loai/${params.genreSlug}?${qs.toString()}`);
 };
 
+export const getMoviesByFilter = (
+	params: MovieFilterParams,
+	page = 1,
+	limit = 48,
+) =>
+	isOphim()
+		? ophimGetMoviesByFilter(params, page, limit)
+		: kkphimGetMoviesByFilter(params, page, limit);
+
 // ── Detail ───────────────────────────────────────────────────────────────────
 
-export const getMovieDetail = (slug: string) =>
+const kkphimGetMovieDetail = (slug: string) =>
 	fetchJson<KKPhimDetailResponse>(`${BASE}/phim/${slug}`).then((r) => ({
 		movie: r.movie
 			? {
@@ -219,6 +278,9 @@ export const getMovieDetail = (slug: string) =>
 		episodes: Array.isArray(r.episodes) ? r.episodes : [],
 		cdnImage: CDN,
 	}));
+
+export const getMovieDetail = (slug: string) =>
+	isOphim() ? ophimGetMovieDetail(slug) : kkphimGetMovieDetail(slug);
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 

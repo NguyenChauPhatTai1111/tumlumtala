@@ -23,6 +23,7 @@ import {
 	resolveTMDBBackdrop,
 	resolveTMDBPoster,
 } from "@/services/tmdbService";
+import { stripHtml } from "@pages/movie/utils";
 
 export const HERO_MOVIE_COUNT = 5;
 
@@ -727,7 +728,7 @@ export function HeroSlider({
 							textShadow: "0 1px 3px rgba(0,0,0,0.7)",
 						}}
 					>
-						{activeDetail.content}
+						{stripHtml(activeDetail.content)}
 					</Typography>
 				)}
 
