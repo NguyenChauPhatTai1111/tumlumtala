@@ -37,6 +37,7 @@ function SnackbarBridge() {
 	setNotifyFn(({ message, type }) => {
 		enqueueSnackbar(message, {
 			variant: type === "error" ? "error" : "success",
+			anchorOrigin: { vertical: "top", horizontal: "right" },
 		});
 	});
 
@@ -104,7 +105,11 @@ function ConfirmProvider({ children }: { children: ReactNode }) {
 export function GlobalAppProviders({ children }: { children: ReactNode }) {
 	return (
 		<QueryClientProvider client={queryClient}>
-			<SnackbarProvider maxSnack={3} autoHideDuration={3000}>
+			<SnackbarProvider
+				maxSnack={3}
+				autoHideDuration={3000}
+				anchorOrigin={{ vertical: "top", horizontal: "right" }}
+			>
 				<SnackbarBridge />
 				<MessageToastProvider>
 					<ConfirmProvider>

@@ -432,10 +432,11 @@ const buildQueryString = (query: Record<string, unknown>) => {
 // Get all conversations for current user
 export const getConversations = async (query: ConversationListQuery = {}) => {
 	const { limit = 20, offset = 0, page, search, order, sort } = query;
+	const resolvedPage = page ?? Math.floor(offset / limit) + 1;
 	const queryString = buildQueryString({
 		limit,
 		offset,
-		page,
+		page: resolvedPage,
 		search,
 		order,
 		sort,
@@ -444,7 +445,16 @@ export const getConversations = async (query: ConversationListQuery = {}) => {
 		`${MESSENGER_PREFIX}/conversations${queryString}`,
 		{ method: "GET" },
 	);
-	return parsePaginated(response, toConversation, limit, offset);
+	const result = parsePaginated(response, toConversation, limit, offset);
+	// parsePaginated đã đọc paginator_info.total → hasMore chính xác
+	// Fallback: nếu backend không có total, dùng has_next hoặc item count
+	const root = toRecord(response);
+	const payload = toRecord(root.data ?? root);
+	const paginatorInfo = toRecord(payload.paginator_info ?? root.paginator_info);
+	if ("has_next" in paginatorInfo) {
+		return { ...result, hasMore: Boolean(paginatorInfo.has_next) };
+	}
+	return result;
 };
 
 // Get single conversation

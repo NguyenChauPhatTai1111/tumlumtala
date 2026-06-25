@@ -118,17 +118,17 @@ export function MessageToastContainer({
 		<Box
 			sx={{
 				position: "fixed",
-				bottom: 24,
+				top: 24,
 				right: 24,
 				zIndex: 9999,
 				display: "flex",
-				flexDirection: "column-reverse",
+				flexDirection: "column",
 				gap: 1,
 				pointerEvents: "none",
 				"& > *": { pointerEvents: "auto" },
 			}}
 		>
-			{items.map((item, index) => (
+			{[...items].reverse().map((item, index) => (
 				<MessageToastCard key={item.id} item={item} onClose={onClose} index={index} />
 			))}
 		</Box>,

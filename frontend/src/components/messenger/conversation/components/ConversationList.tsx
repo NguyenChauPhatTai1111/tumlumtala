@@ -25,12 +25,15 @@ interface MessengerConversationListProps {
 	currentUserId: number;
 	typingByConversation?: Map<number, number[]>;
 	loading?: boolean;
+	loadingMore?: boolean;
+	hasMore?: boolean;
 	compact?: boolean;
 	onSelect: (conversationId: number) => void;
 	onArchiveToggle?: (conversation: Conversation) => void;
 	onDelete?: (conversationId: number) => void;
 	onToggleNotifications?: (conversation: Conversation) => void;
 	onLeaveConversation?: (conversation: Conversation) => void;
+	onLoadMore?: () => void;
 }
 
 interface MenuState {
@@ -44,12 +47,15 @@ export const MessengerConversationList = ({
 	currentUserId,
 	typingByConversation,
 	loading,
+	loadingMore,
+	hasMore,
 	compact = false,
 	onSelect,
 	onArchiveToggle,
 	onDelete,
 	onToggleNotifications,
 	onLeaveConversation,
+	onLoadMore,
 }: MessengerConversationListProps) => {
 	const now = useNow();
 	const [menuState, setMenuState] = useState<MenuState | null>(null);
@@ -134,6 +140,12 @@ export const MessengerConversationList = ({
 					);
 				})}
 			</List>
+
+			{loadingMore && (
+				<Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
+					<CircularProgress size={20} />
+				</Box>
+			)}
 
 			<Menu
 				open={menuOpen}

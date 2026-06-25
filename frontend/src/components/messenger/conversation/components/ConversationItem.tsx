@@ -24,6 +24,11 @@ import { type MouseEvent, useMemo, useRef } from "react";
 import { formatTimestampRealtime } from "@/utils";
 import { resolveCdnUrl } from "@/utils/urlUtils";
 
+function formatUnreadBadge(count: number) {
+	if (count <= 0) return 0;
+	return count > 99 ? "99+" : count;
+}
+
 const ConversationTypingPreview = ({
 	avatar,
 	label,
@@ -249,7 +254,7 @@ export const ConversationItem = ({
 					{showUnreadCount && (
 						<Badge
 							color="primary"
-							badgeContent={unreadCount}
+							badgeContent={formatUnreadBadge(unreadCount)}
 							overlap="circular"
 							anchorOrigin={{
 								vertical: "bottom",

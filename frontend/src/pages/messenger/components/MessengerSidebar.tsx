@@ -25,7 +25,7 @@ import {
 	Typography,
 } from "@mui/material";
 import type { MouseEvent, SyntheticEvent } from "react";
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import {
 	buildGeneratedAvatar,
 	getConversationDisplayName,
@@ -74,6 +74,9 @@ type Props = {
 	currentUserId: number;
 	loading: boolean;
 	ws?: MessengerWebSocketService | null;
+	hasMoreConversations?: boolean;
+	loadingMoreConversations?: boolean;
+	onLoadMoreConversations?: () => void;
 };
 
 const highlightRegex = (keyword: string) => {
@@ -138,8 +141,12 @@ export const MessengerSidebar = memo(
 		currentUserId,
 		loading,
 		ws,
+		hasMoreConversations,
+		loadingMoreConversations,
+		onLoadMoreConversations,
 	}: Props) => {
 		const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+		const lastLoadScrollHeightRef = useRef(0);
 		const typingByConversation = useMessengerConversationTyping(ws ?? null);
 		const openMenu = Boolean(anchorEl);
 
@@ -367,7 +374,34 @@ export const MessengerSidebar = memo(
 						</Tabs>
 					)}
 				</Box>
-				<Box sx={{ flex: 1, overflowY: "auto" }}>
+				<Box
+					sx={{ flex: 1, overflowY: "auto" }}
+					onScroll={(event) => {
+						if (
+							isSidebarSearching ||
+							!onLoadMoreConversations ||
+							loadingMoreConversations ||
+							!hasMoreConversations
+						) {
+							return;
+						}
+						const el = event.currentTarget;
+						const distanceFromBottom =
+							el.scrollHeight - el.scrollTop - el.clientHeight;
+						if (distanceFromBottom > 160) {
+							lastLoadScrollHeightRef.current = 0;
+							return;
+						}
+						if (
+							el.scrollTop > 0 &&
+							distanceFromBottom < 100 &&
+							lastLoadScrollHeightRef.current !== el.scrollHeight
+						) {
+							lastLoadScrollHeightRef.current = el.scrollHeight;
+							onLoadMoreConversations();
+						}
+					}}
+				>
 					{isSidebarSearching ? (
 						<List sx={{ width: "100%" }}>
 							{searchGroupedResults.length > 0 ? (
@@ -533,6 +567,9 @@ export const MessengerSidebar = memo(
 							onDelete={onDelete}
 							onToggleNotifications={onToggleNotifications}
 							onLeaveConversation={onLeaveConversation}
+							hasMore={hasMoreConversations}
+							loadingMore={loadingMoreConversations}
+							onLoadMore={onLoadMoreConversations}
 						/>
 					)}
 				</Box>

@@ -36,6 +36,7 @@ import {
 	useNewMessageNotification,
 	useSendMessengerMessage,
 } from "@hooks/messenger";
+import { getConversations } from "@/services/messengerService";
 import { Box, useTheme } from "@mui/material";
 import { MessengerContent } from "@pages/messenger/components/MessengerContent";
 import { MessengerSidebar } from "@pages/messenger/components/MessengerSidebar";
@@ -43,7 +44,8 @@ import { MessengerDialogs } from "@pages/messenger/dialogs/MessengerDialogs";
 import { useMessengerPageState } from "@pages/messenger/hooks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChangeEvent, ReactNode, SyntheticEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useShowMessageToast } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
 import {
@@ -197,7 +199,7 @@ export default function MessengerPage() {
 
 	// theme and isMobile come from useMessengerPageState
 
-	const conversationsQuery = useMessengerConversations();
+	const conversationsQuery = useMessengerConversations(20);
 	const themesQuery = useQuery({
 		queryKey: ["themes", "active"],
 		queryFn: getActiveThemes,
@@ -311,10 +313,106 @@ export default function MessengerPage() {
 		open,
 	});
 
-	const conversations = useMemo(
-		() => conversationsQuery.data?.items ?? [],
-		[conversationsQuery.data?.items],
+	const PAGE_SIZE = 20;
+	const [extraConversations, setExtraConversations] = useState<Conversation[]>(
+		[],
 	);
+	const [hasMoreConversations, setHasMoreConversations] = useState(true);
+	const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
+	const loadMoreConversationsInFlight = useRef(false);
+	// Track offset via ref — independent of React Query cache size (WS may grow cache)
+	const conversationsOffsetRef = useRef(0);
+	const conversationsHasMoreRef = useRef(true);
+	const baseConversationsRef = useRef<Conversation[]>([]);
+	const loadedConversationIdsRef = useRef<Set<number>>(new Set());
+
+	useEffect(() => {
+		if (conversationsQuery.data) {
+			// Page 1 can be refreshed by WS; keep already appended pages unless
+			// an appended item moved into the refreshed first page.
+			const pageOneItems = conversationsQuery.data.items;
+			const pageOneIds = new Set(pageOneItems.map((c) => c.id));
+			baseConversationsRef.current = pageOneItems;
+			conversationsHasMoreRef.current = conversationsQuery.data.hasMore;
+			setExtraConversations((prev) => {
+				const next = prev.filter((c) => !pageOneIds.has(c.id));
+				conversationsOffsetRef.current = Math.max(
+					conversationsOffsetRef.current,
+					pageOneItems.length + next.length,
+				);
+				return next.length === prev.length ? prev : next;
+			});
+		}
+	}, [conversationsQuery.data]);
+
+	const conversations = useMemo(() => {
+		const base = conversationsQuery.data?.items ?? [];
+		const baseIds = new Set(base.map((c) => c.id));
+		const extras = extraConversations.filter((c) => !baseIds.has(c.id));
+		return [...base, ...extras];
+	}, [conversationsQuery.data?.items, extraConversations]);
+
+	useEffect(() => {
+		loadedConversationIdsRef.current = new Set(conversations.map((c) => c.id));
+	}, [conversations]);
+
+	const handleLoadMoreConversations = useCallback(async () => {
+		if (loadMoreConversationsInFlight.current) return;
+		if (!conversationsHasMoreRef.current) return;
+		loadMoreConversationsInFlight.current = true;
+		setLoadingMoreConversations(true);
+		try {
+			const currentOffset = conversationsOffsetRef.current;
+			const result = await getConversations({
+				limit: PAGE_SIZE,
+				offset: currentOffset,
+			});
+			conversationsOffsetRef.current = currentOffset + result.items.length;
+			conversationsHasMoreRef.current = result.hasMore;
+			setHasMoreConversations(result.hasMore);
+			if (result.items.length > 0) {
+				const existingIds = loadedConversationIdsRef.current;
+				const newItemCount = result.items.filter(
+					(item) => !existingIds.has(item.id),
+				).length;
+				if (newItemCount === 0) {
+					conversationsHasMoreRef.current = false;
+					setHasMoreConversations(false);
+					return;
+				}
+				setExtraConversations((prev) => {
+					const baseIds = new Set(baseConversationsRef.current.map((c) => c.id));
+					const next = [...prev];
+					for (const item of result.items) {
+						if (baseIds.has(item.id)) continue;
+						const existingIndex = next.findIndex((c) => c.id === item.id);
+						if (existingIndex >= 0) {
+							next[existingIndex] = { ...next[existingIndex], ...item };
+						} else {
+							next.push(item);
+						}
+					}
+					return next;
+				});
+			}
+		} finally {
+			loadMoreConversationsInFlight.current = false;
+			setLoadingMoreConversations(false);
+		}
+	}, []);
+
+	const [searchParams, setSearchParams] = useSearchParams();
+	useEffect(() => {
+		const paramId = Number(searchParams.get("conversationId"));
+		if (!paramId || conversations.length === 0) return;
+		const found = conversations.find((c) => c.id === paramId);
+		if (!found) return;
+		setSelectedConversationId(found.id);
+		setSearchParams((prev) => {
+			prev.delete("conversationId");
+			return prev;
+		}, { replace: true });
+	}, [searchParams, conversations, setSelectedConversationId, setSearchParams]);
 
 	const conversationsWithDrafts = useMemo(
 		() =>
@@ -352,7 +450,7 @@ export default function MessengerPage() {
 	const isConversationVisible = useCallback(
 		(conversation: Conversation) =>
 			conversation.is_group ||
-			conversation.last_message_content.trim().length > 0,
+			(conversation.last_message_content ?? "").trim().length > 0,
 		[],
 	);
 
@@ -2922,6 +3020,9 @@ export default function MessengerPage() {
 							setIsSidebarCollapsed((prev) => !prev)
 						}
 						loading={conversationsQuery.isLoading}
+						hasMoreConversations={hasMoreConversations}
+						loadingMoreConversations={loadingMoreConversations}
+						onLoadMoreConversations={handleLoadMoreConversations}
 					/>
 				)}
 

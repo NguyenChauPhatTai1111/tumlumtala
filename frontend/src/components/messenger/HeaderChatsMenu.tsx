@@ -3,6 +3,7 @@ import ArchiveIcon from "@mui/icons-material/Archive";
 import DeleteIcon from "@mui/icons-material/Delete";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import NotificationsOffIcon from "@mui/icons-material/NotificationsOff";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import SearchIcon from "@mui/icons-material/Search";
@@ -28,12 +29,12 @@ import {
 } from "@mui/material";
 import {
 	useMessengerConversationActions,
-	useMessengerConversations,
 } from "@hooks/messenger";
+import { useConversationsPaginated } from "@hooks/messenger/useConversationsPaginated";
 import { useCurrentUser } from "@hooks/common/useCurrentUser";
 import { useNotification } from "@hooks/common/useNotification";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Conversation } from "@/types/messenger";
 import { formatTimestampRealtime } from "@/utils";
@@ -44,8 +45,14 @@ import {
 	getConversationAvatar as getBaseConversationAvatar,
 	getConversationDisplayName,
 } from "./utils/conversation";
-import { openMiniMessengerConversation } from "./miniMessengerEvents";
+import {
+	toggleMiniMessengerConversation,
+	MINI_MESSENGER_OPEN_EVENT,
+	MINI_MESSENGER_CLOSE_EVENT,
+	MINI_MESSENGER_CLOSE_ALL_EVENT,
+} from "./miniMessengerEvents";
 import { listUsers } from "@/api/userApi";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const HEADER_CONVERSATION_LIMIT = 10;
 type HeaderChatTab = "all" | "unread" | "groups" | "archived";
@@ -122,6 +129,25 @@ function getPreview(conversation: Conversation, currentUserId?: number | string)
 	return senderName ? `${senderName}: ${content}` : content;
 }
 
+function formatUnreadBadge(count: number) {
+	if (count <= 0) return 0;
+	return count > 99 ? "99+" : count;
+}
+
+const MINI_OPEN_WINDOWS_STORAGE_KEY = "tumlumtala.miniMessenger.openConversationIds";
+
+function readOpenConversationIds(): number[] {
+	try {
+		const raw = window.localStorage.getItem(MINI_OPEN_WINDOWS_STORAGE_KEY);
+		if (!raw) return [];
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) return [];
+		return parsed.map(Number).filter((id) => Number.isInteger(id) && id > 0);
+	} catch {
+		return [];
+	}
+}
+
 export function HeaderChatsMenu() {
 	const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 	const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -132,19 +158,45 @@ export function HeaderChatsMenu() {
 	const [search, setSearch] = useState("");
 	const [activeTab, setActiveTab] = useState<HeaderChatTab>("all");
 	const [now, setNow] = useState(() => Date.now());
+	const [openConversationIds, setOpenConversationIds] = useState<number[]>(readOpenConversationIds);
+	const lastLoadScrollHeightRef = useRef(0);
 	const navigate = useNavigate();
 	const { data: currentUser } = useCurrentUser();
 	const { open: notify } = useNotification();
 	const conversationActions = useMessengerConversationActions();
 	const currentUserId = currentUser?.id;
-	const conversationsQuery = useMessengerConversations(
-		HEADER_CONVERSATION_LIMIT,
-		0,
-	);
-	const conversations = useMemo(
-		() => conversationsQuery.data?.items ?? [],
-		[conversationsQuery.data?.items],
-	);
+
+	const {
+		conversations,
+		loadingRef: convLoadingRef,
+		hasMoreRef: convHasMoreRef,
+		loading: loadingMore,
+		loadMore,
+		reset: resetConversations,
+	} = useConversationsPaginated(HEADER_CONVERSATION_LIMIT);
+
+	useEffect(() => {
+		void loadMore();
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	const handleListScroll = (event: UIEvent<HTMLDivElement>) => {
+		if (convLoadingRef.current || !convHasMoreRef.current) return;
+		const el = event.currentTarget;
+		const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+		if (distanceFromBottom > 140) {
+			lastLoadScrollHeightRef.current = 0;
+			return;
+		}
+		if (
+			el.scrollTop > 0 &&
+			distanceFromBottom < 80 &&
+			lastLoadScrollHeightRef.current !== el.scrollHeight
+		) {
+			lastLoadScrollHeightRef.current = el.scrollHeight;
+			void loadMore();
+		}
+	};
 	const usersForAvatarQuery = useQuery({
 		queryKey: ["users", "messenger-avatar-hydration"],
 		queryFn: () => listUsers(200, 0),
@@ -166,6 +218,18 @@ export function HeaderChatsMenu() {
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(Date.now()), 60_000);
 		return () => window.clearInterval(timer);
+	}, []);
+
+	useEffect(() => {
+		const sync = () => setOpenConversationIds(readOpenConversationIds());
+		window.addEventListener(MINI_MESSENGER_OPEN_EVENT, sync);
+		window.addEventListener(MINI_MESSENGER_CLOSE_EVENT, sync);
+		window.addEventListener(MINI_MESSENGER_CLOSE_ALL_EVENT, sync);
+		return () => {
+			window.removeEventListener(MINI_MESSENGER_OPEN_EVENT, sync);
+			window.removeEventListener(MINI_MESSENGER_CLOSE_EVENT, sync);
+			window.removeEventListener(MINI_MESSENGER_CLOSE_ALL_EVENT, sync);
+		};
 	}, []);
 	const unreadCount = hydratedConversations.reduce(
 		(total, conversation) => total + Number(conversation.unread_count || 0),
@@ -232,7 +296,7 @@ export function HeaderChatsMenu() {
 	};
 
 	const refreshConversations = async () => {
-		await conversationsQuery.refetch();
+		await resetConversations();
 	};
 
 	const handleOpenInMessenger = () => {
@@ -243,19 +307,28 @@ export function HeaderChatsMenu() {
 		navigate(`/messenger?conversationId=${conversationId}`);
 	};
 
-	const handleMuteConversation = async () => {
+	const handleToggleMuteConversation = async () => {
 		if (!menuConversation) return;
 		const conversation = menuConversation;
+		const willEnable = conversation.notifications_enabled === false;
 		closeOptionsMenu();
 		try {
 			await conversationActions.updateNotifications.mutateAsync({
 				conversationId: conversation.id,
-				enabled: false,
+				enabled: willEnable,
 			});
 			await refreshConversations();
-			notify?.({ type: "success", message: "Đã tắt thông báo" });
+			notify?.({
+				type: "success",
+				message: willEnable ? "Đã bật thông báo" : "Đã tắt thông báo",
+			});
 		} catch {
-			notify?.({ type: "error", message: "Không thể tắt thông báo" });
+			notify?.({
+				type: "error",
+				message: willEnable
+					? "Không thể bật thông báo"
+					: "Không thể tắt thông báo",
+			});
 		}
 	};
 
@@ -331,7 +404,7 @@ export function HeaderChatsMenu() {
 				>
 					<Badge
 						color="error"
-						badgeContent={unreadCount > 0 ? Math.min(unreadCount, 99) : 0}
+						badgeContent={formatUnreadBadge(unreadCount)}
 					>
 						<ChatIcon />
 					</Badge>
@@ -485,12 +558,13 @@ export function HeaderChatsMenu() {
 						</Box>
 					</Box>
 
-					<Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1.25 }}>
+					<Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1.25 }} onScroll={handleListScroll}>
 						{filteredConversations.map((conversation) => {
 							const title = getConversationTitle(conversation, currentUserId);
 							const preview = getPreview(conversation, currentUserId);
 							const avatar = getConversationAvatar(conversation, currentUserId);
 							const unread = Number(conversation.unread_count || 0) > 0;
+							const isOpen = openConversationIds.includes(conversation.id);
 							const conversationTime = formatTimestampRealtime(
 								conversation.last_message_at ?? "",
 								now,
@@ -500,10 +574,19 @@ export function HeaderChatsMenu() {
 								<Box
 									key={conversation.id}
 									onClick={() => {
-										openMiniMessengerConversation(conversation.id, {
+										toggleMiniMessengerConversation(conversation.id, {
 											keepInRail: true,
 										});
 										setAnchorEl(null);
+										if (
+											!openConversationIds.includes(conversation.id) &&
+											Number(conversation.unread_count ?? 0) > 0
+										) {
+											void conversationActions.markRead.mutateAsync({
+												conversationId: conversation.id,
+												currentUserId: Number(currentUserId ?? 0),
+											});
+										}
 									}}
 									sx={{
 										display: "flex",
@@ -572,7 +655,7 @@ export function HeaderChatsMenu() {
 											{preview}
 										</Typography>
 									</Box>
-									{unread && (
+									{(unread || isOpen) && (
 										<Box
 											sx={{
 												position: "absolute",
@@ -582,7 +665,7 @@ export function HeaderChatsMenu() {
 												width: 12,
 												height: 12,
 												borderRadius: "50%",
-												bgcolor: "#f97316",
+												bgcolor: isOpen ? "#22c55e" : "#f97316",
 											}}
 										/>
 									)}
@@ -614,6 +697,11 @@ export function HeaderChatsMenu() {
 								</Box>
 							);
 						})}
+					{loadingMore && (
+						<Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
+							<CircularProgress size={20} sx={{ color: "#b0b3b8" }} />
+						</Box>
+					)}
 					</Box>
 
 					<Menu
@@ -642,11 +730,17 @@ export function HeaderChatsMenu() {
 							</ListItemIcon>
 							Open in Messenger
 						</MenuItem>
-						<MenuItem onClick={handleMuteConversation}>
+						<MenuItem onClick={() => { void handleToggleMuteConversation(); }}>
 							<ListItemIcon>
-								<NotificationsOffIcon fontSize="small" />
+								{menuConversation?.notifications_enabled === false ? (
+									<NotificationsActiveIcon fontSize="small" />
+								) : (
+									<NotificationsOffIcon fontSize="small" />
+								)}
 							</ListItemIcon>
-							Mute notifications
+							{menuConversation?.notifications_enabled === false
+								? "Unmute notifications"
+								: "Mute notifications"}
 						</MenuItem>
 						<Divider sx={{ borderColor: "rgba(255,255,255,0.14)" }} />
 						<MenuItem onClick={handleArchiveConversation}>
