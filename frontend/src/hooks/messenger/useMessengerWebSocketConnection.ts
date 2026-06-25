@@ -9,7 +9,9 @@ export const useMessengerWebSocketConnection = () => {
 	useEffect(() => {
 		if (!currentUser?.id) return;
 
-		const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost/ws/messenger";
+		const wsBase = import.meta.env.VITE_WS_URL ||
+			`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/messenger`;
+		const wsUrl = wsBase;
 		const token = localStorage.getItem("access_token") || "";
 
 		if (!token) {

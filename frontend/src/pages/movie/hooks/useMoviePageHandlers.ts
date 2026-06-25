@@ -8,6 +8,7 @@ interface LatestHook {
 	loading: boolean;
 	error: boolean;
 	page: number;
+	pageOffset: number;
 	totalPages: number;
 	heroIndices: ReadonlySet<number>;
 	load: (page: number, append: boolean) => Promise<void>;
@@ -18,6 +19,7 @@ interface SearchHook {
 	error: boolean;
 	movies: OphimMovieItem[];
 	page: number;
+	pageOffset: number;
 	totalPages: number;
 	load: (
 		kw: string,
@@ -33,6 +35,7 @@ interface ListHook {
 	error: boolean;
 	movies: OphimMovieItem[];
 	page: number;
+	pageOffset: number;
 	totalPages: number;
 	load: (
 		listSlug: string,

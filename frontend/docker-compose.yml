@@ -6,7 +6,7 @@ services:
     container_name: tumlumtala-frontend
     env_file: .env
     ports:
-      - "${PORT:-5174}:80"
+      - "80:80"
     networks:
       - tumlumtala-net
     restart: unless-stopped

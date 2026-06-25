@@ -7,6 +7,17 @@ export default defineConfig({
     server: {
         port: 5174,
         allowedHosts: ["otakusic.io"],
+        proxy: {
+            "/api": {
+                target: "http://localhost:8888",
+                changeOrigin: true,
+            },
+            "/ws": {
+                target: "ws://localhost:8888",
+                changeOrigin: true,
+                ws: true,
+            },
+        },
     },
     resolve: {
         alias: {
