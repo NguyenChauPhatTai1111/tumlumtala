@@ -140,6 +140,7 @@ export const ComposerImagePreview = ({
 				)}
 			</Box>
 			<Box
+				className="composer-attachment-preview-list"
 				sx={{
 					display: "flex",
 					gap: 1.5,

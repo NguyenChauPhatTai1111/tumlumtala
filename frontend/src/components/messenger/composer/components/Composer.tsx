@@ -6,7 +6,9 @@ import { useTypingIndicator } from "@components/messenger/composer/hooks/useTypi
 import { useVideoAttachments } from "@components/messenger/composer/hooks/useVideoAttachments";
 import type {
 	ComposerTab,
+	FilePreview,
 	ImagePreview,
+	VideoPreview,
 } from "@components/messenger/composer/types";
 import { getEmojiText } from "@components/messenger/composer/utils/emoji";
 import type { MessengerComposerProps } from "@components/messenger/types/composer";
@@ -28,6 +30,10 @@ import { ComposerInput } from "./ComposerInput";
 import { ComposerReplyBanner } from "./ComposerReplyBanner";
 import { PickerPopover } from "./PickerPopover";
 
+const EMPTY_IMAGE_PREVIEWS: ImagePreview[] = [];
+const EMPTY_VIDEO_PREVIEWS: VideoPreview[] = [];
+const EMPTY_FILE_PREVIEWS: FilePreview[] = [];
+
 export const MessengerComposer = ({
 	disabled,
 	focusKey,
@@ -39,9 +45,9 @@ export const MessengerComposer = ({
 	chatSurface,
 	conversationId,
 	draftText = "",
-	draftImages = [],
-	draftVideos = [],
-	draftFiles = [],
+	draftImages = EMPTY_IMAGE_PREVIEWS,
+	draftVideos = EMPTY_VIDEO_PREVIEWS,
+	draftFiles = EMPTY_FILE_PREVIEWS,
 	onDraftChange,
 	quickReaction,
 	ws,

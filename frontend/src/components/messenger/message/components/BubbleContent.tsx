@@ -62,7 +62,9 @@ export function isFlagMsg(message: Message): {
 	const msgType = String(message.message_type ?? "")
 		.trim()
 		.toLowerCase();
-	const isFlag = msgType === "emoji" && message.emoji_source_type === "flag";
+	const isFlag =
+		msgType === "emoji" &&
+		(message.emoji_source_type === "flag" || /^[a-zA-Z]{2}$/.test(raw));
 	if (!isFlag) return { isFlagMessage: false, flagCode: null };
 	return { isFlagMessage: true, flagCode: raw.toUpperCase() };
 }
@@ -606,14 +608,10 @@ export const BubbleContent = ({
 					</Box>
 				) : isFlagMessage ? (
 					<Box
-						component="span"
-						className={`fi fi-${flagCode?.toLowerCase()}`}
-						sx={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							fontSize: 26,
-						}}
+						component="img"
+						src={`/flags/4x3/${flagCode?.toLowerCase()}.svg`}
+						alt={flagCode ?? "flag"}
+						sx={{ width: 72, height: 54, objectFit: "contain" }}
 					/>
 				) : isEmojiOnlyMessage ? (
 					<Box
@@ -646,13 +644,13 @@ export const BubbleContent = ({
 										content: React.ReactNode;
 									}) => (
 										<a
-										{...props.attributes}
-										style={{ color: "#4dabf7", textDecoration: "none" }}
+											{...props.attributes}
+											style={{ color: "#4dabf7", textDecoration: "none" }}
 										>
-										{props.content}
+											{props.content}
 										</a>
 									),
-									},
+								},
 							}}
 						>
 							{message.content}

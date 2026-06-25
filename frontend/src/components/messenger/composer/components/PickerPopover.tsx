@@ -97,7 +97,7 @@ export const PickerPopover = ({
 				<Tab value="sticker" label="Sticker" />
 			</Tabs>
 
-			<Box sx={{ p: 1.25, minHeight: 220, maxHeight: 360, overflowY: "auto" }}>
+			<Box sx={{ p: 1.25, minHeight: 220 }}>
 				{activeTab === "emoji" ? (
 					<EmojiPicker
 						loadingEmojis={loadingEmojis}

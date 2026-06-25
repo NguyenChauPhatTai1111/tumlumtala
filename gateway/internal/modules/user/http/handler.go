@@ -252,9 +252,17 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 		return
 	}
 
+	existing, err := h.service.GetUser(c.Request.Context(), claims.UserID)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
 	user, err := h.service.UpdateProfile(c.Request.Context(), domain.UpdateProfileInput{
-		UUID:   claims.UserID,
-		Avatar: cdnURL,
+		UUID:     claims.UserID,
+		Email:    existing.Email,
+		Fullname: existing.Fullname,
+		Avatar:   cdnURL,
 	})
 	if err != nil {
 		response.Error(c, err)

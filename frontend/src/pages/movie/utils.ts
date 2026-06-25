@@ -71,7 +71,9 @@ const COUNTRY_ISO_MAP: Record<string, string> = {
 };
 
 export const getCountryIsoCode = (slug: string): string | null =>
-	COUNTRY_ISO_MAP[slug] ?? null;
+	/^[a-z]{2}$/i.test(slug.trim())
+		? slug.trim().toLowerCase()
+		: COUNTRY_ISO_MAP[slug] ?? null;
 
 export const formatDuration = (time: string): string | null => {
 	if (!time?.trim()) return null;

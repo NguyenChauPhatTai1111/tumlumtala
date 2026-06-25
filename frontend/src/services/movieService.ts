@@ -40,6 +40,37 @@ const decodeItem = <T extends { name: string; origin_name: string }>(
 	origin_name: decodeHtml(item.origin_name),
 });
 
+const isRegionCode = (value?: string | null) =>
+	Boolean(value && /^[a-z]{2}$/i.test(value.trim()));
+
+const getRegionDisplayName = (code: string) => {
+	try {
+		const displayNames = new Intl.DisplayNames(["vi"], { type: "region" });
+		return displayNames.of(code.toUpperCase()) ?? code.toUpperCase();
+	} catch {
+		return code.toUpperCase();
+	}
+};
+
+const normalizeCountryItem = (
+	item: OphimV1CatalogItem,
+): OphimV1CatalogItem => {
+	const rawName = decodeHtml(item.name ?? "");
+	const regionCode = [item.slug, rawName, item._id].find(isRegionCode);
+
+	if (!regionCode) {
+		return {
+			...item,
+			name: rawName,
+		};
+	}
+
+	return {
+		...item,
+		name: getRegionDisplayName(regionCode),
+	};
+};
+
 const v1List = (path: string) =>
 	fetchJson<OphimV1Response<OphimV1ListData>>(`${BASE}/v1/api${path}`).then(
 		(r) => {
@@ -133,7 +164,9 @@ export const getGenres = () =>
 // ── Countries ────────────────────────────────────────────────────────────────
 
 export const getCountries = () =>
-	fetchJson<OphimV1CatalogItem[]>(`${BASE}/quoc-gia`);
+	fetchJson<OphimV1CatalogItem[]>(`${BASE}/quoc-gia`).then((items) =>
+		items.map(normalizeCountryItem),
+	);
 
 // ── Years ────────────────────────────────────────────────────────────────────
 

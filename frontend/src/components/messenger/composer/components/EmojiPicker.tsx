@@ -1,20 +1,13 @@
+import type { EmojiTypeTab } from "@components/messenger/composer/types";
 import {
 	getEmojiText,
+	isFlagEmoji,
 	normalizeEmojiType,
 } from "@components/messenger/composer/utils/emoji";
-import {
-	Box,
-	Chip,
-	CircularProgress,
-	Tab,
-	Tabs,
-	Typography,
-} from "@mui/material";
-import { resolveCdnUrl } from "@/utils";
-import "flag-icons/css/flag-icons.min.css";
-import type { EmojiTypeTab } from "@components/messenger/composer/types";
+import { Box, CircularProgress, Tab, Tabs, Typography } from "@mui/material";
 import type { MutableRefObject } from "react";
 import type { IEmoji } from "@/types/emoji";
+import { resolveCdnUrl } from "@/utils";
 
 type EmojiPickerProps = {
 	loadingEmojis: boolean;
@@ -66,7 +59,15 @@ export const EmojiPicker = ({
 	}
 
 	return (
-		<Box sx={{ width: 1 }}>
+		<Box
+			sx={{
+				width: 1,
+				display: "flex",
+				flexDirection: "column",
+				maxHeight: 380,
+				minHeight: 0,
+			}}
+		>
 			{emojiTypeTabs.length > 0 && (
 				<Tabs
 					value={effectiveActiveEmojiCategoryTab}
@@ -78,7 +79,7 @@ export const EmojiPicker = ({
 					variant="scrollable"
 					scrollButtons="auto"
 					allowScrollButtonsMobile
-					sx={{ mb: 1 }}
+					sx={{ mb: 1, flexShrink: 0 }}
 				>
 					{emojiTypeTabs.map((tab) => (
 						<Tab
@@ -94,12 +95,11 @@ export const EmojiPicker = ({
 			<Box
 				ref={emojiScrollContainerRef}
 				sx={{
+					flex: 1,
+					overflowY: "auto",
 					display: "flex",
 					flexDirection: "column",
 					gap: 2,
-					maxHeight: 330,
-					overflowY: "auto",
-					pr: 1,
 				}}
 			>
 				{emojiTypeTabs.map((tab) => {
@@ -143,43 +143,50 @@ export const EmojiPicker = ({
 											undefined,
 									);
 									const textLabel = getEmojiText(item) || item.code || "";
+									const isFlag = isFlagEmoji(item);
+									const isSticker =
+										assetUrl && normalizeEmojiType(item.type) === "sticker";
 
 									return (
-										<Chip
+										<Box
 											key={item.id}
-											clickable
+											component="button"
+											type="button"
 											onClick={() => onPickEmoji(item)}
-											label={
-												assetUrl &&
-												normalizeEmojiType(item.type) === "sticker" ? (
-													<Box
-														component="img"
-														src={assetUrl}
-														alt={item.name || item.code}
-														sx={{ width: 38, height: 38, objectFit: "contain" }}
-													/>
-												) : normalizeEmojiType(item.type) === "flag" ? (
-													<Box
-														component="span"
-														className={`fi fi-${String(textLabel).toLowerCase()}`}
-														sx={{ fontSize: 18, lineHeight: 1 }}
-													/>
-												) : (
-													<Typography sx={{ fontSize: 24, lineHeight: 1 }}>
-														{textLabel}
-													</Typography>
-												)
-											}
 											sx={{
 												height: 46,
 												minWidth: 46,
 												borderRadius: 1.5,
+												border: "none",
 												backgroundColor: "transparent",
+												cursor: "pointer",
+												display: "flex",
+												alignItems: "center",
 												justifyContent: "center",
-												fontSize: 20,
 												p: 0,
+												"&:hover": { bgcolor: "action.hover" },
 											}}
-										/>
+										>
+											{isSticker ? (
+												<Box
+													component="img"
+													src={assetUrl}
+													alt={item.name || item.code}
+													sx={{ width: 38, height: 38, objectFit: "contain" }}
+												/>
+											) : isFlag ? (
+												<Box
+													component="img"
+													src={`/flags/4x3/${String(textLabel).toLowerCase()}.svg`}
+													alt={item.name || String(textLabel)}
+													sx={{ width: 28, height: 21, objectFit: "contain" }}
+												/>
+											) : (
+												<Typography sx={{ fontSize: 24, lineHeight: 1 }}>
+													{textLabel}
+												</Typography>
+											)}
+										</Box>
 									);
 								})}
 							</Box>

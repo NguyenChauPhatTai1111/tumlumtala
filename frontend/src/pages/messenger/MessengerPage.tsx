@@ -20,6 +20,8 @@ import {
 	MESSAGE_PAGE_SIZE,
 } from "@constants/messenger";
 import { useConfirm } from "@hooks/common";
+import { useCurrentUser } from "@hooks/common/useCurrentUser";
+import { useNotification } from "@hooks/common/useNotification";
 import { messengerKeys } from "@hooks/keys/messengerKeys";
 import {
 	useConversationUnread,
@@ -31,6 +33,7 @@ import {
 	useMessengerSearch,
 	useMessengerSendMessage,
 	useMessengerWebSocketConnection,
+	useNewMessageNotification,
 	useSendMessengerMessage,
 } from "@hooks/messenger";
 import { Box, useTheme } from "@mui/material";
@@ -38,11 +41,10 @@ import { MessengerContent } from "@pages/messenger/components/MessengerContent";
 import { MessengerSidebar } from "@pages/messenger/components/MessengerSidebar";
 import { MessengerDialogs } from "@pages/messenger/dialogs/MessengerDialogs";
 import { useMessengerPageState } from "@pages/messenger/hooks";
-import { useCurrentUser } from "@hooks/common/useCurrentUser";
-import { useNotification } from "@hooks/common/useNotification";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChangeEvent, ReactNode, SyntheticEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useShowMessageToast } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
 import {
 	getMessages,
@@ -69,6 +71,8 @@ export default function MessengerPage() {
 	const currentUserId = currentUser?.id;
 	const theme = useTheme();
 	const confirm = useConfirm();
+	const showToast = useShowMessageToast();
+	const { notify: notifyNewMessage } = useNewMessageNotification();
 	const {
 		// theme/responsive
 		isMobile,
@@ -910,6 +914,26 @@ export default function MessengerPage() {
 				},
 			);
 
+			// Play sound + flash title + desktop popup for incoming messages from others.
+			const isSenderCurrentUser =
+				msg.sender_id != null &&
+				Number(msg.sender_id) === Number(currentUserId);
+			const isViewingConversation =
+				conversationId === selectedConversationIdRef.current &&
+				document.hasFocus();
+			if (!isSenderCurrentUser && !isViewingConversation) {
+				const conv = conversations.find((c) => c.id === conversationId);
+				const senderParticipant = conv?.participants?.find(
+					(p) => p.id === Number(msg.sender_id),
+				);
+				notifyNewMessage({
+					senderName: senderParticipant?.fullname,
+					conversationName: conv?.is_group ? conv.name : undefined,
+					content: msg.content,
+					senderAvatar: senderParticipant?.avatar,
+				});
+			}
+
 			// Auto mark-as-read if the user is currently viewing this conversation.
 			if (conversationId === selectedConversationIdRef.current) {
 				void markReadAction.mutateAsync({
@@ -1101,8 +1125,10 @@ export default function MessengerPage() {
 	}, [
 		ws,
 		queryClient,
+		conversations,
 		currentUserId,
 		markReadAction,
+		notifyNewMessage,
 		patchParticipantSeenSeq,
 		setOlderMessages,
 	]);
@@ -3029,6 +3055,8 @@ export default function MessengerPage() {
 					onCloseInputDialog={closeInputDialog}
 					onSubmitInputDialog={_submitInputDialog}
 					onInputDialogValueChange={handleInputDialogValueChange}
+					onAddMemberUser={handleAddMemberUserSearch}
+					onRemoveSelectedUser={_handleRemoveSelectedUser}
 				/>
 			</Box>
 		</MessengerEmojiProvider>

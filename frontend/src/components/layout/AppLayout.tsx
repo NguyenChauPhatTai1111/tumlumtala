@@ -38,6 +38,7 @@ import { authStore } from "@store/authStore";
 import { useThemeMode } from "@store/themeStore";
 import { useCurrentUser, currentUserCache } from "@hooks/user/useCurrentUser";
 import { ProfileDialog } from "@components/user/dialog/ProfileDialog";
+import { HeaderChatsMenu } from "@components/messenger/HeaderChatsMenu";
 
 const DRAWER_WIDTH = 240;
 const DRAWER_COLLAPSED = 64;
@@ -204,140 +205,142 @@ export const AppLayout = () => {
 
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      {/* Mobile Drawer */}
-      {isMobile && (
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            "& .MuiDrawer-paper": {
-              width: DRAWER_WIDTH,
-              boxSizing: "border-box",
-            },
-          }}
-        >
-          <SiderContent
-            collapsed={false}
+        {/* Mobile Drawer */}
+        {isMobile && (
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
             onClose={() => setMobileOpen(false)}
-            onNavigate={navigate}
-            activePath={location.pathname}
-          />
-        </Drawer>
-      )}
+            ModalProps={{ keepMounted: true }}
+            sx={{
+              "& .MuiDrawer-paper": {
+                width: DRAWER_WIDTH,
+                boxSizing: "border-box",
+              },
+            }}
+          >
+            <SiderContent
+              collapsed={false}
+              onClose={() => setMobileOpen(false)}
+              onNavigate={navigate}
+              activePath={location.pathname}
+            />
+          </Drawer>
+        )}
 
-      {/* Desktop Sidebar */}
-      {!isMobile && (
-        <Box
-          sx={{
-            width: collapsed ? DRAWER_COLLAPSED : DRAWER_WIDTH,
-            flexShrink: 0,
-            transition: "width 0.3s ease",
-            overflow: "hidden",
-            borderRight: "1px solid",
-            borderColor: "divider",
-          }}
-        >
-          <SiderContent
-            collapsed={collapsed}
-            onNavigate={navigate}
-            activePath={location.pathname}
-          />
-        </Box>
-      )}
+        {/* Desktop Sidebar */}
+        {!isMobile && (
+          <Box
+            sx={{
+              width: collapsed ? DRAWER_COLLAPSED : DRAWER_WIDTH,
+              flexShrink: 0,
+              transition: "width 0.3s ease",
+              overflow: "hidden",
+              borderRight: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <SiderContent
+              collapsed={collapsed}
+              onNavigate={navigate}
+              activePath={location.pathname}
+            />
+          </Box>
+        )}
 
-      {/* Main content */}
-      <Box
-        sx={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 0,
-          overflow: "hidden",
-        }}
-      >
-        {/* AppBar */}
-        <AppBar position="static" color="default" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
-          <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              {isMobile ? (
-                <IconButton color="inherit" onClick={() => setMobileOpen(true)} sx={{ mr: 1 }}>
-                  <MenuIcon />
-                </IconButton>
-              ) : (
-                <IconButton color="inherit" onClick={() => setCollapsed((c) => !c)} sx={{ mr: 2 }}>
-                  {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-                </IconButton>
-              )}
-              <Typography
-                variant="h6"
-                sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}
-              >
-                Xin chào, {displayName}
-              </Typography>
-            </Box>
-
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {/* Theme toggle */}
-              <Tooltip title={mode === "light" ? "Chế độ tối" : "Chế độ sáng"}>
-                <IconButton color="inherit" onClick={toggleMode}>
-                  {mode === "light" ? <DarkModeIcon /> : <LightModeIcon />}
-                </IconButton>
-              </Tooltip>
-
-              {/* User menu */}
-              <Box
-                onClick={(e) => setAnchorEl(e.currentTarget)}
-                sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", ml: 1 }}
-              >
-                <Typography sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}>
-                  {displayName}
-                </Typography>
-                <Avatar
-                  src={user?.avatar || undefined}
-                  sx={{ width: 34, height: 34, bgcolor: "primary.main", fontSize: 14 }}
-                >
-                  {!user?.avatar && avatarInitials}
-                </Avatar>
-              </Box>
-
-              <Menu
-                anchorEl={anchorEl}
-                open={!!anchorEl}
-                onClose={() => setAnchorEl(null)}
-                transformOrigin={{ horizontal: "right", vertical: "top" }}
-                anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-              >
-                <MenuItem onClick={handleProfile}>
-                  <PersonIcon fontSize="small" sx={{ mr: 1 }} />
-                  Hồ sơ của tôi
-                </MenuItem>
-                <Divider />
-                <MenuItem onClick={handleLogout}>
-                  <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
-                  Đăng xuất
-                </MenuItem>
-              </Menu>
-            </Box>
-          </Toolbar>
-        </AppBar>
-
-        {/* Page content */}
+        {/* Main content */}
         <Box
           sx={{
             flex: 1,
-            minHeight: 0,
-            position: "relative",
-            overflow: location.pathname.startsWith("/messenger") ? "hidden" : "auto",
-            p: location.pathname.startsWith("/messenger") ? 0 : { xs: 1.5, sm: 2, md: 3 },
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+            overflow: "hidden",
           }}
         >
-          <Suspense fallback={null}>
-            <Outlet />
-          </Suspense>
+          {/* AppBar */}
+          <AppBar position="static" color="default" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
+            <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                {isMobile ? (
+                  <IconButton color="inherit" onClick={() => setMobileOpen(true)} sx={{ mr: 1 }}>
+                    <MenuIcon />
+                  </IconButton>
+                ) : (
+                  <IconButton color="inherit" onClick={() => setCollapsed((c) => !c)} sx={{ mr: 2 }}>
+                    {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+                  </IconButton>
+                )}
+                <Typography
+                  variant="h6"
+                  sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}
+                >
+                  Xin chào, {displayName}
+                </Typography>
+              </Box>
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                {/* Theme toggle */}
+                <Tooltip title={mode === "light" ? "Chế độ tối" : "Chế độ sáng"}>
+                  <IconButton color="inherit" onClick={toggleMode}>
+                    {mode === "light" ? <DarkModeIcon /> : <LightModeIcon />}
+                  </IconButton>
+                </Tooltip>
+
+                <HeaderChatsMenu />
+
+                {/* User menu */}
+                <Box
+                  onClick={(e) => setAnchorEl(e.currentTarget)}
+                  sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", ml: 1 }}
+                >
+                  <Typography sx={{ display: { xs: "none", sm: "block" }, color: "text.primary" }}>
+                    {displayName}
+                  </Typography>
+                  <Avatar
+                    src={user?.avatar || undefined}
+                    sx={{ width: 34, height: 34, bgcolor: "primary.main", fontSize: 14 }}
+                  >
+                    {!user?.avatar && avatarInitials}
+                  </Avatar>
+                </Box>
+
+                <Menu
+                  anchorEl={anchorEl}
+                  open={!!anchorEl}
+                  onClose={() => setAnchorEl(null)}
+                  transformOrigin={{ horizontal: "right", vertical: "top" }}
+                  anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+                >
+                  <MenuItem onClick={handleProfile}>
+                    <PersonIcon fontSize="small" sx={{ mr: 1 }} />
+                    Hồ sơ của tôi
+                  </MenuItem>
+                  <Divider />
+                  <MenuItem onClick={handleLogout}>
+                    <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+                    Đăng xuất
+                  </MenuItem>
+                </Menu>
+              </Box>
+            </Toolbar>
+          </AppBar>
+
+          {/* Page content */}
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              position: "relative",
+              overflow: location.pathname.startsWith("/messenger") ? "hidden" : "auto",
+              p: location.pathname.startsWith("/messenger") ? 0 : { xs: 1.5, sm: 2, md: 3 },
+            }}
+          >
+            <Suspense fallback={null}>
+              <Outlet />
+            </Suspense>
+          </Box>
         </Box>
-      </Box>
 
       <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </Box>

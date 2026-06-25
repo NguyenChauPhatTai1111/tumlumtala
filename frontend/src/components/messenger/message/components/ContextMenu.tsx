@@ -56,7 +56,11 @@ export const ContextMenu = ({
 	const ctxReactionEmojiTabs = useMemo(
 		() =>
 			Array.from(emojiTypeGroups.keys())
-				.filter((type) => type !== "sticker")
+				.filter((type) =>
+					(emojiTypeGroups.get(type) ?? []).some(
+						(item) => normalizeEmojiType(item.type) !== "sticker",
+					),
+				)
 				.map((type) => ({ key: type, label: emojiTypeMap[type] || type })),
 		[emojiTypeGroups, emojiTypeMap],
 	);
@@ -66,7 +70,10 @@ export const ContextMenu = ({
 		ctxActiveReactionPackTab || ctxReactionEmojiTabs[0]?.key || "";
 
 	const ctxReactionEmojiList = useMemo(
-		() => emojiTypeGroups.get(ctxCurrentReactionPackTab) ?? [],
+		() =>
+			(emojiTypeGroups.get(ctxCurrentReactionPackTab) ?? []).filter(
+				(item) => normalizeEmojiType(item.type) !== "sticker",
+			),
 		[emojiTypeGroups, ctxCurrentReactionPackTab],
 	);
 

@@ -23,3 +23,4 @@ export { useRecentItems } from "./useRecentItems";
 export { useSendMessage } from "./useSendMessage";
 export { useSendMessengerMessage } from "./useSendMessengerMessage";
 export { useStreamingMessage } from "./useStreamingMessage";
+export { useNewMessageNotification } from "./useNewMessageNotification";

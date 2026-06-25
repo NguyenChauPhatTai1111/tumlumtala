@@ -29,6 +29,7 @@ interface UserSearchDialogProps {
 	onClose: () => void;
 	onSelect: (user: User) => void;
 	loading?: boolean;
+	title?: string;
 }
 
 export const UserSearchDialog = ({
@@ -36,6 +37,7 @@ export const UserSearchDialog = ({
 	onClose,
 	onSelect,
 	loading = false,
+	title = "Tìm kiếm người dùng",
 }: UserSearchDialogProps) => {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [searchKeyword, setSearchKeyword] = useState("");
@@ -121,7 +123,7 @@ export const UserSearchDialog = ({
 						justifyContent: "space-between",
 					}}
 				>
-					Tìm kiếm người dùng
+					{title}
 					<Button size="small" onClick={onClose} sx={{ minWidth: 0 }}>
 						<CloseIcon />
 					</Button>

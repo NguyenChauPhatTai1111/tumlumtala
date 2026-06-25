@@ -121,15 +121,69 @@ const resolveOwnedEmojiCode = (item: unknown): string => {
 	return typeof candidate === "string" ? candidate.trim() : "";
 };
 
+const toRecord = (value: unknown): Record<string, unknown> =>
+	value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
+const toStringValue = (value: unknown, fallback = "") => {
+	if (typeof value === "string") return value;
+	if (typeof value === "number") return String(value);
+	return fallback;
+};
+
+const toOptionalString = (value: unknown): string | undefined => {
+	const resolved = toStringValue(value, "").trim();
+	return resolved === "" ? undefined : resolved;
+};
+
+const toNumberValue = (value: unknown): number | undefined => {
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value === "string" && value.trim() !== "") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+};
+
+const normalizeEmoji = (raw: unknown): IEmoji => {
+	const obj = toRecord(raw);
+	const packId = toNumberValue(
+		obj.pack_id ?? obj.packID ?? obj.packId ?? obj.emoji_pack_id,
+	);
+
+	return {
+		id: toStringValue(obj.id ?? obj.emojiId ?? obj.emoji_id),
+		code: toStringValue(obj.code ?? obj.emojiCode ?? obj.emoji_code),
+		name: toStringValue(obj.name ?? obj.emojiName ?? obj.emoji_name),
+		type: toStringValue(obj.type, "other"),
+		pack_id: packId,
+		source_type: toOptionalString(
+			obj.source_type ?? obj.sourceType ?? obj.emoji_source_type,
+		),
+		source_value: toOptionalString(
+			obj.source_value ?? obj.sourceValue ?? obj.emoji_source_value,
+		),
+		icon_text: toOptionalString(
+			obj.icon_text ?? obj.iconText ?? obj.emoji_icon_text,
+		),
+		display_value: toOptionalString(obj.display_value ?? obj.displayValue),
+		icon_code: toOptionalString(obj.icon_code ?? obj.iconCode),
+		external_url: toOptionalString(obj.external_url ?? obj.externalUrl),
+		asset_url: toOptionalString(
+			obj.asset_url ?? obj.assetUrl ?? obj.emojiAssetUrl ?? obj.emoji_asset_url,
+		),
+		animation_type: toOptionalString(
+			obj.animation_type ?? obj.animationType ?? obj.emojiAnimationType,
+		),
+		price: toNumberValue(obj.price ?? obj.emojiPrice) ?? 0,
+		status: toNumberValue(obj.status ?? obj.emojiStatus) ?? 0,
+		created_at: toOptionalString(obj.created_at ?? obj.createdAt),
+		updated_at: toOptionalString(obj.updated_at ?? obj.updatedAt),
+	};
+};
+
 export const getAllEmojis = async (): Promise<IEmoji[]> => {
 	const response = await apiRequest("/emoji", { method: "GET" });
-	const payload = response as IEmoji[] | { data?: IEmoji[] };
-
-	if (Array.isArray(payload)) {
-		return payload;
-	}
-
-	return Array.isArray(payload?.data) ? payload.data : [];
+	return collectList(response).map(normalizeEmoji);
 };
 
 export const getActiveEmojis = async (): Promise<IEmoji[]> => {
@@ -137,14 +191,9 @@ export const getActiveEmojis = async (): Promise<IEmoji[]> => {
 		method: "GET",
 		params: { status: 1, limit: 1000 },
 	});
-	const payload = response as IEmoji[] | { data?: IEmoji[] };
-
-	if (Array.isArray(payload)) {
-		return payload.filter((item) => item.status === 1);
-	}
-
-	const data = Array.isArray(payload?.data) ? payload.data : [];
-	return data.filter((item) => item.status === 1);
+	return collectList(response)
+		.map(normalizeEmoji)
+		.filter((item) => item.status === 1);
 };
 
 export const getEmojiByID = async (id: string): Promise<IEmoji> => {

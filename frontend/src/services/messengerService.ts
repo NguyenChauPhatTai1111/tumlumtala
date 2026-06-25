@@ -49,13 +49,31 @@ const toBooleanValue = (value: unknown): boolean => {
 	return Boolean(value);
 };
 
+const getAvatarValue = (obj: Record<string, unknown>) => {
+	const user = toRecord(obj.user);
+	const profile = toRecord(obj.profile);
+	return toStringValue(
+		obj.avatar ??
+			obj.user_avatar ??
+			obj.avatar_url ??
+			obj.profile_picture ??
+			obj.picture ??
+			user.avatar ??
+			user.user_avatar ??
+			user.avatar_url ??
+			profile.avatar ??
+			profile.avatar_url,
+		undefined,
+	);
+};
+
 const toUser = (raw: unknown): User => {
 	const obj = toRecord(raw);
 	return {
 		id: toStringValue(obj.id ?? obj.user_id ?? obj.uuid),
 		username: toStringValue(obj.username ?? obj.fullname ?? ""),
 		email: toStringValue(obj.email),
-		avatar: toStringValue(obj.avatar, undefined),
+		avatar: getAvatarValue(obj),
 		first_name: toStringValue(obj.first_name ?? obj.fullname ?? ""),
 		last_name: toStringValue(obj.last_name, undefined),
 		is_online: toBooleanValue(obj.is_online),
@@ -68,13 +86,24 @@ const toParticipant = (
 ): import("@/types/messenger").Participant => {
 	const obj = toRecord(raw);
 	const nickname = toStringValue(obj.nickname, "");
-	const fullname = toStringValue(obj.fullname ?? obj.name ?? obj.username, "");
+	const user = toRecord(obj.user);
+	const fullname = toStringValue(
+		obj.fullname ??
+			obj.full_name ??
+			obj.name ??
+			obj.username ??
+			user.fullname ??
+			user.full_name ??
+			user.name ??
+			user.username,
+		"",
+	);
 	return {
-		id: Number(obj.id ?? 0),
+		id: Number(obj.id ?? obj.user_id ?? user.id ?? user.user_id ?? 0),
 		fullname,
 		nickname: nickname || undefined,
-		email: toStringValue(obj.email, ""),
-		avatar: toStringValue(obj.avatar, undefined),
+		email: toStringValue(obj.email ?? user.email, ""),
+		avatar: getAvatarValue(obj),
 		role: toStringValue(obj.role, undefined) || undefined,
 		last_seen_seq:
 			obj.last_seen_seq != null ? Number(obj.last_seen_seq) : undefined,

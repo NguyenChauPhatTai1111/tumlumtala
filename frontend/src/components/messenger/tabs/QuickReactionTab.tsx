@@ -4,8 +4,6 @@ import { useMemo, useState } from "react";
 import type { IEmoji } from "@/types/emoji";
 import { resolveCdnUrl } from "@/utils/urlUtils";
 
-import "flag-icons/css/flag-icons.min.css";
-
 type QuickReactionTabProps = {
 	currentQuickReaction?: string;
 	onCancel: () => void;
@@ -21,11 +19,21 @@ const normalizeEmojiType = (value: unknown) => {
 	return normalized === "" ? "other" : normalized;
 };
 
+const extractFlagCode = (item: IEmoji): string => {
+	const raw = String(
+		item.icon_text ?? item.icon_code ?? item.source_value ?? item.code ?? "",
+	).trim();
+	const match = raw.match(/[a-zA-Z]{2}$/);
+	return match ? match[0].toLowerCase() : raw.toLowerCase();
+};
+
+const isFlag = (item: IEmoji) =>
+	normalizeEmojiType(item.type) === "flag" ||
+	normalizeEmojiType(item.source_type) === "flag";
+
 const getEmojiText = (item: IEmoji) => {
-	if (normalizeEmojiType(item.type) === "flag" && item.code) {
-		return String(
-			item.icon_text ?? item.icon_code ?? item.source_value ?? "",
-		).trim();
+	if (isFlag(item)) {
+		return extractFlagCode(item);
 	}
 
 	const sourceType = String(item.source_type ?? "")
@@ -71,15 +79,23 @@ export default function QuickReactionTab({
 	);
 
 	const emojiTypeTabs = useMemo(() => {
-		return Array.from(emojiTypeGroups.keys()).map((type) => ({
-			key: type,
-			label: emojiTypeMap[type] || type,
-		}));
+		return Array.from(emojiTypeGroups.keys())
+			.filter((type) =>
+				(emojiTypeGroups.get(type) ?? []).some(
+					(item) => normalizeEmojiType(item.type) !== "sticker",
+				),
+			)
+			.map((type) => ({
+				key: type,
+				label: emojiTypeMap[type] || type,
+			}));
 	}, [emojiTypeGroups, emojiTypeMap]);
 
 	const [activeEmojiPack, setActiveEmojiPack] = useState("");
 	const currentPack = activeEmojiPack || emojiTypeTabs[0]?.key || "";
-	const displayedEmojis = emojiTypeGroups.get(currentPack) ?? [];
+	const displayedEmojis = (emojiTypeGroups.get(currentPack) ?? []).filter(
+		(item) => normalizeEmojiType(item.type) !== "sticker",
+	);
 
 	const handleSave = async () => {
 		if (!selectedEmoji.trim()) {
@@ -187,13 +203,12 @@ export default function QuickReactionTab({
 														objectFit: "contain",
 													}}
 												/>
-											) : normalizeEmojiType(emoji.type) === "flag" ? (
+											) : isFlag(emoji) ? (
 												<Box
-													component="span"
-													className={`fi fi-${String(value).toLowerCase()}`}
-													sx={{
-														fontSize: 18,
-													}}
+													component="img"
+													src={`/flags/4x3/${String(value).toLowerCase()}.svg`}
+													alt={emoji.name || String(value)}
+													sx={{ width: 24, height: 18, objectFit: "contain" }}
 												/>
 											) : (
 												<Typography

@@ -82,7 +82,7 @@ export default function MessengerCustomizeDialog({
 	onChangeQuickReaction,
 }: MessengerCustomizeDialogProps) {
 	const theme = useTheme();
-	const [customizeTab, setCustomizeTab] = React.useState(0);
+	const [customizeTab, setCustomizeTab] = React.useState<string>("theme");
 	const [renameValue, setRenameValue] = React.useState<string>(
 		conversation.name || "",
 	);
@@ -134,6 +134,8 @@ export default function MessengerCustomizeDialog({
 			return;
 		}
 
+		setCustomizeTab(isGroup ? "rename" : "theme");
+
 		const currentPresetId =
 			initialThemePresetId || conversation.theme?.preset_id || "";
 		const currentThemeId = conversation.theme_id ?? conversation.theme?.id;
@@ -169,7 +171,7 @@ export default function MessengerCustomizeDialog({
 				conversation.theme?.outgoing_text_color ||
 				(theme.palette.mode === "dark" ? "#ffffff" : "#ffffff"),
 		);
-	}, [open, conversation, initialThemePresetId, theme.palette.mode]);
+	}, [open, conversation, initialThemePresetId, theme.palette.mode, isGroup]);
 
 	React.useEffect(() => {
 		if (!avatarFile) {
@@ -427,131 +429,78 @@ export default function MessengerCustomizeDialog({
 
 			<Tabs
 				value={customizeTab}
-				onChange={(_, value) => setCustomizeTab(value)}
+				onChange={(_, value) => setCustomizeTab(value as string)}
 				variant="fullWidth"
 			>
-				{isGroup && <Tab label="Đổi tên" />}
-				{isGroup && <Tab label="Avatar nhóm" />}
-				<Tab label="Giao diện" />
-				<Tab label="Biểu cảm" />
+				{isGroup && <Tab value="rename" label="Đổi tên" />}
+				{isGroup && <Tab value="avatar" label="Avatar nhóm" />}
+				<Tab value="theme" label="Giao diện" />
+				<Tab value="reaction" label="Biểu cảm" />
 			</Tabs>
 
 			<DialogContent ref={contentRef} sx={{ minHeight: 260, pt: 3 }}>
-				{isGroup ? (
-					<>
-						{customizeTab === 0 && (
-							<RenameTab
-								renameValue={renameValue}
-								onRenameValueChange={setRenameValue}
-								onCancel={onClose}
-								onSave={handleSaveRename}
-								disabled={!renameValue.trim()}
-							/>
-						)}
+				{customizeTab === "rename" && isGroup && (
+					<RenameTab
+						renameValue={renameValue}
+						onRenameValueChange={setRenameValue}
+						onCancel={onClose}
+						onSave={handleSaveRename}
+						disabled={!renameValue.trim()}
+					/>
+				)}
 
-						{customizeTab === 1 && (
-							<AvatarTab
-								avatarPreviewUrl={avatarPreviewUrl}
-								conversationAvatar={conversation.avatar}
-								conversationName={conversation.name}
-								avatarFile={avatarFile}
-								avatarInputRef={avatarInputRef}
-								onAvatarFileSelected={handleAvatarFileSelected}
-								onClearAvatar={() => setAvatarFile(null)}
-								onCancel={onClose}
-								onSave={handleSaveAvatar}
-							/>
-						)}
+				{customizeTab === "avatar" && isGroup && (
+					<AvatarTab
+						avatarPreviewUrl={avatarPreviewUrl}
+						conversationAvatar={conversation.avatar}
+						conversationName={conversation.name}
+						avatarFile={avatarFile}
+						avatarInputRef={avatarInputRef}
+						onAvatarFileSelected={handleAvatarFileSelected}
+						onClearAvatar={() => setAvatarFile(null)}
+						onCancel={onClose}
+						onSave={handleSaveAvatar}
+					/>
+				)}
 
-						{customizeTab === 2 && (
-							<ThemeTab
-								themePresetId={themePresetId}
-								selectedThemeId={selectedThemeId}
-								themePresets={themePresets}
-								onSelectThemePreset={handleSelectThemePreset}
-								backgroundInputRef={backgroundInputRef}
-								onBackgroundImageSelected={handleBackgroundImageSelected}
-								selectedBackgroundPreview={selectedBackgroundPreview}
-								backgroundValue={backgroundValue}
-								backgroundColorValue={backgroundColorValue}
-								incomingBubbleColorValue={incomingBubbleColorValue}
-								outgoingBubbleColorValue={outgoingBubbleColorValue}
-								incomingTextColorValue={incomingTextColorValue}
-								outgoingTextColorValue={outgoingTextColorValue}
-								backgroundGradientStops={backgroundGradientStops}
-								onAddBackgroundGradientStop={handleAddBackgroundGradientStop}
-								onUpdateBackgroundGradientStop={
-									handleUpdateBackgroundGradientStop
-								}
-								onRemoveBackgroundGradientStop={
-									handleRemoveBackgroundGradientStop
-								}
-								onIncomingBubbleColorChange={handleIncomingBubbleColorChange}
-								onOutgoingBubbleColorChange={handleOutgoingBubbleColorChange}
-								onIncomingTextColorChange={handleIncomingTextColorChange}
-								onOutgoingTextColorChange={handleOutgoingTextColorChange}
-								previewBackground={previewBackground}
-								previewIncomingTextColor={previewIncomingTextColor}
-								previewOutgoingTextColor={previewOutgoingTextColor}
-								shouldShowBackgroundOverlay={shouldShowBackgroundOverlay}
-								onCancel={onClose}
-								onSave={handleSaveBackground}
-							/>
-						)}
+				{customizeTab === "theme" && (
+					<ThemeTab
+						themePresetId={themePresetId}
+						selectedThemeId={selectedThemeId}
+						themePresets={themePresets}
+						onSelectThemePreset={handleSelectThemePreset}
+						backgroundInputRef={backgroundInputRef}
+						onBackgroundImageSelected={handleBackgroundImageSelected}
+						selectedBackgroundPreview={selectedBackgroundPreview}
+						backgroundValue={backgroundValue}
+						backgroundColorValue={backgroundColorValue}
+						incomingBubbleColorValue={incomingBubbleColorValue}
+						outgoingBubbleColorValue={outgoingBubbleColorValue}
+						incomingTextColorValue={incomingTextColorValue}
+						outgoingTextColorValue={outgoingTextColorValue}
+						backgroundGradientStops={backgroundGradientStops}
+						onAddBackgroundGradientStop={handleAddBackgroundGradientStop}
+						onUpdateBackgroundGradientStop={handleUpdateBackgroundGradientStop}
+						onRemoveBackgroundGradientStop={handleRemoveBackgroundGradientStop}
+						onIncomingBubbleColorChange={handleIncomingBubbleColorChange}
+						onOutgoingBubbleColorChange={handleOutgoingBubbleColorChange}
+						onIncomingTextColorChange={handleIncomingTextColorChange}
+						onOutgoingTextColorChange={handleOutgoingTextColorChange}
+						previewBackground={previewBackground}
+						previewIncomingTextColor={previewIncomingTextColor}
+						previewOutgoingTextColor={previewOutgoingTextColor}
+						shouldShowBackgroundOverlay={shouldShowBackgroundOverlay}
+						onCancel={onClose}
+						onSave={handleSaveBackground}
+					/>
+				)}
 
-						{customizeTab === 3 && (
-							<QuickReactionTab
-								currentQuickReaction={conversation.quick_reaction ?? ""}
-								onCancel={onClose}
-								onSave={handleSaveQuickReaction}
-							/>
-						)}
-					</>
-				) : (
-					<>
-						{customizeTab === 0 && (
-							<ThemeTab
-								themePresetId={themePresetId}
-								selectedThemeId={selectedThemeId}
-								themePresets={themePresets}
-								onSelectThemePreset={handleSelectThemePreset}
-								backgroundInputRef={backgroundInputRef}
-								onBackgroundImageSelected={handleBackgroundImageSelected}
-								selectedBackgroundPreview={selectedBackgroundPreview}
-								backgroundValue={backgroundValue}
-								backgroundColorValue={backgroundColorValue}
-								incomingBubbleColorValue={incomingBubbleColorValue}
-								outgoingBubbleColorValue={outgoingBubbleColorValue}
-								incomingTextColorValue={incomingTextColorValue}
-								outgoingTextColorValue={outgoingTextColorValue}
-								backgroundGradientStops={backgroundGradientStops}
-								onAddBackgroundGradientStop={handleAddBackgroundGradientStop}
-								onUpdateBackgroundGradientStop={
-									handleUpdateBackgroundGradientStop
-								}
-								onRemoveBackgroundGradientStop={
-									handleRemoveBackgroundGradientStop
-								}
-								onIncomingBubbleColorChange={handleIncomingBubbleColorChange}
-								onOutgoingBubbleColorChange={handleOutgoingBubbleColorChange}
-								onIncomingTextColorChange={handleIncomingTextColorChange}
-								onOutgoingTextColorChange={handleOutgoingTextColorChange}
-								previewBackground={previewBackground}
-								previewIncomingTextColor={previewIncomingTextColor}
-								previewOutgoingTextColor={previewOutgoingTextColor}
-								shouldShowBackgroundOverlay={shouldShowBackgroundOverlay}
-								onCancel={onClose}
-								onSave={handleSaveBackground}
-							/>
-						)}
-						{customizeTab === 1 && (
-							<QuickReactionTab
-								currentQuickReaction={conversation.quick_reaction ?? ""}
-								onCancel={onClose}
-								onSave={handleSaveQuickReaction}
-							/>
-						)}
-					</>
+				{customizeTab === "reaction" && (
+					<QuickReactionTab
+						currentQuickReaction={conversation.quick_reaction ?? ""}
+						onCancel={onClose}
+						onSave={handleSaveQuickReaction}
+					/>
 				)}
 			</DialogContent>
 		</Dialog>

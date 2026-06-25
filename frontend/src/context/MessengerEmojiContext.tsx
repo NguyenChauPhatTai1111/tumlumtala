@@ -52,10 +52,15 @@ export function MessengerEmojiProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const emojiTypeMap = useMemo(
-		() =>
-			Object.fromEntries(
-				emojiPacks.map((p) => [p.code ?? String(p.id), p.name]),
-			),
+		() => {
+			const entries: Array<[string, string]> = [];
+			for (const pack of emojiPacks) {
+				if (pack.id) entries.push([`pack:${pack.id}`, pack.name]);
+				if (pack.code) entries.push([pack.code, pack.name]);
+				if (pack.id) entries.push([String(pack.id), pack.name]);
+			}
+			return Object.fromEntries(entries);
+		},
 		[emojiPacks],
 	);
 

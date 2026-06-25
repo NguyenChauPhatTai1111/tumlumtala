@@ -44,6 +44,7 @@ import {
   type UserFormData,
 } from "@components/user/dialog/UserFormDialog";
 import { ConfirmDeleteDialog } from "@components/user/dialog/ConfirmDeleteDialog";
+import { resolveCdnUrl } from "@/utils/urlUtils";
 
 const ROLE_COLOR: Record<string, "error" | "warning" | "default"> = {
   administrator: "error",
@@ -56,6 +57,15 @@ const ROLE_LABEL: Record<string, string> = {
   manager: "Manager",
   member: "Member",
 };
+
+const getUserInitials = (name?: string) =>
+  (name || "U")
+    .split(" ")
+    .map((word) => word[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
 function CustomPagination() {
   const apiRef = useGridApiContext();
@@ -339,28 +349,38 @@ export const UsersPage = () => {
 
   const columns: GridColDef<IUser>[] = [
     {
+      field: "avatar",
+      headerName: "Avatar",
+      width: 96,
+      sortable: false,
+      filterable: false,
+      align: "center",
+      headerAlign: "center",
+      renderCell: ({ row }) => (
+        <Box sx={{ display: "grid", placeItems: "center", height: "100%" }}>
+          <Avatar
+            src={resolveCdnUrl(row.avatar)}
+            alt={row.fullname}
+            sx={(t) => ({
+              width: 40,
+              height: 40,
+              fontSize: 13,
+              fontWeight: 800,
+              background: `linear-gradient(135deg, ${t.palette.primary.main} 0%, ${t.palette.secondary.main} 100%)`,
+            })}
+          >
+            {getUserInitials(row.fullname)}
+          </Avatar>
+        </Box>
+      ),
+    },
+    {
       field: "fullname",
       headerName: "Họ tên",
       flex: 1,
       minWidth: 150,
       renderCell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, height: "100%" }}>
-          <Avatar
-            sx={(t) => ({
-              width: 32,
-              height: 32,
-              fontSize: 12,
-              fontWeight: 700,
-              background: `linear-gradient(135deg, ${t.palette.primary.main} 0%, ${t.palette.secondary.main} 100%)`,
-            })}
-          >
-            {row.fullname
-              .split(" ")
-              .map((w: string) => w[0])
-              .slice(0, 2)
-              .join("")
-              .toUpperCase()}
-          </Avatar>
+        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
           <Typography variant="body2" fontWeight={500}>
             {row.fullname}
           </Typography>
