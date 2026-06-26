@@ -38,8 +38,11 @@ services:
       LOG_OUTPUT: ${LOG_OUTPUT:-json}
       TRACING_ENABLED: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      LOCAL_UPLOAD_DIR: /app/uploads
     ports:
       - "${PORT:-25052}:${PORT:-25052}"
+    volumes:
+      - ../uploads:/app/uploads
     depends_on:
       users-mysql:
         condition: service_healthy

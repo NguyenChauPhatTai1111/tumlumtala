@@ -64,8 +64,9 @@ export const EmojiPicker = ({
 				width: 1,
 				display: "flex",
 				flexDirection: "column",
-				maxHeight: 380,
+				maxHeight: { xs: "none", md: 380 },
 				minHeight: 0,
+				flex: { xs: 1, md: "none" },
 			}}
 		>
 			{emojiTypeTabs.length > 0 && (

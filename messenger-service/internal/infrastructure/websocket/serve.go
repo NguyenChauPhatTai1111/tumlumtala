@@ -90,17 +90,21 @@ func ParseUserIDFromToken(jwtSecret string, db *gorm.DB) JWTValidator {
 		}
 
 		var row struct {
-			ID uint `gorm:"column:id"`
+			ID     uint   `gorm:"column:id"`
+			Status string `gorm:"column:status"`
 		}
 		err = db.WithContext(ctx).
-			Raw("SELECT id FROM user_snapshots WHERE uuid = ? LIMIT 1", uuidStr).
+			Raw("SELECT id, status FROM user_snapshots WHERE uuid = ? LIMIT 1", uuidStr).
 			Scan(&row).Error
 		if err != nil {
 			return 0, err
 		}
 
-		if row.ID != 0 {
+		if row.ID != 0 && row.Status == "active" {
 			return row.ID, nil
+		}
+		if row.ID != 0 {
+			return 0, jwt.ErrTokenInvalidClaims
 		}
 
 		// Snapshot missing — upsert from JWT claims so the connection succeeds
@@ -113,11 +117,12 @@ func ParseUserIDFromToken(jwtSecret string, db *gorm.DB) JWTValidator {
 
 		now := time.Now().UTC()
 		if err := db.WithContext(ctx).Exec(`
-			INSERT INTO user_snapshots (uuid, email, fullname, avatar, role, created_at, updated_at)
-			VALUES (?, ?, '', '', ?, ?, ?)
+			INSERT INTO user_snapshots (uuid, email, fullname, avatar, role, status, created_at, updated_at)
+			VALUES (?, ?, '', '', ?, 'active', ?, ?)
 			ON DUPLICATE KEY UPDATE
 				email      = VALUES(email),
 				role       = VALUES(role),
+				status     = VALUES(status),
 				updated_at = VALUES(updated_at)
 		`, uuidStr, email, role, now, now).Error; err != nil {
 			return 0, err
@@ -125,8 +130,11 @@ func ParseUserIDFromToken(jwtSecret string, db *gorm.DB) JWTValidator {
 
 		// Re-fetch the auto-assigned ID.
 		if err := db.WithContext(ctx).
-			Raw("SELECT id FROM user_snapshots WHERE uuid = ? LIMIT 1", uuidStr).
+			Raw("SELECT id, status FROM user_snapshots WHERE uuid = ? LIMIT 1", uuidStr).
 			Scan(&row).Error; err != nil || row.ID == 0 {
+			return 0, jwt.ErrTokenInvalidClaims
+		}
+		if row.Status != "active" {
 			return 0, jwt.ErrTokenInvalidClaims
 		}
 

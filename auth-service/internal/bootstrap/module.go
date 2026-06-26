@@ -2,13 +2,13 @@ package bootstrap
 
 import (
 	"github.com/redis/go-redis/v9"
-	authpb "github.com/tumlumtala/contracts/generated/auth"
 	grpcadapter "github.com/tumlumtala/auth-service/internal/adapter/grpc"
 	"github.com/tumlumtala/auth-service/internal/application/usecase"
 	jwtinfra "github.com/tumlumtala/auth-service/internal/infrastructure/jwt"
 	"github.com/tumlumtala/auth-service/internal/infrastructure/password"
-	redisinfra "github.com/tumlumtala/auth-service/internal/infrastructure/redis"
 	"github.com/tumlumtala/auth-service/internal/infrastructure/persistence/queryservice"
+	redisinfra "github.com/tumlumtala/auth-service/internal/infrastructure/redis"
+	authpb "github.com/tumlumtala/contracts/generated/auth"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
@@ -22,7 +22,7 @@ func Register(server *grpc.Server, db *gorm.DB, redisClient *redis.Client, jwtSe
 
 	controller := grpcadapter.NewAuthController(
 		usecase.NewLoginUseCase(userQuery, sessionStore, tokenVersionStore, tokenIssuer, pwVerifier),
-		usecase.NewRefreshTokenUseCase(sessionStore, tokenVersionStore, tokenIssuer),
+		usecase.NewRefreshTokenUseCase(userQuery, sessionStore, tokenVersionStore, tokenIssuer),
 		usecase.NewLogoutUseCase(sessionStore, tokenIssuer),
 	)
 

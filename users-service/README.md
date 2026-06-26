@@ -63,7 +63,7 @@ Controller chỉ gọi use case; use case chỉ phụ thuộc các interface tro
 
 ## RPC
 
-- `CreateUser`: email, password (tối thiểu 8 ký tự), fullname, role (mặc định `member`).
+- `CreateUser`: email, password (tối thiểu 6 ký tự), fullname, role (mặc định `member`).
 - `GetUser`: uuid.
 - `ListUsers`: limit (mặc định 20, tối đa 100), offset.
 - `UpdateUser`: uuid, email, fullname, role (để trống sẽ giữ role hiện tại).

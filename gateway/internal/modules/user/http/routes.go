@@ -35,13 +35,22 @@ func (r *UserRoutes) Register(router *gin.RouterGroup) {
 
 	canRead := middleware.Authorize(r.authz, "user-service", "user", "read")
 	canUpdate := middleware.Authorize(r.authz, "user-service", "user", "update")
+	canUpdateStatus := middleware.Authorize(r.authz, "user-service", "user.status", "update")
 	canDelete := middleware.Authorize(r.authz, "user-service", "user", "delete")
 
 	users := router.Group("/users")
 	{
+		users.PATCH("/:uuid/status", canUpdateStatus, r.userController.ChangeUserStatus)
+		users.PUT("/:uuid/status", canUpdateStatus, r.userController.ChangeUserStatus)
 		users.GET("/:uuid", canRead, r.userController.GetUser)
 		users.PUT("/:uuid", canUpdate, r.userController.UpdateUser)
 		users.DELETE("/:uuid", canDelete, r.userController.DeleteUser)
+	}
+
+	legacyUser := router.Group("/user")
+	{
+		legacyUser.PATCH("/status/:uuid", canUpdateStatus, r.userController.ChangeUserStatus)
+		legacyUser.PUT("/status/:uuid", canUpdateStatus, r.userController.ChangeUserStatus)
 	}
 }
 

@@ -25,3 +25,14 @@ func (r *MySQLUserQueryRepository) GetByEmail(ctx context.Context, email string)
 	}
 	return m.ToEntity(), nil
 }
+
+func (r *MySQLUserQueryRepository) GetByUUID(ctx context.Context, uuid string) (*entity.User, error) {
+	var m model.User
+	if err := r.db.WithContext(ctx).Where("uuid = ?", uuid).First(&m).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domainerrors.ErrInvalidCredentials
+		}
+		return nil, err
+	}
+	return m.ToEntity(), nil
+}

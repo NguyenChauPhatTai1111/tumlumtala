@@ -200,7 +200,8 @@ export function HeaderChatsMenu() {
 	const usersForAvatarQuery = useQuery({
 		queryKey: ["users", "messenger-avatar-hydration"],
 		queryFn: () => listUsers(200, 0),
-		staleTime: 60_000,
+		staleTime: 5 * 60_000,
+		gcTime: 10 * 60_000,
 		enabled: Boolean(currentUserId),
 	});
 	const usersForAvatar = useMemo(

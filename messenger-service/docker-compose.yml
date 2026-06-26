@@ -8,8 +8,14 @@ services:
     environment:
       DB_HOST: tumlumtala-users-mysql
       DB_PORT: "3306"
+      REDIS_HOST: tumlumtala-redis
+      REDIS_PORT: "6379"
+      LOCAL_UPLOAD_DIR: /app/uploads
+      LOCAL_UPLOAD_BASE_URL: /api/v1/messenger-uploads
     ports:
       - "${PORT:-25056}:${PORT:-25056}"
+    volumes:
+      - ../uploads:/app/uploads
     networks:
       - tumlumtala-net
     restart: unless-stopped

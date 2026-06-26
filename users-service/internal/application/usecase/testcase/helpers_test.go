@@ -12,10 +12,10 @@ import (
 // noopPublisher satisfies repository.EventPublisher without side effects.
 type noopPublisher struct{}
 
-func (noopPublisher) PublishUserCreated(_ context.Context, _ uint64, _, _, _, _, _ string) error {
+func (noopPublisher) PublishUserCreated(_ context.Context, _ uint64, _, _, _, _, _, _ string) error {
 	return nil
 }
-func (noopPublisher) PublishUserUpdated(_ context.Context, _ uint64, _, _, _, _, _ string) error {
+func (noopPublisher) PublishUserUpdated(_ context.Context, _ uint64, _, _, _, _, _, _ string) error {
 	return nil
 }
 func (noopPublisher) PublishUserDeleted(_ context.Context, _ uint64, _ string) error { return nil }

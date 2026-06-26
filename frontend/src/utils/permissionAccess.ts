@@ -63,13 +63,16 @@ export const isAdminIdentity = (user?: IUser | null): boolean => {
 	}
 
 	const levelValue = normalizeToken(user.level);
+	const roleValue = normalizeToken(user.role);
 	const hasAdminRole = !!user.roles?.some(
-		(role) => normalizeToken(role) === "admin",
+		(role) => ["administrator", "admin"].includes(normalizeToken(role)),
 	);
 	const permissions = getUserPermissions(user);
 
 	return (
 		Number(user.level) === 1 ||
+		roleValue === "administrator" ||
+		roleValue === "admin" ||
 		levelValue === "administrator" ||
 		levelValue === "admin" ||
 		hasAdminRole ||

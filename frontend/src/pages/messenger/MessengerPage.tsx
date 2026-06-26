@@ -11,6 +11,7 @@ import {
 } from "@components/messenger/utils/background";
 import type { ConversationThemeConfig } from "@components/messenger/utils/theme";
 import { parseConversationThemeConfig } from "@components/messenger/utils/theme";
+import { getMessagePreviewContent } from "@components/messenger/miniMessenger/utils";
 import {
 	DEFAULT_BACKGROUND_COLOR,
 	DEFAULT_INCOMING_BUBBLE_COLOR,
@@ -36,7 +37,8 @@ import {
 	useNewMessageNotification,
 	useSendMessengerMessage,
 } from "@hooks/messenger";
-import { getConversations } from "@/services/messengerService";
+import { usePresence } from "@hooks/messenger/usePresence";
+import { getConversation, getConversations } from "@/services/messengerService";
 import { Box, useTheme } from "@mui/material";
 import { MessengerContent } from "@pages/messenger/components/MessengerContent";
 import { MessengerSidebar } from "@pages/messenger/components/MessengerSidebar";
@@ -45,6 +47,7 @@ import { useMessengerPageState } from "@pages/messenger/hooks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChangeEvent, ReactNode, SyntheticEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSwipeBackGuard } from "@hooks/ui/useSwipeBackGuard";
 import { useSearchParams } from "react-router-dom";
 import { useShowMessageToast } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
@@ -66,6 +69,8 @@ import type {
 	Participant,
 	User,
 } from "@/types/messenger";
+
+const REACTION_SPAM_INTERVAL_MS = 300;
 
 export default function MessengerPage() {
 	const { open } = useNotification();
@@ -213,8 +218,10 @@ export default function MessengerPage() {
 		selectedConversationId ?? undefined,
 	);
 	const ws = useMessengerWebSocketConnection();
+	const onlineUserIds = usePresence(ws);
 	const queryClient = useQueryClient();
 	const selectedConversationIdRef = useRef<number | null>(null);
+	const lastReactionAtRef = useRef<number>(0);
 
 	const setConversationDraft = useCallback(
 		(
@@ -1020,16 +1027,22 @@ export default function MessengerPage() {
 				conversationId === selectedConversationIdRef.current &&
 				document.hasFocus();
 			if (!isSenderCurrentUser && !isViewingConversation) {
-				const conv = conversations.find((c) => c.id === conversationId);
-				const senderParticipant = conv?.participants?.find(
-					(p) => p.id === Number(msg.sender_id),
-				);
-				notifyNewMessage({
-					senderName: senderParticipant?.fullname,
-					conversationName: conv?.is_group ? conv.name : undefined,
-					content: msg.content,
-					senderAvatar: senderParticipant?.avatar,
-				});
+				void (async () => {
+					const conv =
+						conversations.find((c) => c.id === conversationId) ??
+						(await getConversation(conversationId).catch(() => null));
+					if (!conv || conv.notifications_enabled === false) return;
+
+					const senderParticipant = conv.participants?.find(
+						(p) => p.id === Number(msg.sender_id),
+					);
+					notifyNewMessage({
+						senderName: senderParticipant?.fullname,
+						conversationName: conv.is_group ? conv.name : undefined,
+						content: getMessagePreviewContent(msg),
+						senderAvatar: senderParticipant?.avatar,
+					});
+				})();
 			}
 
 			// Auto mark-as-read if the user is currently viewing this conversation.
@@ -2649,6 +2662,16 @@ export default function MessengerPage() {
 			reaction = "👍",
 			action: "toggle" | "remove" = "toggle",
 		) => {
+			const now = Date.now();
+			if (now - lastReactionAtRef.current < REACTION_SPAM_INTERVAL_MS) {
+				open?.({
+					type: "error",
+					message: "Bạn đang thả cảm xúc quá nhanh. Vui lòng chờ một chút.",
+				});
+				return;
+			}
+			lastReactionAtRef.current = now;
+
 			const previousPendingMessages = pendingMessages;
 			const messageId = Number(message.id);
 			const messagesQueryKey =
@@ -2787,6 +2810,10 @@ export default function MessengerPage() {
 	const showDetail =
 		!isMobile || (!!selectedConversation && !showConversationList);
 	const showOverlayBackdrop = showInfoPanel || shouldShowSearchDetailPanel;
+
+	// Intercept browser swipe-back gesture on mobile so it returns to the
+	// conversation list instead of navigating away from /messenger
+	useSwipeBackGuard(isMobile && showDetail, handleBackToConversationList);
 	const displayedMessages = useMemo(() => {
 		if (searchedMessages) {
 			return searchedMessages;
@@ -2976,9 +3003,8 @@ export default function MessengerPage() {
 
 	return (
 		<MessengerEmojiProvider>
-			<Box sx={{ display: "flex", position: "absolute", inset: 0 }}>
-				{showSidebar && (
-					<MessengerSidebar
+			<Box sx={{ display: "flex", position: "absolute", inset: 0, overflow: "hidden" }}>
+				{showSidebar && <MessengerSidebar
 						isMobile={isMobile}
 						isSidebarCollapsed={isSidebarCollapsed}
 						conversationTab={conversationTab}
@@ -2988,6 +3014,7 @@ export default function MessengerPage() {
 						visibleConversations={visibleConversations}
 						selectedConversationId={selectedConversationId}
 						currentUserId={Number(currentUser?.id ?? 0)}
+						onlineUserIds={onlineUserIds}
 						ws={ws}
 						searchAllKeyword={searchAllKeyword}
 						searchAllLoading={searchAllLoading}
@@ -3023,10 +3050,9 @@ export default function MessengerPage() {
 						hasMoreConversations={hasMoreConversations}
 						loadingMoreConversations={loadingMoreConversations}
 						onLoadMoreConversations={handleLoadMoreConversations}
-					/>
-				)}
+					/>}
 
-				<MessengerContent
+				{(!isMobile || showDetail) && <MessengerContent
 					isMobile={isMobile}
 					showDetail={showDetail}
 					showOverlayBackdrop={showOverlayBackdrop}
@@ -3112,7 +3138,7 @@ export default function MessengerPage() {
 					draftFiles={currentDraft.files}
 					onDraftChange={handleDraftChange}
 					ws={ws}
-				/>
+				/>}
 
 				<input
 					ref={groupAvatarInputRef}

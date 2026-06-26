@@ -20,9 +20,10 @@ func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var row struct {
-			ID uint64 `gorm:"column:id"`
+			ID     uint64 `gorm:"column:id"`
+			Status string `gorm:"column:status"`
 		}
-		if err := db.Raw("SELECT id FROM user_snapshots WHERE uuid = ? LIMIT 1", uuid).Scan(&row).Error; err != nil || row.ID == 0 {
+		if err := db.Raw("SELECT id, status FROM user_snapshots WHERE uuid = ? LIMIT 1", uuid).Scan(&row).Error; err != nil || row.ID == 0 || row.Status != "active" {
 			c.JSON(401, gin.H{"success": false, "message": "Unauthorized"})
 			c.Abort()
 			return

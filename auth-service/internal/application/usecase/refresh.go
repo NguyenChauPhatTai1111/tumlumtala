@@ -14,17 +14,19 @@ import (
 const refreshTokenTTL = 7 * 24 * time.Hour
 
 type RefreshTokenUseCase struct {
+	users         repository.UserQueryRepository
 	sessions      repository.SessionStore
 	tokenVersions repository.TokenVersionStore
 	tokens        TokenIssuer
 }
 
 func NewRefreshTokenUseCase(
+	users repository.UserQueryRepository,
 	sessions repository.SessionStore,
 	tokenVersions repository.TokenVersionStore,
 	tokens TokenIssuer,
 ) *RefreshTokenUseCase {
-	return &RefreshTokenUseCase{sessions: sessions, tokenVersions: tokenVersions, tokens: tokens}
+	return &RefreshTokenUseCase{users: users, sessions: sessions, tokenVersions: tokenVersions, tokens: tokens}
 }
 
 func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input dto.RefreshInput) (dto.TokenPair, error) {
@@ -45,6 +47,14 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input dto.RefreshInp
 		return dto.TokenPair{}, domainerrors.ErrInvalidToken
 	}
 
+	user, err := uc.users.GetByUUID(ctx, session.UserUUID)
+	if err != nil {
+		return dto.TokenPair{}, domainerrors.ErrInvalidToken
+	}
+	if user.Status != "" && user.Status != "active" {
+		return dto.TokenPair{}, domainerrors.ErrInvalidToken
+	}
+
 	// xóa session cũ (rotation)
 	if err := uc.sessions.Delete(ctx, jti); err != nil {
 		return dto.TokenPair{}, err
@@ -53,12 +63,6 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input dto.RefreshInp
 	tokenVersion, err := uc.tokenVersions.Get(ctx, session.UserUUID)
 	if err != nil {
 		return dto.TokenPair{}, err
-	}
-
-	user := &entity.User{
-		UUID:  session.UserUUID,
-		Email: session.Email,
-		Role:  session.Role,
 	}
 
 	accessToken, _, err := uc.tokens.IssueAccessToken(user, tokenVersion)

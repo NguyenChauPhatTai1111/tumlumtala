@@ -7,7 +7,7 @@ export interface IUser {
 	email: string;
 	age: number;
 	gender?: UserGender;
-	status: string;
+	status: "active" | "inactive";
 	level: string;
 	roles?: string[];
 	permissions?: string[];

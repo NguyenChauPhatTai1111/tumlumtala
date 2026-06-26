@@ -45,7 +45,7 @@ func NewEventPublisher(brokers []string) *EventPublisher {
 	}
 }
 
-func (p *EventPublisher) PublishUserCreated(ctx context.Context, userID uint64, userUUID, email, fullname, avatar, role string) error {
+func (p *EventPublisher) PublishUserCreated(ctx context.Context, userID uint64, userUUID, email, fullname, avatar, role, status string) error {
 	payload := events.UserCreatedEvent{
 		ID:        userID,
 		UUID:      userUUID,
@@ -53,12 +53,13 @@ func (p *EventPublisher) PublishUserCreated(ctx context.Context, userID uint64, 
 		Fullname:  fullname,
 		Avatar:    avatar,
 		Role:      role,
+		Status:    status,
 		CreatedAt: time.Now().UTC(),
 	}
 	return p.publish(ctx, topics.UserCreated, userUUID, payload)
 }
 
-func (p *EventPublisher) PublishUserUpdated(ctx context.Context, userID uint64, userUUID, email, fullname, avatar, role string) error {
+func (p *EventPublisher) PublishUserUpdated(ctx context.Context, userID uint64, userUUID, email, fullname, avatar, role, status string) error {
 	payload := events.UserUpdatedEvent{
 		ID:       userID,
 		UUID:     userUUID,
@@ -66,6 +67,7 @@ func (p *EventPublisher) PublishUserUpdated(ctx context.Context, userID uint64, 
 		Fullname: fullname,
 		Avatar:   avatar,
 		Role:     role,
+		Status:   status,
 	}
 	return p.publish(ctx, topics.UserUpdated, userUUID, payload)
 }

@@ -8,4 +8,5 @@ import (
 
 type UserQueryRepository interface {
 	GetByEmail(ctx context.Context, email string) (*entity.User, error)
+	GetByUUID(ctx context.Context, uuid string) (*entity.User, error)
 }

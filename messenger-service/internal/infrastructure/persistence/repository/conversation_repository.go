@@ -380,7 +380,7 @@ func (r *userConversationRepository) GetUserConversations(ctx context.Context, u
 
 		var pRows []participantRow
 		pQuery := `
-			SELECT ucp.conversation_id, ucp.user_id, u.fullname AS full_name, u.email AS email, '' AS avatar, '' AS gender, COALESCE(ucp.nickname, '') AS nickname, ucp.role AS role, ucp.last_read_at, ucp.last_read_seq
+			SELECT ucp.conversation_id, ucp.user_id, u.fullname AS full_name, u.email AS email, COALESCE(u.avatar, '') AS avatar, '' AS gender, COALESCE(ucp.nickname, '') AS nickname, ucp.role AS role, ucp.last_read_at, ucp.last_read_seq
 			FROM conversation_participants ucp
 			JOIN user_snapshots u ON u.id = ucp.user_id
 			WHERE ucp.conversation_id IN ?
@@ -428,6 +428,17 @@ func (r *userConversationRepository) GetConversationIDsForUser(ctx context.Conte
 		Table("conversation_participants").
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Pluck("conversation_id", &ids).Error
+	return ids, err
+}
+
+func (r *userConversationRepository) GetParticipantUserIDsForUser(ctx context.Context, userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT DISTINCT p2.user_id
+		FROM conversation_participants p1
+		JOIN conversation_participants p2 ON p2.conversation_id = p1.conversation_id AND p2.deleted_at IS NULL
+		WHERE p1.user_id = ? AND p1.deleted_at IS NULL AND p2.user_id != ?
+	`, userID, userID).Scan(&ids).Error
 	return ids, err
 }
 
@@ -709,7 +720,7 @@ func (r *userConversationRepository) GetParticipants(ctx context.Context, conver
 	var participants []entity.ParticipantInfo
 	err := r.db.WithContext(ctx).
 		Table("conversation_participants p").
-		Select("u.id AS id, u.fullname AS full_name, u.email AS email, '' AS avatar, '' AS gender, COALESCE(p.nickname, '') AS nickname, p.last_read_at, p.last_read_seq").
+		Select("u.id AS id, u.fullname AS full_name, u.email AS email, COALESCE(u.avatar, '') AS avatar, '' AS gender, COALESCE(p.nickname, '') AS nickname, p.last_read_at, p.last_read_seq").
 		Joins("JOIN user_snapshots u ON p.user_id = u.id").
 		Where("p.conversation_id = ? AND p.deleted_at IS NULL", conversationID).
 		Scan(&participants).Error
@@ -720,7 +731,7 @@ func (r *userConversationRepository) GetParticipant(ctx context.Context, convers
 	var participant entity.ParticipantInfo
 	err := r.db.WithContext(ctx).
 		Table("conversation_participants p").
-		Select("u.id AS id, u.fullname AS full_name, u.email AS email, '' AS avatar, '' AS gender, COALESCE(p.nickname, '') AS nickname, p.last_read_at, p.last_read_seq").
+		Select("u.id AS id, u.fullname AS full_name, u.email AS email, COALESCE(u.avatar, '') AS avatar, '' AS gender, COALESCE(p.nickname, '') AS nickname, p.last_read_at, p.last_read_seq").
 		Joins("JOIN user_snapshots u ON p.user_id = u.id").
 		Where("p.conversation_id = ? AND p.user_id = ? AND p.deleted_at IS NULL", conversationID, userID).
 		Scan(&participant).Error
@@ -737,7 +748,7 @@ func (r *userConversationRepository) FindNextOwner(ctx context.Context, conversa
 	var participant entity.ParticipantInfo
 	err := r.db.WithContext(ctx).
 		Table("conversation_participants p").
-		Select("u.id AS id, u.fullname AS full_name, u.email AS email, '' AS avatar, '' AS gender, COALESCE(p.nickname, '') AS nickname, p.last_read_at, p.last_read_seq").
+		Select("u.id AS id, u.fullname AS full_name, u.email AS email, COALESCE(u.avatar, '') AS avatar, '' AS gender, COALESCE(p.nickname, '') AS nickname, p.last_read_at, p.last_read_seq").
 		Joins("JOIN user_snapshots u ON p.user_id = u.id").
 		Where("p.conversation_id = ? AND p.user_id <> ? AND p.deleted_at IS NULL", conversationID, excludingUserID).
 		Order("p.created_at ASC").

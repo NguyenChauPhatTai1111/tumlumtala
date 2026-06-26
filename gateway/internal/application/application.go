@@ -29,10 +29,10 @@ import (
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
-	bunnycdn "github.com/tumlumtala/gateway/pkg/bunnycdn"
 	"github.com/tumlumtala/gateway/internal/shared/logger"
 	"github.com/tumlumtala/gateway/internal/shared/metrics"
 	"github.com/tumlumtala/gateway/internal/shared/observability"
+	"github.com/tumlumtala/gateway/pkg/localstorage"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -150,14 +150,9 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 	userService := userservice.NewUserService(usergrpc.NewUserClient(grpcRegistry.Clients.User))
 	authHandler := authhttp.NewAuthHandler(authService)
 
-	var avatarUploader userhttp.AvatarUploader
-	if cfg.BunnyCDN.StorageZone != "" && cfg.BunnyCDN.APIKey != "" && cfg.BunnyCDN.CDNBaseURL != "" {
-		bunnyClient, err := bunnycdn.NewClient(cfg.BunnyCDN.StorageZone, cfg.BunnyCDN.APIKey, cfg.BunnyCDN.StorageBaseURL, cfg.BunnyCDN.CDNBaseURL)
-		if err != nil {
-			log.Warn().Err(err).Msg("BunnyCDN not configured — avatar upload disabled")
-		} else {
-			avatarUploader = bunnyClient
-		}
+	avatarUploader, err := localstorage.NewUploader(cfg.LocalUploadDir, cfg.LocalUploadBaseURL)
+	if err != nil {
+		log.Warn().Err(err).Msg("local avatar upload disabled")
 	}
 	userHandler := userhttp.NewUserHandler(userService, avatarUploader)
 	healthHandler := healthhandler.NewHandler()
@@ -179,12 +174,13 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
+	router.Static(cfg.LocalUploadBaseURL, cfg.LocalUploadDir)
 	router.Use(otelgin.Middleware(logger.ServiceGateway, otelgin.WithFilter(func(req *nethttp.Request) bool {
 		return req.URL.Path != "/metrics" && req.URL.Path != "/health" && req.URL.Path != "/live" && req.URL.Path != "/ready"
 	})))
 	httproutes.RegisterRoutes(router, httproutes.RegisterOptions{
 		Logger:    log,
-		Auth:      middleware.Auth(jwtVerifier),
+		Auth:      middleware.Auth(jwtVerifier, userService),
 		Timeout:   middleware.Timeout(cfg.RequestTimeout),
 		RateLimit: middleware.RateLimit(cfg.RateLimitPerMin),
 	},
@@ -196,5 +192,8 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		httproutes.NewHealthRoutes(healthHandler),
 		httproutes.NewMetricsRoutes(),
 	)
+	for _, route := range router.Routes() {
+		log.Info().Str("method", route.Method).Str("path", route.Path).Msg("gateway route registered")
+	}
 	return router, nil
 }

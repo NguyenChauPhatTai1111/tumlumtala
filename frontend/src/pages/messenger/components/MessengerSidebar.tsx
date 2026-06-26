@@ -72,6 +72,7 @@ type Props = {
 	onLeaveConversation: (conversation: Conversation) => void;
 	onToggleSidebarCollapse: () => void;
 	currentUserId: number;
+	onlineUserIds?: Set<number>;
 	loading: boolean;
 	ws?: MessengerWebSocketService | null;
 	hasMoreConversations?: boolean;
@@ -139,6 +140,7 @@ export const MessengerSidebar = memo(
 		onLeaveConversation,
 		onToggleSidebarCollapse,
 		currentUserId,
+		onlineUserIds,
 		loading,
 		ws,
 		hasMoreConversations,
@@ -158,10 +160,13 @@ export const MessengerSidebar = memo(
 			setAnchorEl(null);
 		};
 
+		// On mobile the sidebar never collapses — it either shows full-width or is hidden by the router.
+		const effectiveCollapsed = isMobile ? false : isSidebarCollapsed;
+
 		return (
 			<Box
 				sx={{
-					width: isMobile ? "100%" : isSidebarCollapsed ? 80 : 400,
+					width: isMobile ? "100%" : effectiveCollapsed ? 80 : 400,
 					height: "100%",
 					overflow: "hidden",
 					bgcolor: "background.paper",
@@ -177,6 +182,14 @@ export const MessengerSidebar = memo(
 					flexDirection: "column",
 					position: isMobile ? "relative" : "static",
 					zIndex: isMobile ? 5 : "auto",
+
+					...(isMobile && {
+						"@keyframes slideInFromLeft": {
+							from: { transform: "translateX(-100%)" },
+							to: { transform: "translateX(0)" },
+						},
+						animation: "slideInFromLeft 220ms cubic-bezier(0.4, 0, 0.2, 1)",
+					}),
 				}}
 			>
 				<Box
@@ -196,7 +209,7 @@ export const MessengerSidebar = memo(
 							gap: 1,
 						}}
 					>
-						{!isSidebarCollapsed ? (
+						{!effectiveCollapsed ? (
 							<>
 								<Typography
 									variant="h5"
@@ -272,7 +285,7 @@ export const MessengerSidebar = memo(
 							</Box>
 						)}
 					</Box>
-					{!isSidebarCollapsed ? (
+					{!effectiveCollapsed ? (
 						<Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
 							{isSidebarSearching && (
 								<IconButton
@@ -329,7 +342,7 @@ export const MessengerSidebar = memo(
 							/>
 						</Box>
 					) : null}
-					{!isSidebarCollapsed && !isSidebarSearching && (
+					{!effectiveCollapsed && !isSidebarSearching && (
 						<Tabs
 							value={conversationTab}
 							onChange={(event, value) =>
@@ -414,7 +427,7 @@ export const MessengerSidebar = memo(
 												textTransform: "uppercase",
 												fontSize: 12,
 												fontWeight: 700,
-												textAlign: isSidebarCollapsed ? "center" : "left",
+												textAlign: effectiveCollapsed ? "center" : "left",
 											}}
 										>
 											Tin nhắn
@@ -442,18 +455,18 @@ export const MessengerSidebar = memo(
 												}
 												sx={{
 													py: 1.25,
-													px: isSidebarCollapsed ? 1 : 2,
-													justifyContent: isSidebarCollapsed
+													px: effectiveCollapsed ? 1 : 2,
+													justifyContent: effectiveCollapsed
 														? "center"
 														: "flex-start",
 												}}
 											>
 												<ListItemAvatar
-													sx={{ minWidth: isSidebarCollapsed ? 0 : 48 }}
+													sx={{ minWidth: effectiveCollapsed ? 0 : 48 }}
 												>
 													<Avatar src={conversationAvatar} />
 												</ListItemAvatar>
-												{!isSidebarCollapsed ? (
+												{!effectiveCollapsed ? (
 													<ListItemText
 														primary={
 															<Typography
@@ -494,7 +507,7 @@ export const MessengerSidebar = memo(
 												textTransform: "uppercase",
 												fontSize: 12,
 												fontWeight: 700,
-												textAlign: isSidebarCollapsed ? "center" : "left",
+												textAlign: effectiveCollapsed ? "center" : "left",
 											}}
 										>
 											Người dùng
@@ -506,14 +519,14 @@ export const MessengerSidebar = memo(
 											onClick={() => onSelectUser(user)}
 											sx={{
 												py: 1.25,
-												px: isSidebarCollapsed ? 1 : 2,
-												justifyContent: isSidebarCollapsed
+												px: effectiveCollapsed ? 1 : 2,
+												justifyContent: effectiveCollapsed
 													? "center"
 													: "flex-start",
 											}}
 										>
 											<ListItemAvatar
-												sx={{ minWidth: isSidebarCollapsed ? 0 : 48 }}
+												sx={{ minWidth: effectiveCollapsed ? 0 : 48 }}
 											>
 												<Avatar src={resolveCdnUrl(user.avatar)}>
 													{(user.first_name || user.username || "U")
@@ -521,7 +534,7 @@ export const MessengerSidebar = memo(
 														.toUpperCase()}
 												</Avatar>
 											</ListItemAvatar>
-											{!isSidebarCollapsed ? (
+											{!effectiveCollapsed ? (
 												<ListItemText
 													primary={
 														<Typography
@@ -559,9 +572,10 @@ export const MessengerSidebar = memo(
 							conversations={visibleConversations}
 							selectedId={selectedConversationId}
 							currentUserId={currentUserId}
+							onlineUserIds={onlineUserIds}
 							typingByConversation={typingByConversation}
 							loading={loading}
-							compact={!isMobile && isSidebarCollapsed}
+							compact={!isMobile && effectiveCollapsed}
 							onSelect={onSelectConversation}
 							onArchiveToggle={onArchiveToggle}
 							onDelete={onDelete}

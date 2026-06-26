@@ -1,16 +1,22 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	jwtinfra "github.com/tumlumtala/gateway/internal/infrastructure/jwt"
 	"github.com/tumlumtala/gateway/internal/interfaces/http/response"
+	"github.com/tumlumtala/gateway/internal/modules/user/domain"
 	"github.com/tumlumtala/gateway/internal/shared/contextx"
 )
 
-func Auth(verifier *jwtinfra.Verifier) gin.HandlerFunc {
+type ActiveUserChecker interface {
+	GetUser(context.Context, string) (domain.User, error)
+}
+
+func Auth(verifier *jwtinfra.Verifier, users ActiveUserChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -24,6 +30,21 @@ func Auth(verifier *jwtinfra.Verifier) gin.HandlerFunc {
 			response.Error(c, err)
 			c.Abort()
 			return
+		}
+		if users != nil {
+			user, err := users.GetUser(c.Request.Context(), claims.UserID)
+			status := strings.ToLower(strings.TrimSpace(user.Status))
+			if err != nil || status == "inactive" {
+				reason := "account inactive"
+				if err != nil {
+					reason = "get user error: " + err.Error()
+				} else {
+					reason = "status=" + user.Status + " userID=" + claims.UserID
+				}
+				response.ErrorCode(c, http.StatusUnauthorized, "UNAUTHORIZED", reason)
+				c.Abort()
+				return
+			}
 		}
 
 		ctx := contextx.WithClaims(c.Request.Context(), claims)

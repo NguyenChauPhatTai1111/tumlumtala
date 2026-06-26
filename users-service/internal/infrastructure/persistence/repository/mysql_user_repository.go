@@ -34,7 +34,7 @@ func (r *MySQLUserRepository) Create(ctx context.Context, user *entity.User) err
 
 func (r *MySQLUserRepository) Update(ctx context.Context, user *entity.User) error {
 	result := r.db.WithContext(ctx).Model(&model.User{}).Where("uuid = ?", user.UUID).Updates(map[string]any{
-		"email": user.Email, "fullname": user.Fullname, "avatar": user.Avatar, "role": user.Role, "updated_at": user.UpdatedAt,
+		"email": user.Email, "fullname": user.Fullname, "avatar": user.Avatar, "role": user.Role, "status": user.Status, "updated_at": user.UpdatedAt,
 	})
 	if result.Error != nil {
 		return persistence.TranslateError(result.Error)

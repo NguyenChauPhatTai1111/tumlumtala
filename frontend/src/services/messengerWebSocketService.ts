@@ -20,7 +20,7 @@ export interface VersionedParticipantEvent extends VersionedConversationEvent {
 
 export interface WebSocketHandlers {
 	onConnected?: () => void;
-	onMessengerSubscribed?: (data: { user_id: number }) => void;
+	onMessengerSubscribed?: (data: { user_id: number; online_user_ids?: number[] }) => void;
 	onConversationsListResult?: (data: unknown) => void;
 	onMessagesListResult?: (data: unknown) => void;
 	onMessageSeen?: (data: {
@@ -76,6 +76,7 @@ export interface WebSocketHandlers {
 		user_id: number;
 	}) => void;
 	onError?: (error: string) => void;
+	onPresenceUpdated?: (data: { user_id: number; status: "online" | "offline" }) => void;
 }
 
 export class MessengerWebSocketService {
@@ -283,6 +284,9 @@ export class MessengerWebSocketService {
 				case "room.joined":
 					this.emit("onJoinedRoom", message.payload);
 					break;
+				case "presence.updated":
+					this.emit("onPresenceUpdated", message.payload);
+					break;
 				case "error": {
 					const errorPayload = message.payload as Record<string, unknown>;
 					const errorMessage =
@@ -448,6 +452,10 @@ export class MessengerWebSocketService {
 			conversation_id: conversationId,
 			message_seq: messageSeq,
 		});
+	}
+
+	sendPresenceHeartbeat() {
+		this.send("presence.heartbeat", {});
 	}
 
 	private send(type: string, payload: unknown) {

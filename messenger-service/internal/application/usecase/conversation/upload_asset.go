@@ -86,11 +86,12 @@ func (s *MediaUploadService) uploadFileAttachment(ctx context.Context, conversat
 	filename := fmt.Sprintf("conversation_%d_%d_%s%s", conversationID, time.Now().Unix(), shortID, ext)
 	remotePath := path.Join("messenger", "attachments", filename)
 
-	if _, err := s.uploader.Upload(ctx, remotePath, raw, mimeType); err != nil {
+	assetURL, err := s.uploader.Upload(ctx, remotePath, raw, mimeType)
+	if err != nil {
 		return "", err
 	}
 
-	return remotePath, nil
+	return assetURL, nil
 }
 
 func (s *MediaUploadService) uploadConversationAsset(ctx context.Context, kind string, conversationID uint, fileHeader *multipart.FileHeader) (string, error) {
@@ -136,11 +137,12 @@ func (s *MediaUploadService) uploadConversationAsset(ctx context.Context, kind s
 	filename := fmt.Sprintf("conversation_%d_%d_%s%s", conversationID, time.Now().Unix(), shortID, ext)
 	remotePath := path.Join("messenger", kind, filename)
 
-	if _, err := s.uploader.Upload(ctx, remotePath, raw, mimeType); err != nil {
+	assetURL, err := s.uploader.Upload(ctx, remotePath, raw, mimeType)
+	if err != nil {
 		return "", err
 	}
 
-	return remotePath, nil
+	return assetURL, nil
 }
 
 func maxSizeForMime(mimeType string) int64 {

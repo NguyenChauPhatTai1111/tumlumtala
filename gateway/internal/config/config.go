@@ -15,13 +15,6 @@ type RedisConfig struct {
 
 func (r RedisConfig) Addr() string { return r.Host + ":" + r.Port }
 
-type BunnyCDNConfig struct {
-	StorageZone    string
-	APIKey         string
-	StorageBaseURL string
-	CDNBaseURL     string
-}
-
 type Config struct {
 	AppPort                  string
 	HostPort                 string
@@ -46,7 +39,8 @@ type Config struct {
 	RequestTimeout           time.Duration
 	RateLimitPerMin          int
 	Redis                    RedisConfig
-	BunnyCDN                 BunnyCDNConfig
+	LocalUploadDir           string
+	LocalUploadBaseURL       string
 }
 
 func Load() Config {
@@ -79,12 +73,8 @@ func Load() Config {
 			Password: getEnv("REDIS_PASSWORD", "redis_password"),
 			DB:       getEnvInt("REDIS_DB", 0),
 		},
-		BunnyCDN: BunnyCDNConfig{
-			StorageZone:    getEnv("BUNNYCDN_STORAGE_ZONE", ""),
-			APIKey:         getEnv("BUNNYCDN_API_KEY", ""),
-			StorageBaseURL: getEnv("BUNNYCDN_STORAGE_BASE_URL", "https://storage.bunnycdn.com"),
-			CDNBaseURL:     getEnv("BUNNYCDN_CDN_BASE_URL", ""),
-		},
+		LocalUploadDir:     getEnv("LOCAL_UPLOAD_DIR", "/app/uploads"),
+		LocalUploadBaseURL: getEnv("LOCAL_UPLOAD_BASE_URL", "/uploads"),
 	}
 }
 

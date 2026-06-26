@@ -1,6 +1,6 @@
 import { MessageListTypingIndicator } from "@components/messenger/typing/MessageListTypingIndicator";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
-import { Box, CircularProgress, IconButton, Typography } from "@mui/material";
+import { Box, CircularProgress, IconButton, Portal, Typography, useMediaQuery, useTheme } from "@mui/material";
 import { useCurrentUser } from "@hooks/common/useCurrentUser";
 import {
 	type Dispatch,
@@ -9,7 +9,6 @@ import {
 	type UIEvent,
 	useState,
 } from "react";
-import type { IUser } from "@/types";
 import type { Conversation, Message } from "@/types/messenger";
 import { formatTimestamp } from "@/utils";
 import { ContextMenu, type MessageContextMenuState } from "./ContextMenu";
@@ -31,7 +30,6 @@ type MessageListViewportProps = {
 	messageListRef: RefObject<HTMLDivElement | null>;
 	messagesEndRef: RefObject<HTMLDivElement | null>;
 	chatBackground?: string;
-	hasImageBackground: boolean;
 	loadingMore: boolean;
 	sortedMessages: Message[];
 	conversation?: Conversation;
@@ -92,7 +90,6 @@ export const MessageListViewport = ({
 	messageListRef,
 	messagesEndRef,
 	chatBackground,
-	hasImageBackground,
 	loadingMore,
 	sortedMessages,
 	conversation,
@@ -145,6 +142,8 @@ export const MessageListViewport = ({
 }: MessageListViewportProps) => {
 	const { data: currentUser } = useCurrentUser();
 	const [ctxMenu, setCtxMenu] = useState<MessageContextMenuState | null>(null);
+	const muiTheme = useTheme();
+	const isTouchDevice = useMediaQuery(muiTheme.breakpoints.down("md"));
 
 	const handleContextMenuOpen = (
 		pos: { top: number; left: number },
@@ -194,21 +193,6 @@ export const MessageListViewport = ({
 							}
 						: { backgroundColor: "background.default" }),
 					position: "relative",
-					...(hasImageBackground
-						? {
-								"&::before": {
-									content: '""',
-									position: "absolute",
-									inset: 0,
-									background: "rgba(14, 23, 38, 0.34)",
-									zIndex: 0,
-								},
-								"& > *": {
-									position: "relative",
-									zIndex: 1,
-								},
-							}
-						: null),
 					display: "flex",
 					overflowY: "auto",
 					overflowX: "hidden",
@@ -217,10 +201,10 @@ export const MessageListViewport = ({
 					pr: 0,
 					pb: 2,
 					pt: 0,
-					zIndex: 100,
 				}}
 				onScroll={handleScroll}
 			>
+
 				{loadingMore && (
 					<Box sx={{ display: "flex", justifyContent: "center", py: 0.5 }}>
 						<CircularProgress size={24} />
@@ -310,6 +294,20 @@ export const MessageListViewport = ({
 
 				<div ref={messagesEndRef} />
 			</Box>
+
+			{isTouchDevice && ctxMenu && (
+				<Portal>
+					<Box
+						sx={{
+							position: "fixed",
+							inset: 0,
+							bgcolor: "rgba(0,0,0,0.35)",
+							zIndex: (theme) => theme.zIndex.modal - 2,
+							pointerEvents: "none",
+						}}
+					/>
+				</Portal>
+			)}
 
 			<ContextMenu
 				ctxMenu={ctxMenu}

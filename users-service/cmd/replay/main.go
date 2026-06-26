@@ -122,6 +122,7 @@ func main() {
 				Fullname: u.Fullname,
 				Avatar:   u.Avatar,
 				Role:     string(u.Role),
+				Status:   string(u.Status),
 			}
 			if err := publisher.PublishUserUpserted(ctx, u.UUID, ev); err != nil {
 				log.Fatalf("publish user.upserted id=%d: %v", u.ID, err)

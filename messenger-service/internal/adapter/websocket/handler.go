@@ -14,6 +14,7 @@ import (
 	messageDTO "github.com/tumlumtala/messenger-service/internal/application/dto/message"
 	domainerrors "github.com/tumlumtala/messenger-service/internal/domain/errors"
 	"github.com/tumlumtala/messenger-service/internal/domain/repository"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 	"github.com/tumlumtala/messenger-service/internal/shared/utils"
 )
@@ -25,6 +26,7 @@ type Handler struct {
 	getConversationsUC *conversation.GetUserConversationsUseCase
 	getMessagesUC      *message.GetMessagesByConversationUseCase
 	hub                *websocket.Hub
+	presence           *presence.Store
 	rooms              sync.Map
 	clients            sync.Map
 }
@@ -88,6 +90,7 @@ func NewHandler(
 	getConversationsUC *conversation.GetUserConversationsUseCase,
 	getMessagesUC *message.GetMessagesByConversationUseCase,
 	hub *websocket.Hub,
+	presenceStore *presence.Store,
 ) *Handler {
 	return &Handler{
 		conversationRepo:   conversationRepo,
@@ -96,6 +99,7 @@ func NewHandler(
 		getConversationsUC: getConversationsUC,
 		getMessagesUC:      getMessagesUC,
 		hub:                hub,
+		presence:           presenceStore,
 	}
 }
 
@@ -104,6 +108,8 @@ func (h *Handler) Handle(client *websocket.Client, msg websocket.Message) {
 	switch strings.ToLower(strings.TrimSpace(msg.Type)) {
 	case "messenger.subscribe":
 		h.handleSubscribe(client)
+	case "presence.heartbeat":
+		h.handlePresenceHeartbeat(client)
 	case "conversations.list":
 		h.handleListConversations(client, msg)
 	case "messages.list":
@@ -130,16 +136,56 @@ func (h *Handler) Handle(client *websocket.Client, msg websocket.Message) {
 func (h *Handler) OnDisconnect(client *websocket.Client) {
 	h.rooms.Delete(client.ID())
 	h.clients.Delete(client.ID())
+
+	if h.presence == nil {
+		return
+	}
+	ctx := context.Background()
+	userOffline, err := h.presence.SetOffline(ctx, client.ID(), client.UserID())
+	if err != nil {
+		log.Printf("[presence] SetOffline error: %v", err)
+		return
+	}
+	if userOffline {
+		h.broadcastPresence(ctx, client.UserID(), "offline")
+	}
+}
+
+func (h *Handler) handlePresenceHeartbeat(client *websocket.Client) {
+	if h.presence == nil {
+		return
+	}
+	if err := h.presence.Heartbeat(context.Background(), client.ID(), client.UserID()); err != nil {
+		log.Printf("[presence] Heartbeat error: %v", err)
+	}
+}
+
+func (h *Handler) broadcastPresence(ctx context.Context, userID uint, status string) {
+	convIDs, err := h.conversationRepo.GetConversationIDsForUser(ctx, userID)
+	if err != nil {
+		return
+	}
+	event, err := websocket.NewMessage("presence.updated", map[string]any{
+		"user_id": userID,
+		"status":  status,
+	})
+	if err != nil {
+		return
+	}
+	for _, convID := range convIDs {
+		h.hub.BroadcastRoom(channel(convID), event)
+	}
 }
 
 // handleSubscribe joins the client to their personal user channel, auto-joins ALL of their
 // conversation rooms so they receive real-time events regardless of sidebar pagination,
 // and confirms subscription.
 func (h *Handler) handleSubscribe(client *websocket.Client) {
+	ctx := context.Background()
 	h.hub.JoinRoom(userChannel(client.UserID()), client)
 
 	// Auto-join every conversation room this user belongs to.
-	convIDs, err := h.conversationRepo.GetConversationIDsForUser(context.Background(), client.UserID())
+	convIDs, err := h.conversationRepo.GetConversationIDsForUser(ctx, client.UserID())
 	if err == nil {
 		for _, convID := range convIDs {
 			h.hub.JoinRoom(channel(convID), client)
@@ -147,8 +193,24 @@ func (h *Handler) handleSubscribe(client *websocket.Client) {
 	}
 
 	client.Activate()
+
+	var onlineUserIDs []uint
+	if h.presence != nil {
+		if err := h.presence.SetOnline(ctx, client.ID(), client.UserID()); err != nil {
+			log.Printf("[presence] SetOnline error: %v", err)
+		} else {
+			h.broadcastPresence(ctx, client.UserID(), "online")
+		}
+
+		// Build initial presence snapshot: which of the user's contacts are already online.
+		if peerIDs, err := h.conversationRepo.GetParticipantUserIDsForUser(ctx, client.UserID()); err == nil {
+			onlineUserIDs, _ = h.presence.GetOnlineUserIDs(ctx, peerIDs)
+		}
+	}
+
 	resp, _ := websocket.NewMessage("messenger.subscribed", map[string]any{
-		"user_id": client.UserID(),
+		"user_id":         client.UserID(),
+		"online_user_ids": onlineUserIDs,
 	})
 	client.Send(resp)
 }

@@ -32,12 +32,13 @@ type UserService interface {
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
 	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
 	UpdateProfile(context.Context, domain.UpdateProfileInput) (domain.User, error)
+	ChangeUserStatus(context.Context, domain.ChangeUserStatusInput) (domain.User, error)
 	DeleteUser(context.Context, string) error
 }
 
 type UserHandler struct {
 	service  UserService
-	uploader AvatarUploader // nil when BunnyCDN is not configured
+	uploader AvatarUploader // nil when local upload storage is not configured
 }
 
 func NewUserHandler(service UserService, uploader AvatarUploader) *UserHandler {
@@ -58,6 +59,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			Email:    req.Email,
 			Password: req.Password,
 			Fullname: req.Fullname,
+			Role:     req.Role,
+			Status:   req.Status,
 		})
 		if err != nil {
 			return err
@@ -146,6 +149,27 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	response.OK(c, http.StatusOK, mapUser(user))
 }
 
+func (h *UserHandler) ChangeUserStatus(c *gin.Context) {
+	uuid := c.Param("uuid")
+
+	var req ChangeUserStatusRequest
+	if err := validator.BindJSON(c, &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	user, err := h.service.ChangeUserStatus(c.Request.Context(), domain.ChangeUserStatusInput{
+		UUID:   uuid,
+		Status: req.Status,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, http.StatusOK, mapUser(user))
+}
+
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	uuid := c.Param("uuid")
 
@@ -202,7 +226,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 
 func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	if h.uploader == nil {
-		response.ErrorCode(c, http.StatusServiceUnavailable, "CDN_UNAVAILABLE", "avatar upload is not configured")
+		response.ErrorCode(c, http.StatusServiceUnavailable, "UPLOAD_UNAVAILABLE", "avatar upload is not configured")
 		return
 	}
 
@@ -246,7 +270,7 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	filename := fmt.Sprintf("%d_%s%s", time.Now().Unix(), shortID, ext)
 	remotePath := path.Join("users", "avatars", filename)
 
-	cdnURL, err := h.uploader.Upload(c.Request.Context(), remotePath, raw, mimeType)
+	avatarURL, err := h.uploader.Upload(c.Request.Context(), remotePath, raw, mimeType)
 	if err != nil {
 		response.ErrorCode(c, http.StatusInternalServerError, "UPLOAD_FAILED", "failed to upload avatar")
 		return
@@ -262,7 +286,7 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 		UUID:     claims.UserID,
 		Email:    existing.Email,
 		Fullname: existing.Fullname,
-		Avatar:   cdnURL,
+		Avatar:   avatarURL,
 	})
 	if err != nil {
 		response.Error(c, err)
@@ -293,6 +317,7 @@ func mapUser(u domain.User) gin.H {
 		"fullname":   u.Fullname,
 		"avatar":     u.Avatar,
 		"role":       u.Role,
+		"status":     u.Status,
 		"created_at": u.CreatedAt,
 		"updated_at": u.UpdatedAt,
 	}

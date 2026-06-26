@@ -12,7 +12,6 @@ import (
 	"github.com/tumlumtala/users-service/internal/application/queryservice"
 	"github.com/tumlumtala/users-service/internal/application/usecase"
 	domainerrors "github.com/tumlumtala/users-service/internal/domain/errors"
-	"github.com/tumlumtala/users-service/pkg/bunnycdn"
 )
 
 // RootDir must be set by the caller (cmd/seed/main.go) before Run is called.
@@ -52,7 +51,7 @@ func (s *UserSeeder) Run(ctx context.Context) error {
 		{email: "saigon@gmail.com", fullname: "Saigonese", role: "member", avatarFile: "saigonese.png"},
 	}
 
-	avatarURLs := uploadUserAvatars(ctx, defs)
+	avatarURLs := copyUserAvatars(defs)
 
 	log.Printf("[%s] seeding %d users", s.Name(), len(defs))
 	for _, def := range defs {
@@ -102,19 +101,19 @@ func (s *UserSeeder) seedUser(ctx context.Context, def userSeedDef, avatar strin
 	return nil
 }
 
-// uploadUserAvatars uploads avatars from seed-assets to CDN.
-// Returns a map of email -> public CDN URL.
-// If CDN is not configured or a file is missing, the entry is omitted (empty string).
-func uploadUserAvatars(ctx context.Context, defs []userSeedDef) map[string]string {
+func copyUserAvatars(defs []userSeedDef) map[string]string {
 	result := make(map[string]string, len(defs))
 
-	client, err := bunnycdn.NewClientFromEnv()
-	if err != nil {
-		log.Printf("[UserSeeder] CDN not configured (%v) — skipping avatar upload", err)
+	assetsDir := filepath.Join(RootDir, "seed-assets", "users", "avatars")
+	uploadDir := os.Getenv("LOCAL_UPLOAD_DIR")
+	if uploadDir == "" {
+		uploadDir = filepath.Join(RootDir, "..", "uploads")
+	}
+	targetDir := filepath.Join(uploadDir, "users", "avatars")
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		log.Printf("[UserSeeder] cannot create local avatar dir %s: %v", targetDir, err)
 		return result
 	}
-
-	assetsDir := filepath.Join(RootDir, "seed-assets", "users", "avatars")
 
 	for _, def := range defs {
 		localPath := filepath.Join(assetsDir, def.avatarFile)
@@ -128,14 +127,14 @@ func uploadUserAvatars(ctx context.Context, defs []userSeedDef) map[string]strin
 			continue
 		}
 
-		remotePath := "users/avatars/" + def.avatarFile
-		publicURL, err := client.Upload(ctx, remotePath, raw, "image/png")
-		if err != nil {
-			log.Printf("[UserSeeder] upload failed for %s: %v — skipping", def.avatarFile, err)
+		targetPath := filepath.Join(targetDir, def.avatarFile)
+		if err := os.WriteFile(targetPath, raw, 0o644); err != nil {
+			log.Printf("[UserSeeder] copy failed for %s: %v — skipping", def.avatarFile, err)
 			continue
 		}
-		result[def.email] = publicURL
-		log.Printf("[UserSeeder] uploaded avatar %s → %s", def.avatarFile, publicURL)
+		publicPath := "/uploads/users/avatars/" + def.avatarFile
+		result[def.email] = publicPath
+		log.Printf("[UserSeeder] copied avatar %s → %s", def.avatarFile, publicPath)
 	}
 
 	return result

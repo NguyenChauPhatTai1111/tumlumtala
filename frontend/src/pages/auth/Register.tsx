@@ -11,7 +11,7 @@ import { createUser } from "@api/userApi";
 const schema = yup.object({
   email: yup.string().email("Email không hợp lệ").required("Vui lòng nhập email"),
   fullname: yup.string().min(2, "Họ tên tối thiểu 2 ký tự").required("Vui lòng nhập họ tên"),
-  password: yup.string().min(8, "Mật khẩu tối thiểu 8 ký tự").required("Vui lòng nhập mật khẩu"),
+  password: yup.string().min(6, "Mật khẩu tối thiểu 6 ký tự").required("Vui lòng nhập mật khẩu"),
   confirmPassword: yup
     .string()
     .oneOf([yup.ref("password")], "Mật khẩu xác nhận không khớp")

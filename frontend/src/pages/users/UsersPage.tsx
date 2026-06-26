@@ -14,6 +14,7 @@ import {
   Select,
   Skeleton,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -33,17 +34,21 @@ import {
   type GridColDef,
   type GridPaginationModel,
   gridPageCountSelector,
+  gridPaginationModelSelector,
+  gridPaginationRowCountSelector,
   useGridApiContext,
   useGridSelector,
 } from "@mui/x-data-grid";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createUser, deleteUser, listUsers, updateUser } from "@api/userApi";
+import { changeUserStatus, createUser, deleteUser, listUsers, updateUser } from "@api/userApi";
 import type { IUser } from "@/types";
 import {
   UserFormDialog,
   type UserFormData,
 } from "@components/user/dialog/UserFormDialog";
 import { ConfirmDeleteDialog } from "@components/user/dialog/ConfirmDeleteDialog";
+import { useCurrentUser } from "@/hooks/common/useCurrentUser";
+import { isAdminIdentity } from "@/utils/permissionAccess";
 import { resolveCdnUrl } from "@/utils/urlUtils";
 
 const ROLE_COLOR: Record<string, "error" | "warning" | "default"> = {
@@ -58,6 +63,16 @@ const ROLE_LABEL: Record<string, string> = {
   member: "Member",
 };
 
+const STATUS_COLOR: Record<string, "success" | "default"> = {
+  active: "success",
+  inactive: "default",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  inactive: "Inactive",
+};
+
 const getUserInitials = (name?: string) =>
   (name || "U")
     .split(" ")
@@ -70,8 +85,8 @@ const getUserInitials = (name?: string) =>
 function CustomPagination() {
   const apiRef = useGridApiContext();
   const pageCount = useGridSelector(apiRef, gridPageCountSelector);
-  const { page, pageSize } = apiRef.current.state.pagination.paginationModel;
-  const rowCount = apiRef.current.state.pagination.rowCount;
+  const { page, pageSize } = useGridSelector(apiRef, gridPaginationModelSelector);
+  const rowCount = useGridSelector(apiRef, gridPaginationRowCountSelector);
 
   const rangeStart = rowCount > 0 ? page * pageSize + 1 : 0;
   const rangeEnd = Math.min((page + 1) * pageSize, rowCount);
@@ -117,11 +132,14 @@ function CustomPagination() {
 
 interface MobileCardProps {
   user: IUser;
+  canManage: boolean;
   onEdit: (u: IUser) => void;
   onDelete: (u: IUser) => void;
+  onToggleStatus: (u: IUser) => void;
+  toggling: boolean;
 }
 
-function MobileUserCard({ user, onEdit, onDelete }: MobileCardProps) {
+function MobileUserCard({ user, canManage, onEdit, onDelete, onToggleStatus, toggling }: MobileCardProps) {
   const initials = user.fullname
     .split(" ")
     .map((w) => w[0])
@@ -163,32 +181,54 @@ function MobileUserCard({ user, onEdit, onDelete }: MobileCardProps) {
             {user.email}
           </Typography>
         </Box>
-        <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
-          <Tooltip title="Chỉnh sửa">
-            <IconButton size="small" color="primary" onClick={() => onEdit(user)}>
-              <EditOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Xóa">
-            <IconButton size="small" color="error" onClick={() => onDelete(user)}>
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
+        {canManage && (
+          <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+            <Tooltip title="Chỉnh sửa">
+              <IconButton size="small" color="primary" onClick={() => onEdit(user)}>
+                <EditOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Xóa">
+              <IconButton size="small" color="error" onClick={() => onDelete(user)}>
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
       </Box>
       <Divider sx={{ my: 1.5 }} />
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Chip
-          label={ROLE_LABEL[user.role] ?? user.role}
-          color={ROLE_COLOR[user.role] ?? "default"}
-          size="small"
-          variant="outlined"
-          sx={{ fontWeight: 600 }}
-        />
-        <Typography variant="caption" color="text.secondary">
-          {user.created_at ? new Date(user.created_at).toLocaleDateString("vi-VN") : "-"}
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Chip
+            label={ROLE_LABEL[user.role] ?? user.role}
+            color={ROLE_COLOR[user.role] ?? "default"}
+            size="small"
+            variant="outlined"
+            sx={{ fontWeight: 600 }}
+          />
+          <Chip
+            label={STATUS_LABEL[user.status ?? "active"] ?? user.status}
+            color={STATUS_COLOR[user.status ?? "active"] ?? "default"}
+            size="small"
+            sx={{ fontWeight: 600 }}
+          />
+        </Stack>
+        {canManage && (
+          <Switch
+            size="small"
+            checked={(user.status ?? "active") === "active"}
+            disabled={toggling}
+            onChange={() => onToggleStatus(user)}
+          />
+        )}
       </Box>
+      {canManage && (
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            {user.created_at ? new Date(user.created_at).toLocaleDateString("vi-VN") : "-"}
+          </Typography>
+        </Box>
+      )}
     </Paper>
   );
 }
@@ -235,6 +275,8 @@ function MobilePagination({
 export const UsersPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { data: currentUser } = useCurrentUser();
+  const canManageUsers = isAdminIdentity(currentUser);
 
   const [users, setUsers] = useState<IUser[]>([]);
   const [total, setTotal] = useState(0);
@@ -247,6 +289,8 @@ export const UsersPage = () => {
   });
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -274,6 +318,7 @@ export const UsersPage = () => {
   }, [paginationModel.page, paginationModel.pageSize]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUsers();
   }, [fetchUsers]);
 
@@ -284,9 +329,10 @@ export const UsersPage = () => {
         u.email.toLowerCase().includes(search.toLowerCase()) ||
         u.fullname.toLowerCase().includes(search.toLowerCase());
       const matchRole = !filterRole || u.role === filterRole;
-      return matchSearch && matchRole;
+      const matchStatus = !filterStatus || (u.status ?? "active") === filterStatus;
+      return matchSearch && matchRole && matchStatus;
     });
-  }, [users, search, filterRole]);
+  }, [users, search, filterRole, filterStatus]);
 
   const handleOpenCreate = () => {
     setSelectedUser(null);
@@ -332,6 +378,19 @@ export const UsersPage = () => {
     setDeleteOpen(true);
   };
 
+  const handleToggleStatus = async (user: IUser) => {
+    const nextStatus = (user.status ?? "active") === "active" ? "inactive" : "active";
+    setTogglingUserId(user.uuid);
+    try {
+      const updated = await changeUserStatus(user.uuid, { status: nextStatus });
+      setUsers((prev) => prev.map((u) => (u.uuid === updated.uuid ? updated : u)));
+    } catch {
+      setError("Không thể cập nhật trạng thái người dùng.");
+    } finally {
+      setTogglingUserId(null);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -346,6 +405,47 @@ export const UsersPage = () => {
       setDeleteLoading(false);
     }
   };
+
+  const managementColumns: GridColDef<IUser>[] = canManageUsers
+    ? [
+        {
+          field: "created_at",
+          headerName: "Ngày tạo",
+          width: 160,
+          renderCell: ({ value }) =>
+            value ? new Date(value).toLocaleDateString("vi-VN") : "-",
+        },
+        {
+          field: "actions",
+          headerName: "Thao tác",
+          width: 170,
+          sortable: false,
+          filterable: false,
+          renderCell: ({ row }) => (
+            <Stack direction="row" spacing={0.5} alignItems="center" height="100%">
+              <Tooltip title={(row.status ?? "active") === "active" ? "Chuyển inactive" : "Chuyển active"}>
+                <Switch
+                  size="small"
+                  checked={(row.status ?? "active") === "active"}
+                  disabled={togglingUserId === row.uuid}
+                  onChange={() => handleToggleStatus(row)}
+                />
+              </Tooltip>
+              <Tooltip title="Chỉnh sửa">
+                <IconButton size="small" color="primary" onClick={() => handleOpenEdit(row)}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Xóa">
+                <IconButton size="small" color="error" onClick={() => handleOpenDelete(row)}>
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          ),
+        },
+      ]
+    : [];
 
   const columns: GridColDef<IUser>[] = [
     {
@@ -403,33 +503,22 @@ export const UsersPage = () => {
       ),
     },
     {
-      field: "created_at",
-      headerName: "Ngày tạo",
-      width: 160,
-      renderCell: ({ value }) =>
-        value ? new Date(value).toLocaleDateString("vi-VN") : "-",
+      field: "status",
+      headerName: "Trạng thái",
+      width: 140,
+      renderCell: ({ value }) => {
+        const status = value ?? "active";
+        return (
+          <Chip
+            label={STATUS_LABEL[status] ?? status}
+            color={STATUS_COLOR[status] ?? "default"}
+            size="small"
+            sx={{ fontWeight: 600 }}
+          />
+        );
+      },
     },
-    {
-      field: "actions",
-      headerName: "Thao tác",
-      width: 110,
-      sortable: false,
-      filterable: false,
-      renderCell: ({ row }) => (
-        <Stack direction="row" spacing={0.5} alignItems="center" height="100%">
-          <Tooltip title="Chỉnh sửa">
-            <IconButton size="small" color="primary" onClick={() => handleOpenEdit(row)}>
-              <EditOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Xóa">
-            <IconButton size="small" color="error" onClick={() => handleOpenDelete(row)}>
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      ),
-    },
+    ...managementColumns,
   ];
 
   return (
@@ -470,15 +559,17 @@ export const UsersPage = () => {
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleOpenCreate}
-          fullWidth={isMobile}
-          sx={{ textTransform: "none", borderRadius: 2, px: 2.5, py: 1 }}
-        >
-          Thêm người dùng
-        </Button>
+        {canManageUsers && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleOpenCreate}
+            fullWidth={isMobile}
+            sx={{ textTransform: "none", borderRadius: 2, px: 2.5, py: 1 }}
+          >
+            Thêm người dùng
+          </Button>
+        )}
       </Box>
 
       {error && (
@@ -527,12 +618,24 @@ export const UsersPage = () => {
               <MenuItem value="administrator">Administrator</MenuItem>
             </Select>
           </FormControl>
-          {(search || filterRole) && (
+          <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 150 } }}>
+            <InputLabel>Trạng thái</InputLabel>
+            <Select
+              label="Trạng thái"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <MenuItem value="">Tất cả</MenuItem>
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="inactive">Inactive</MenuItem>
+            </Select>
+          </FormControl>
+          {(search || filterRole || filterStatus) && (
             <Button
               size="small"
               variant="outlined"
               fullWidth={isMobile}
-              onClick={() => { setSearch(""); setFilterRole(""); }}
+              onClick={() => { setSearch(""); setFilterRole(""); setFilterStatus(""); }}
               sx={{ textTransform: "none", borderRadius: 2 }}
             >
               Xóa bộ lọc
@@ -563,8 +666,11 @@ export const UsersPage = () => {
                 <MobileUserCard
                   key={user.uuid}
                   user={user}
+                  canManage={canManageUsers}
                   onEdit={handleOpenEdit}
                   onDelete={handleOpenDelete}
+                  onToggleStatus={handleToggleStatus}
+                  toggling={togglingUserId === user.uuid}
                 />
               ))}
             </Stack>

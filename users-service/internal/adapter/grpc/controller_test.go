@@ -123,6 +123,7 @@ func newController(users ...*entity.User) *UserController {
 		usecase.NewGetUserUseCase(store),
 		usecase.NewListUsersUseCase(store),
 		usecase.NewUpdateUserUseCase(store, store, noop),
+		usecase.NewChangeUserStatusUseCase(store, store, noop),
 		usecase.NewDeleteUserUseCase(store, store, noop),
 	)
 }
@@ -135,6 +136,7 @@ func seedUser() *entity.User {
 		Password:  "hashed",
 		Fullname:  "Alice",
 		Role:      entity.RoleMember,
+		Status:    entity.StatusActive,
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}
