@@ -6,7 +6,7 @@ type OpenNotificationParams = {
 import { uploadMessageAttachment } from "@services/messengerService";
 import type { UseMutationResult } from "@tanstack/react-query";
 import emojiRegex from "emoji-regex";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type {
 	Message,
 	SendMessagePayloadItem,
@@ -29,6 +29,7 @@ const isEmojiContent = (value: string) => {
 };
 
 const MAX_FILE_SIZE_MB = 100;
+const SPAM_INTERVAL_MS = 1000;
 
 type MessageActions = {
 	updateMessage: Pick<
@@ -76,6 +77,8 @@ export const useMessengerSendMessage = ({
 	onMessageSent,
 	open,
 }: Params) => {
+	const lastSentAtRef = useRef<number>(0);
+
 	const sendMessage = useCallback(
 		async (
 			text: string | SendMessagePayloadItem[],
@@ -116,6 +119,16 @@ export const useMessengerSendMessage = ({
 					return false;
 				}
 			}
+
+			const now = Date.now();
+			if (now - lastSentAtRef.current < SPAM_INTERVAL_MS) {
+				open?.({
+					type: "error",
+					message: "Bạn đang gửi tin nhắn quá nhanh. Vui lòng chờ một chút.",
+				});
+				return false;
+			}
+			lastSentAtRef.current = now;
 
 			let tempId = "";
 			try {

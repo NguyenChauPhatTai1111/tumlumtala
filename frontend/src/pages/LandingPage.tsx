@@ -4,673 +4,726 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import MovieIcon from "@mui/icons-material/Movie";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PeopleIcon from "@mui/icons-material/People";
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import { Box, Button, Chip, Grid, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import { useCurrentUser } from "@hooks/user/useCurrentUser";
-import {
-  hasAnyPermissionForResource,
-  isAdminIdentity,
-} from "@/utils/permissionAccess";
+import { hasAnyPermissionForResource, isAdminIdentity } from "@/utils/permissionAccess";
 
 const PRIMARY_MODULES = [
-  {
-    label: "Movie",
-    eyebrow: "Cinema Deck",
-    description: "Không gian phim, trailer và danh sách xem.",
-    path: "/movie",
-    icon: <MovieIcon />,
-    color: "#ff8a3d",
-    deepColor: "#7a2f00",
-    textColor: "#241407",
-    span: 6,
-    rotate: "-5deg",
-    depth: 70,
-    sceneLeft: { xs: "2%", sm: "3%", md: "2%" },
-    sceneTop: { xs: "8%", sm: "7%", md: "5%" },
-  },
-  {
-    label: "Music",
-    eyebrow: "Sound Lab",
-    description: "Playlist, trending tracks và thư viện cá nhân.",
-    path: "/music",
-    icon: <MusicNoteIcon />,
-    color: "#35b7ff",
-    deepColor: "#064b78",
-    textColor: "#061825",
-    span: 3,
-    rotate: "3deg",
-    depth: 92,
-    sceneLeft: { xs: "38%", sm: "41%", md: "45%" },
-    sceneTop: { xs: "20%", sm: "18%", md: "15%" },
-  },
-  {
-    label: "Messenger",
-    eyebrow: "Realtime Hub",
-    description: "Tin nhắn, nhóm chat và mini conversation.",
-    path: "/messenger",
-    icon: <ChatIcon />,
-    color: "#67d889",
-    deepColor: "#0d6732",
-    textColor: "#071d11",
-    span: 3,
-    rotate: "4deg",
-    depth: 78,
-    sceneLeft: { xs: "18%", sm: "22%", md: "27%" },
-    sceneTop: { xs: "58%", sm: "57%", md: "56%" },
-  },
+    {
+        label: "Music",
+        eyebrow: "Sound Lab",
+        description: "Nghe nhạc theo sở thích, tìm kiếm được hay không là do nhân phẩm của bạn!!!",
+        path: "/music",
+        icon: <MusicNoteIcon />,
+        color: "#3b82f6",
+        span: 6,
+    },
+    {
+        label: "Movie",
+        eyebrow: "Cinema Deck",
+        description: "Xem phim không giới hạn. Thỏa mãn mọi đam mê.",
+        path: "/movie",
+        icon: <MovieIcon />,
+        color: "#f97316",
+        span: 3,
+    },
+    {
+        label: "Messenger",
+        eyebrow: "Realtime Hub",
+        description: "Nhắn tin cùng mọi người, kết nối cộng đồng vide code.",
+        path: "/messenger",
+        icon: <ChatIcon />,
+        color: "#22c55e",
+        span: 3,
+    },
 ] as const;
 
 const ADMIN_MODULES = [
-  {
-    label: "Dashboard",
-    description: "Tổng quan vận hành.",
-    path: "/dashboard",
-    resource: "dashboard",
-    icon: <DashboardIcon />,
-  },
-  {
-    label: "Người dùng",
-    description: "Tài khoản và quyền.",
-    path: "/users",
-    resource: "user",
-    icon: <PeopleIcon />,
-  },
+    {
+        label: "Dashboard",
+        description: "Tổng quan vận hành.",
+        path: "/dashboard",
+        resource: "dashboard",
+        icon: <DashboardIcon />,
+    },
+    {
+        label: "Người dùng",
+        description: "Tài khoản và quyền.",
+        path: "/users",
+        resource: "user",
+        icon: <PeopleIcon />,
+    },
+] as const;
+
+const BG_PARTICLES = [
+    { x: 8, y: 12, s: 3, o: 0.08 },
+    { x: 18, y: 68, s: 5, o: 0.06 },
+    { x: 28, y: 34, s: 4, o: 0.07 },
+    { x: 38, y: 82, s: 3, o: 0.05 },
+    { x: 52, y: 22, s: 6, o: 0.09 },
+    { x: 64, y: 55, s: 4, o: 0.06 },
+    { x: 74, y: 18, s: 3, o: 0.07 },
+    { x: 84, y: 72, s: 5, o: 0.05 },
+    { x: 92, y: 38, s: 4, o: 0.08 },
+] as const;
+
+const ORBIT_RINGS = [
+    { w: 420, h: 140, dur: 28, rev: false },
+    { w: 300, h: 100, dur: 20, rev: true },
+    { w: 190, h: 64, dur: 14, rev: false },
 ] as const;
 
 export function LandingPage() {
-  const navigate = useNavigate();
-  const { user } = useCurrentUser();
-  const displayName = user?.fullname || user?.email || "bạn";
-  const isAdmin = isAdminIdentity(user);
-  const visibleAdminModules = ADMIN_MODULES.filter(
-    (item) => isAdmin || hasAnyPermissionForResource(user, item.resource),
-  );
+    const navigate = useNavigate();
+    const { user } = useCurrentUser();
+    const displayName = user?.fullname || user?.email || "bạn";
+    const isAdmin = isAdminIdentity(user);
+    const visibleAdminModules = ADMIN_MODULES.filter(
+        (item) => isAdmin || hasAnyPermissionForResource(user, item.resource),
+    );
 
-  return (
-    <Box
-      sx={{
-        minHeight: "calc(100vh - 112px)",
-        mx: { xs: -1.5, sm: -2, md: -3 },
-        my: { xs: -1.5, sm: -2, md: -3 },
-        px: { xs: 1.5, sm: 2, md: 3 },
-        py: { xs: 2, md: 3 },
-        position: "relative",
-        overflow: "hidden",
-        perspective: "1500px",
-        color: "#eef2ff",
-        background:
-          "radial-gradient(circle at 16% 8%, rgba(124,58,237,0.34), transparent 30%), radial-gradient(circle at 86% 20%, rgba(6,182,212,0.22), transparent 32%), radial-gradient(circle at 48% 92%, rgba(249,115,22,0.13), transparent 34%), linear-gradient(135deg, #020617 0%, #070b1d 48%, #02030a 100%)",
-        "@keyframes stageFloat": {
-          "0%, 100%": { transform: "rotateX(62deg) rotateZ(-19deg) translate3d(0, 0, 0)" },
-          "50%": { transform: "rotateX(62deg) rotateZ(-19deg) translate3d(0, -14px, 38px)" },
-        },
-        "@keyframes deckDrift": {
-          "0%, 100%": { transform: "rotateY(-25deg) rotateX(13deg) rotateZ(1deg) translate3d(0, 0, 0)" },
-          "50%": { transform: "rotateY(-14deg) rotateX(18deg) rotateZ(-2deg) translate3d(0, -12px, 34px)" },
-        },
-        "@keyframes orbitSpin": {
-          "0%": { transform: "rotateX(70deg) rotateZ(0deg)" },
-          "100%": { transform: "rotateX(70deg) rotateZ(360deg)" },
-        },
-        "@keyframes shardFloat": {
-          "0%, 100%": { transform: "translate3d(0, 0, 70px) rotateX(58deg) rotateZ(-18deg)" },
-          "50%": { transform: "translate3d(18px, -18px, 118px) rotateX(64deg) rotateZ(-8deg)" },
-        },
-        "@keyframes galaxyDrift": {
-          "0%, 100%": { transform: "translate3d(0, 0, 0) scale(1)" },
-          "50%": { transform: "translate3d(-18px, 12px, 0) scale(1.04)" },
-        },
-        "@keyframes starTwinkle": {
-          "0%, 100%": { opacity: 0.44 },
-          "50%": { opacity: 0.9 },
-        },
-        "@keyframes scanLine": {
-          "0%": { transform: "translateX(-120%) skewX(-16deg)" },
-          "100%": { transform: "translateX(220%) skewX(-16deg)" },
-        },
-        "@keyframes cardLift": {
-          "0%, 100%": { transform: "translate3d(0, 0, 0) rotateX(0deg)" },
-          "50%": { transform: "translate3d(0, -10px, 34px) rotateX(4deg)" },
-        },
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: "none",
-          backgroundImage:
-            "radial-gradient(circle, rgba(255,255,255,0.72) 0 1px, transparent 1.5px), radial-gradient(circle, rgba(147,197,253,0.42) 0 1px, transparent 1.6px), radial-gradient(circle, rgba(196,181,253,0.34) 0 1px, transparent 1.4px)",
-          backgroundSize: "86px 86px, 132px 132px, 48px 48px",
-          backgroundPosition: "0 0, 22px 26px, 9px 18px",
-          opacity: 0.28,
-          maskImage: "linear-gradient(to bottom, black, black 70%, transparent)",
-          animation: "galaxyDrift 14s ease-in-out infinite",
-        },
-        "&::after": {
-          content: '""',
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: "none",
-          background:
-            "linear-gradient(rgba(148,163,184,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.035) 1px, transparent 1px)",
-          backgroundSize: "56px 56px",
-          maskImage: "radial-gradient(circle at center, black, transparent 78%)",
-        },
-      }}
-    >
-      <Box sx={{ position: "relative", zIndex: 1, maxWidth: 1260, mx: "auto" }}>
-        <Paper
-          elevation={0}
-          sx={(theme) => ({
-            mb: { xs: 2.5, md: 3 },
-            p: { xs: 2.25, sm: 3, md: 4 },
-            borderRadius: 2,
-            border: "1px solid",
-            borderColor: alpha("#8b5cf6", 0.34),
-            color: "#eef2ff",
-            bgcolor: "#050712",
-            background:
-              "radial-gradient(circle at 18% 10%, rgba(124,58,237,0.28), transparent 28%), radial-gradient(circle at 86% 20%, rgba(6,182,212,0.2), transparent 30%), radial-gradient(circle at 52% 102%, rgba(249,115,22,0.12), transparent 34%), linear-gradient(135deg, #050712 0%, #0b1020 52%, #030712 100%)",
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", lg: "0.94fr 1.06fr" },
-            gap: { xs: 3, md: 4 },
-            overflow: "hidden",
-            position: "relative",
-            boxShadow: `0 30px 90px ${alpha(theme.palette.common.black, 0.34)}`,
-            "&::before": {
-              content: '""',
-              position: "absolute",
-              inset: 0,
-              pointerEvents: "none",
-              backgroundImage:
-                "radial-gradient(circle, rgba(255,255,255,0.86) 0 1px, transparent 1.5px), radial-gradient(circle, rgba(147,197,253,0.66) 0 1px, transparent 1.6px), radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.4px)",
-              backgroundSize: "72px 72px, 118px 118px, 44px 44px",
-              backgroundPosition: "0 0, 18px 24px, 7px 16px",
-              opacity: 0.34,
-              animation: "starTwinkle 5s ease-in-out infinite",
-            },
-            "&::after": {
-              content: '""',
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              width: "34%",
-              bgcolor: alpha("#22d3ee", 0.08),
-              filter: "blur(24px)",
-              animation: "scanLine 7s ease-in-out infinite",
-              pointerEvents: "none",
-            },
-          })}
-        >
-          <Stack spacing={3} justifyContent="space-between" sx={{ position: "relative", zIndex: 1 }}>
-            <Stack spacing={2.2}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.4 }}>
-                <Box
-                  component="img"
-                  src="/assets/logo/logo.png"
-                  alt="TumLumTala"
-                  sx={{
-                    width: 50,
-                    height: 50,
-                    objectFit: "contain",
-                    filter: "drop-shadow(0 12px 18px rgba(255,138,61,0.28))",
-                  }}
-                />
-                <Chip
-                  label="TumLumTala Launcher"
-                  size="small"
-                  sx={{
-                    borderRadius: 1,
-                    fontWeight: 900,
-                    bgcolor: "primary.main",
-                    color: "primary.contrastText",
-                  }}
-                />
-              </Box>
-
-              <Box>
-                <Typography
-                  component="h1"
-                  fontWeight={950}
-                  sx={{
-                    fontSize: { xs: 36, sm: 48, md: 64 },
-                    lineHeight: 0.94,
-                    letterSpacing: 0,
-                    maxWidth: 690,
-                  }}
-                >
-                  Chọn khu vui chơi hôm nay, {displayName}
-                </Typography>
-                <Typography
-                  sx={{ mt: 2, maxWidth: 560, fontSize: { xs: 14, md: 16 }, lineHeight: 1.65, color: alpha("#e0e7ff", 0.74) }}
-                >
-                  Movie, Music, Messenger được đặt trong một launcher 3D gọn
-                  gàng. Admin tools chỉ xuất hiện khi tài khoản có quyền.
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {PRIMARY_MODULES.map((item) => (
-                <Chip
-                  key={item.path}
-                  icon={item.icon}
-                  label={item.label}
-                  onClick={() => navigate(item.path)}
-                  sx={{
-                    borderRadius: 1.2,
-                    fontWeight: 900,
-                    bgcolor: alpha(item.color, 0.14),
-                    color: item.color,
-                    border: "1px solid",
-                    borderColor: alpha(item.color, 0.36),
-                    "& .MuiChip-icon": { color: "inherit" },
-                  }}
-                />
-              ))}
-            </Stack>
-          </Stack>
-
-          <Box
-            sx={{
-              minHeight: { xs: 330, md: 420 },
-              position: "relative",
-              perspective: "1500px",
-              transformStyle: "preserve-3d",
-              display: "grid",
-              placeItems: "center",
-            }}
-          >
-            {[0, 1, 2].map((ring) => (
-              <Box
-                key={ring}
-                sx={{
-                  position: "absolute",
-                  width: { xs: 240 + ring * 44, sm: 330 + ring * 56, md: 430 + ring * 72 },
-                  height: { xs: 150 + ring * 28, sm: 190 + ring * 34, md: 235 + ring * 42 },
-                  borderRadius: "50%",
-                  border: "1px solid",
-                  borderColor: alpha(PRIMARY_MODULES[ring].color, theme.palette.mode === "dark" ? 0.34 : 0.26),
-                  transformStyle: "preserve-3d",
-                  animation: `orbitSpin ${18 + ring * 7}s linear infinite`,
-                  animationDirection: ring === 1 ? "reverse" : "normal",
-                  opacity: 0.48 - ring * 0.08,
-                })}
-              />
-            ))}
-
-            {PRIMARY_MODULES.map((item, index) => (
-              <Box
-                key={`slab-${item.path}`}
-                sx={{
-                  position: "absolute",
-                  right: { xs: `${6 + index * 18}%`, md: `${8 + index * 13}%` },
-                  top: { xs: `${16 + index * 17}%`, md: `${10 + index * 18}%` },
-                  width: { xs: 28 + index * 6, md: 42 + index * 8 },
-                  height: { xs: 28 + index * 6, md: 42 + index * 8 },
-                  borderRadius: 1.4,
-                  bgcolor: alpha(item.color, 0.46),
-                  boxShadow: `0 14px 34px ${alpha(item.deepColor, 0.28)}`,
-                  transformStyle: "preserve-3d",
-                  animation: `shardFloat ${5.8 + index * 1.2}s ease-in-out infinite`,
-                  animationDelay: `${index * 0.4}s`,
-                  opacity: 0.7,
-                  "&::after": {
-                    content: '""',
-                    position: "absolute",
-                    inset: "72% -7px -8px 10px",
-                    borderRadius: 1,
-                    bgcolor: alpha(item.deepColor, 0.48),
-                    transform: "skewX(-34deg)",
-                  },
-                }}
-              />
-            ))}
-
-            <Box
-              sx={(theme) => ({
-                position: "absolute",
-                width: { xs: 250, sm: 340, md: 440 },
-                height: { xs: 170, sm: 210, md: 250 },
-                borderRadius: 2,
-                border: "1px solid",
-                borderColor: alpha(theme.palette.primary.main, 0.28),
+    return (
+        <Box
+            sx={(theme) => ({
+                minHeight: "calc(100vh - 112px)",
+                mx: { xs: -1.5, sm: -2, md: -3 },
+                my: { xs: -1.5, sm: -2, md: -3 },
+                px: { xs: 1.5, sm: 2, md: 3 },
+                py: { xs: 2, md: 3 },
+                position: "relative",
+                overflow: "hidden",
                 background:
-                  "radial-gradient(circle at 30% 30%, rgba(125,92,255,0.18), transparent 42%), radial-gradient(circle at 76% 64%, rgba(34,211,238,0.12), transparent 38%)",
-                boxShadow: `0 38px 110px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.46 : 0.18)}`,
-                transformStyle: "preserve-3d",
-                animation: "stageFloat 7s ease-in-out infinite",
-                "&::before": {
-                  content: '""',
-                  position: "absolute",
-                  inset: 14,
-                  borderRadius: 1.5,
-                  border: "1px dashed",
-                  borderColor: alpha("#93c5fd", 0.18),
+                    theme.palette.mode === "dark"
+                        ? `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.12)} 0%, ${theme.palette.background.default} 40%, ${alpha(theme.palette.info.main, 0.06)} 100%)`
+                        : `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${theme.palette.background.default} 50%, ${alpha(theme.palette.success.main, 0.04)} 100%)`,
+
+                "@keyframes orbitSpin": {
+                    "0%": { transform: "rotateX(70deg) rotateZ(0deg)" },
+                    "100%": { transform: "rotateX(70deg) rotateZ(360deg)" },
                 },
-                "&::after": {
-                  content: '""',
-                  position: "absolute",
-                  left: 34,
-                  right: 34,
-                  bottom: -28,
-                  height: 42,
-                  borderRadius: "50%",
-                  bgcolor: alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.38 : 0.18),
-                  filter: "blur(18px)",
+                "@keyframes floatBlob": {
+                    "0%,100%": { transform: "translateY(0) scale(1)" },
+                    "50%": { transform: "translateY(-18px) scale(1.04)" },
                 },
-              })}
+                "@keyframes scanLine": {
+                    "0%": { transform: "translateX(-120%) skewX(-16deg)", opacity: 0 },
+                    "5%": { opacity: 1 },
+                    "90%": { opacity: 1 },
+                    "100%": { transform: "translateX(220%) skewX(-16deg)", opacity: 0 },
+                },
+                "@keyframes pulseDot": {
+                    "0%,100%": { transform: "scale(1)", opacity: 0.9 },
+                    "50%": { transform: "scale(1.4)", opacity: 0.5 },
+                },
+                "@keyframes pingRing": {
+                    "0%": { transform: "scale(1)", opacity: 0.5 },
+                    "100%": { transform: "scale(2)", opacity: 0 },
+                },
+                "@keyframes borderSpin": {
+                    "0%": { transform: "rotate(0deg)" },
+                    "100%": { transform: "rotate(360deg)" },
+                },
+                "@keyframes cardFloat": {
+                    "0%,100%": { transform: "translateY(0px) rotateX(0deg)" },
+                    "50%": { transform: "translateY(-6px) rotateX(1.5deg)" },
+                },
+            })}
+        >
+            {/* Decorative background blobs */}
+            <Box
+                sx={(theme) => ({
+                    position: "absolute",
+                    width: 600,
+                    height: 600,
+                    borderRadius: "50%",
+                    background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.14)} 0%, transparent 68%)`,
+                    top: -160,
+                    right: -120,
+                    pointerEvents: "none",
+                    animation: "floatBlob 14s ease-in-out infinite",
+                })}
+            />
+            <Box
+                sx={(theme) => ({
+                    position: "absolute",
+                    width: 400,
+                    height: 400,
+                    borderRadius: "50%",
+                    background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.1)} 0%, transparent 68%)`,
+                    bottom: 60,
+                    left: -80,
+                    pointerEvents: "none",
+                    animation: "floatBlob 18s ease-in-out infinite 3s",
+                })}
+            />
+            <Box
+                sx={(theme) => ({
+                    position: "absolute",
+                    width: 280,
+                    height: 280,
+                    borderRadius: "50%",
+                    background: `radial-gradient(circle, ${alpha(theme.palette.success.main, 0.09)} 0%, transparent 68%)`,
+                    top: "40%",
+                    left: "40%",
+                    pointerEvents: "none",
+                    animation: "floatBlob 22s ease-in-out infinite 6s",
+                })}
             />
 
-            <Box
-              sx={{
-                width: { xs: 315, sm: 470, md: 660 },
-                height: { xs: 360, sm: 430, md: 440 },
-                position: "relative",
-                transformStyle: "preserve-3d",
-                animation: "deckDrift 9s ease-in-out infinite",
-              }}
-            >
-              {PRIMARY_MODULES.map((item, index) => (
+            {/* Micro particles */}
+            {BG_PARTICLES.map((p, i) => (
                 <Box
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  sx={(theme) => ({
-                    position: "absolute",
-                    left: item.sceneLeft,
-                    top: item.sceneTop,
-                    width: { xs: index === 1 ? 176 : 188, sm: index === 1 ? 222 : 242, md: index === 1 ? 260 : 288 },
-                    height: { xs: 126, sm: 142, md: 158 },
-                    p: 2,
-                    cursor: "pointer",
-                    borderRadius: 2,
-                    color: item.textColor,
-                    bgcolor: item.color,
-                    border: "1px solid",
-                    borderColor: alpha("#fff", 0.34),
-                    boxShadow: `0 ${26 + index * 7}px 64px ${alpha(item.deepColor, 0.42)}`,
-                    transform: `translate3d(0, 0, ${item.depth}px) rotateZ(${item.rotate})`,
-                    transformStyle: "preserve-3d",
-                    animation: `cardLift ${5.4 + index * 0.8}s ease-in-out infinite`,
-                    transition: "transform 0.22s ease, box-shadow 0.22s ease",
-                    overflow: "visible",
-                    zIndex: index === 1 ? 3 : index === 2 ? 2 : 1,
-                    "&:hover": {
-                      transform: `translate3d(0, -14px, ${item.depth + 58}px) rotateZ(${item.rotate}) rotateX(8deg) rotateY(-5deg)`,
-                      boxShadow: `0 ${34 + index * 8}px 82px ${alpha(item.deepColor, 0.54)}`,
-                    },
-                    [theme.breakpoints.down("sm")]: {
-                      zIndex: index + 1,
-                    },
-                    "&::before": {
-                      content: '""',
-                      position: "absolute",
-                      inset: 0,
-                      borderRadius: 2,
-                      background: `radial-gradient(circle at 24% 18%, ${alpha("#c4b5fd", 0.12)}, transparent 28%), radial-gradient(circle at 84% 76%, ${alpha(item.deepColor, 0.24)}, transparent 38%)`,
-                      pointerEvents: "none",
-                    },
-                    "&::after": {
-                      content: '""',
-                      position: "absolute",
-                      left: 14,
-                      right: -16,
-                      bottom: -22,
-                      height: 28,
-                      borderRadius: "0 0 16px 16px",
-                      bgcolor: alpha(item.deepColor, 0.62),
-                      transform: "skewX(-37deg) translateZ(-30px)",
-                      transformOrigin: "top",
-                      filter: "brightness(0.82)",
-                    },
-                  })}
-                >
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      top: 13,
-                      right: -18,
-                      bottom: -13,
-                      width: 26,
-                      borderRadius: "0 16px 16px 0",
-                      bgcolor: alpha(item.deepColor, 0.52),
-                      transform: "skewY(-42deg) translateZ(-24px)",
-                      transformOrigin: "left",
-                      pointerEvents: "none",
-                    }}
-                  />
-                  <Box
+                    key={i}
                     sx={(theme) => ({
-                      position: "absolute",
-                      left: 18,
-                      right: 18,
-                      bottom: -42,
-                      height: 34,
-                      borderRadius: "50%",
-                      bgcolor: alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.34 : 0.2),
-                      filter: "blur(16px)",
-                      transform: "translateZ(-80px)",
-                      pointerEvents: "none",
+                        position: "absolute",
+                        left: `${p.x}%`,
+                        top: `${p.y}%`,
+                        width: p.s,
+                        height: p.s,
+                        borderRadius: "50%",
+                        bgcolor: theme.palette.primary.main,
+                        opacity: p.o,
+                        pointerEvents: "none",
                     })}
-                  />
-                  <Stack sx={{ height: "100%", position: "relative", zIndex: 1 }} justifyContent="space-between">
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography variant="caption" fontWeight={900} sx={{ color: alpha(item.textColor, 0.72) }}>
-                        {item.eyebrow}
-                      </Typography>
-                      <Box
-                        sx={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 1.3,
-                          bgcolor: alpha("#020617", 0.16),
-                          border: "1px solid",
-                          borderColor: alpha("#fff", 0.18),
-                          display: "grid",
-                          placeItems: "center",
-                        }}
-                      >
-                        {item.icon}
-                      </Box>
-                    </Stack>
-                    <Box>
-                      <Typography fontWeight={950} sx={{ fontSize: { xs: 28, md: 34 }, lineHeight: 0.95 }}>
-                        {item.label}
-                      </Typography>
-                      <Typography variant="caption" sx={{ display: "block", mt: 0.8, color: alpha(item.textColor, 0.74) }}>
-                        {item.description}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        </Paper>
-
-        <Grid container spacing={2.5}>
-          {PRIMARY_MODULES.map((item) => (
-            <Grid item xs={12} md={item.span} key={item.path}>
-              <Paper
-                elevation={0}
-                onClick={() => navigate(item.path)}
-                sx={(theme) => ({
-                  minHeight: { xs: 210, md: 285 },
-                  p: { xs: 2.4, md: 3 },
-                  borderRadius: 2,
-                  color: "#eef2ff",
-                  cursor: "pointer",
-                  position: "relative",
-                  overflow: "visible",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  bgcolor: "#050712",
-                  background: `radial-gradient(circle at 18% 12%, ${alpha(item.color, 0.32)}, transparent 34%), radial-gradient(circle at 86% 88%, ${alpha(item.deepColor, 0.38)}, transparent 42%), linear-gradient(135deg, rgba(8,13,32,0.96), rgba(3,7,18,0.98))`,
-                  border: "1px solid",
-                  borderColor: alpha(item.color, 0.36),
-                  boxShadow: `0 22px 58px ${alpha(item.deepColor, 0.3)}`,
-                  transformStyle: "preserve-3d",
-                  transition: "transform 0.22s ease, box-shadow 0.22s ease",
-                  "&:hover": {
-                    transform: "perspective(1000px) rotateX(7deg) rotateY(-4deg) translateY(-10px) translateZ(22px)",
-                    boxShadow: `0 34px 86px ${alpha(item.deepColor, 0.38)}`,
-                  },
-                  "&::before": {
-                    content: '""',
-                    position: "absolute",
-                    inset: 0,
-                    borderRadius: 2,
-                    background: `linear-gradient(135deg, ${alpha(item.color, 0.08)}, transparent 44%, ${alpha("#8b5cf6", 0.08)})`,
-                  },
-                  "&::after": {
-                    content: '""',
-                    position: "absolute",
-                    left: 18,
-                    right: -18,
-                    bottom: -22,
-                    height: 28,
-                    borderRadius: "0 0 16px 16px",
-                    bgcolor: alpha(item.deepColor, 0.5),
-                    transform: "skewX(-38deg) translateZ(-28px)",
-                    pointerEvents: "none",
-                  },
-                }}
-              >
-                <Box
-                  sx={{
-                    position: "absolute",
-                    top: 18,
-                    right: -18,
-                    bottom: -12,
-                    width: 26,
-                    borderRadius: "0 16px 16px 0",
-                    bgcolor: alpha(item.deepColor, 0.5),
-                    transform: "skewY(-42deg) translateZ(-20px)",
-                    pointerEvents: "none",
-                  }}
                 />
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: "relative", zIndex: 1 }}>
-                  <Chip
-                    label={item.eyebrow}
-                    size="small"
-                    sx={{
-                      borderRadius: 1,
-                      bgcolor: alpha(item.color, 0.12),
-                      color: "#eef2ff",
-                      border: "1px solid",
-                      borderColor: alpha(item.color, 0.28),
-                      fontWeight: 900,
-                    }}
-                  />
-                  <Box
-                    sx={{
-                      width: 50,
-                      height: 50,
-                      borderRadius: 1.5,
-                      bgcolor: alpha(item.color, 0.14),
-                      border: "1px solid",
-                      borderColor: alpha(item.color, 0.28),
-                      color: item.color,
-                      display: "grid",
-                      placeItems: "center",
-                      "& svg": { fontSize: 30 },
-                    }}
-                  >
-                    {item.icon}
-                  </Box>
-                </Stack>
+            ))}
 
-                <Box sx={{ position: "relative", zIndex: 1, maxWidth: item.span === 6 ? 440 : 280 }}>
-                  <Typography
-                    fontWeight={950}
-                    sx={{
-                      fontSize: item.span === 6 ? { xs: 42, md: 62 } : { xs: 34, md: 42 },
-                      lineHeight: 0.92,
-                    }}
-                  >
-                    {item.label}
-                  </Typography>
-                  <Typography sx={{ mt: 1.4, color: alpha("#e0e7ff", 0.72), lineHeight: 1.55 }}>
-                    {item.description}
-                  </Typography>
-                  <Button
-                    endIcon={<ArrowForwardRoundedIcon />}
-                    sx={{
-                      mt: 2,
-                      px: 0,
-                      color: item.color,
-                      fontWeight: 900,
-                      "&:hover": { bgcolor: "transparent", transform: "translateX(4px)" },
-                    }}
-                  >
-                    Mở {item.label}
-                  </Button>
-                </Box>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
+            {/* Page content */}
+            <Box sx={{ position: "relative", zIndex: 1, maxWidth: 1280, mx: "auto" }}>
+                {/* HERO PANEL */}
+                <Paper
+                    elevation={0}
+                    sx={(theme) => ({
+                        mb: { xs: 2.5, md: 3 },
+                        borderRadius: 3,
+                        overflow: "hidden",
+                        position: "relative",
+                        border: "1px solid",
+                        borderColor: alpha(theme.palette.primary.main, 0.18),
+                        bgcolor: theme.palette.background.paper,
+                        boxShadow: `0 24px 80px ${alpha(theme.palette.primary.main, 0.08)}, inset 0 1px 0 ${alpha("#fff", 0.06)}`,
+                        // scan shimmer
+                        "&::after": {
+                            content: '""',
+                            position: "absolute",
+                            top: 0,
+                            bottom: 0,
+                            width: "26%",
+                            background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.main, 0.05)}, transparent)`,
+                            animation: "scanLine 10s ease-in-out infinite 1.5s",
+                            pointerEvents: "none",
+                        },
+                    })}
+                >
+                    {/* Hero inner gradient overlay */}
+                    <Box
+                        sx={(theme) => ({
+                            position: "absolute",
+                            inset: 0,
+                            pointerEvents: "none",
+                            background:
+                                theme.palette.mode === "dark"
+                                    ? `radial-gradient(ellipse 55% 70% at 78% 50%, ${alpha(theme.palette.primary.main, 0.12)} 0%, transparent 60%), radial-gradient(ellipse 35% 45% at 88% 18%, ${alpha(theme.palette.info.main, 0.1)} 0%, transparent 55%)`
+                                    : `radial-gradient(ellipse 55% 70% at 78% 50%, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 60%), radial-gradient(ellipse 35% 45% at 88% 18%, ${alpha(theme.palette.info.main, 0.06)} 0%, transparent 55%)`,
+                        })}
+                    />
 
-        {visibleAdminModules.length > 0 && (
-          <Paper
-            elevation={0}
-            sx={{
-              mt: 2.5,
-              p: { xs: 2, md: 2.5 },
-              borderRadius: 2,
-              border: "1px solid",
-              borderColor: alpha("#8b5cf6", 0.26),
-              color: "#eef2ff",
-              bgcolor: alpha("#050712", 0.94),
-              background:
-                "radial-gradient(circle at 92% 0%, rgba(34,211,238,0.1), transparent 32%), linear-gradient(135deg, rgba(8,13,32,0.95), rgba(3,7,18,0.95))",
-            }}
-          >
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              alignItems={{ xs: "stretch", md: "center" }}
-              justifyContent="space-between"
-              spacing={2}
-            >
-              <Box>
-                <Typography fontWeight={950}>Khu quản trị</Typography>
-                <Typography variant="body2" sx={{ color: alpha("#e0e7ff", 0.72) }}>
-                  Các thao tác vận hành chỉ hiện khi bạn có quyền.
-                </Typography>
-              </Box>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
-                {visibleAdminModules.map((item) => (
-                  <Button
-                    key={item.path}
-                    variant="outlined"
-                    startIcon={item.icon}
-                    endIcon={<ArrowForwardRoundedIcon />}
-                    onClick={() => navigate(item.path)}
-                    sx={{
-                      justifyContent: "space-between",
-                      minWidth: { xs: "100%", sm: 190 },
-                      borderRadius: 1.5,
-                      fontWeight: 900,
-                      color: "#eef2ff",
-                      borderColor: alpha("#8b5cf6", 0.42),
-                      bgcolor: alpha("#8b5cf6", 0.08),
-                      "&:hover": {
-                        borderColor: alpha("#22d3ee", 0.58),
-                        bgcolor: alpha("#22d3ee", 0.1),
-                      },
-                    }}
-                  >
-                    {item.label}
-                  </Button>
-                ))}
-              </Stack>
-            </Stack>
-          </Paper>
-        )}
-      </Box>
-    </Box>
-  );
+                    <Box
+                        sx={{
+                            display: "grid",
+                            gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+                            minHeight: { xs: "auto", lg: 460 },
+                        }}
+                    >
+                        {/* Left: text */}
+                        <Stack
+                            justifyContent="space-between"
+                            sx={{ p: { xs: 3, sm: 4, md: 5 }, position: "relative", zIndex: 1 }}
+                        >
+                            <Stack spacing={3}>
+                                {/* Logo + badge */}
+                                <Stack direction="row" alignItems="center" spacing={1.5}>
+                                    <Box
+                                        component="img"
+                                        src="/assets/logo/logo.png"
+                                        alt="TumLumTala"
+                                        sx={(theme) => ({
+                                            width: 46,
+                                            height: 46,
+                                            objectFit: "contain",
+                                            filter: `drop-shadow(0 0 10px ${alpha(theme.palette.primary.main, 0.5)})`,
+                                        })}
+                                    />
+                                    <Chip
+                                        icon={
+                                            <RocketLaunchIcon
+                                                sx={{ fontSize: "13px !important" }}
+                                            />
+                                        }
+                                        label="TumLumTala · Universal"
+                                        size="small"
+                                        sx={(theme) => ({
+                                            borderRadius: 6,
+                                            fontWeight: 700,
+                                            fontSize: 11,
+                                            letterSpacing: 0.4,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main,
+                                            border: "1px solid",
+                                            borderColor: alpha(theme.palette.primary.main, 0.28),
+                                            "& .MuiChip-icon": { color: "inherit" },
+                                        })}
+                                    />
+                                </Stack>
+
+                                {/* Headline */}
+                                <Box>
+                                    <Typography
+                                        component="p"
+                                        sx={(theme) => ({
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            letterSpacing: 3.5,
+                                            textTransform: "uppercase",
+                                            color: alpha(theme.palette.text.secondary, 0.7),
+                                            mb: 1.2,
+                                        })}
+                                    >
+                                        Welcome back
+                                    </Typography>
+                                    <Typography
+                                        component="h1"
+                                        fontWeight={950}
+                                        sx={{
+                                            fontSize: { xs: 34, sm: 48, md: 62 },
+                                            lineHeight: 0.94,
+                                            letterSpacing: -1.5,
+                                            color: "text.primary",
+                                        }}
+                                    >
+                                        Chọn khu vui
+                                        <br />
+                                        chơi hôm nay
+                                    </Typography>
+                                    <Typography
+                                        fontWeight={800}
+                                        sx={(theme) => ({
+                                            mt: 1.5,
+                                            fontSize: { xs: 22, sm: 30, md: 38 },
+                                            lineHeight: 1,
+                                            color: theme.palette.primary.main,
+                                        })}
+                                    >
+                                        {displayName} ✦
+                                    </Typography>
+                                </Box>
+
+                                <Typography
+                                    variant="body2"
+                                    sx={(theme) => ({
+                                        color: theme.palette.text.secondary,
+                                        lineHeight: 1.72,
+                                        maxWidth: 380,
+                                    })}
+                                >
+                                    Khám phá dải ngân hà giải trí — từ Cinema đến Sound Lab và
+                                    Realtime Hub, tất cả trong một vũ trụ.
+                                </Typography>
+                            </Stack>
+
+                            {/* Module shortcut chips */}
+                            <Stack
+                                direction="row"
+                                spacing={1}
+                                flexWrap="wrap"
+                                useFlexGap
+                                sx={{ mt: 4 }}
+                            >
+                                {PRIMARY_MODULES.map((item) => (
+                                    <Chip
+                                        key={item.path}
+                                        icon={item.icon}
+                                        label={item.label}
+                                        onClick={() => navigate(item.path)}
+                                        sx={{
+                                            borderRadius: 6,
+                                            fontWeight: 800,
+                                            fontSize: 12,
+                                            bgcolor: alpha(item.color, 0.1),
+                                            color: item.color,
+                                            border: "1px solid",
+                                            borderColor: alpha(item.color, 0.28),
+                                            transition: "all 0.2s",
+                                            "& .MuiChip-icon": { color: "inherit" },
+                                            "&:hover": {
+                                                bgcolor: alpha(item.color, 0.2),
+                                                borderColor: item.color,
+                                                transform: "translateY(-2px)",
+                                                boxShadow: `0 8px 20px ${alpha(item.color, 0.24)}`,
+                                            },
+                                        }}
+                                    />
+                                ))}
+                            </Stack>
+                        </Stack>
+
+                        {/* Right: orbit visualization */}
+                        <Box
+                            sx={(theme) => ({
+                                display: { xs: "none", lg: "flex" },
+                                alignItems: "center",
+                                justifyContent: "center",
+                                position: "relative",
+                                minHeight: 460,
+                                perspective: "1200px",
+                                background:
+                                    theme.palette.mode === "dark"
+                                        ? `radial-gradient(ellipse 80% 80% at 50% 50%, ${alpha(theme.palette.primary.main, 0.08)}, transparent 70%)`
+                                        : `radial-gradient(ellipse 80% 80% at 50% 50%, ${alpha(theme.palette.primary.main, 0.05)}, transparent 70%)`,
+                            })}
+                        >
+                            {/* Glow core */}
+                            <Box
+                                sx={(theme) => ({
+                                    position: "absolute",
+                                    width: 280,
+                                    height: 280,
+                                    borderRadius: "50%",
+                                    background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.16)} 0%, ${alpha(theme.palette.info.main, 0.1)} 40%, transparent 70%)`,
+                                    filter: "blur(28px)",
+                                    animation: "floatBlob 12s ease-in-out infinite",
+                                })}
+                            />
+
+                            {/* Orbit rings */}
+                            {ORBIT_RINGS.map((ring, i) => (
+                                <Box
+                                    key={i}
+                                    sx={(theme) => ({
+                                        position: "absolute",
+                                        width: ring.w,
+                                        height: ring.h,
+                                        borderRadius: "50%",
+                                        border: "1px solid",
+                                        borderColor: alpha(theme.palette.primary.main, 0.2),
+                                        boxShadow: `inset 0 0 12px ${alpha(theme.palette.primary.main, 0.06)}`,
+                                        transformStyle: "preserve-3d",
+                                        animation: `orbitSpin ${ring.dur}s linear infinite ${ring.rev ? "reverse" : ""}`,
+                                    })}
+                                />
+                            ))}
+
+                            {/* Center star */}
+                            <Box
+                                sx={(theme) => ({
+                                    position: "absolute",
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: "50%",
+                                    bgcolor: theme.palette.primary.main,
+                                    boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, 0.18)}, 0 0 24px ${alpha(theme.palette.primary.main, 0.5)}`,
+                                    animation: "pulseDot 2.4s ease-in-out infinite",
+                                    zIndex: 2,
+                                })}
+                            />
+                            {/* Ping ring around center */}
+                            <Box
+                                sx={(theme) => ({
+                                    position: "absolute",
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: "50%",
+                                    border: "2px solid",
+                                    borderColor: alpha(theme.palette.primary.main, 0.4),
+                                    animation: "pingRing 2.4s ease-out infinite",
+                                    zIndex: 1,
+                                })}
+                            />
+
+                            {/* Module satellites */}
+                            {(
+                                [
+                                    { item: PRIMARY_MODULES[0], tx: 156, ty: -10 },
+                                    { item: PRIMARY_MODULES[1], tx: -118, ty: 44 },
+                                    { item: PRIMARY_MODULES[2], tx: 54, ty: 54 },
+                                ] as const
+                            ).map(({ item, tx, ty }) => (
+                                <Box
+                                    key={item.path}
+                                    onClick={() => navigate(item.path)}
+                                    sx={{
+                                        position: "absolute",
+                                        width: 64,
+                                        height: 64,
+                                        borderRadius: "50%",
+                                        bgcolor: alpha(item.color, 0.14),
+                                        border: "2px solid",
+                                        borderColor: alpha(item.color, 0.5),
+                                        color: item.color,
+                                        display: "grid",
+                                        placeItems: "center",
+                                        boxShadow: `0 0 24px ${alpha(item.color, 0.38)}, 0 0 48px ${alpha(item.color, 0.14)}`,
+                                        transform: `translate(${tx}px, ${ty}px)`,
+                                        "& svg": { fontSize: 30 },
+                                        zIndex: 3,
+                                        backdropFilter: "blur(6px)",
+                                        cursor: "pointer",
+                                        transition: "transform 0.18s, box-shadow 0.18s",
+                                        "&:hover": {
+                                            bgcolor: alpha(item.color, 0.26),
+                                            boxShadow: `0 0 36px ${alpha(item.color, 0.6)}, 0 0 64px ${alpha(item.color, 0.22)}`,
+                                            transform: `translate(${tx}px, ${ty}px) scale(1.15)`,
+                                        },
+                                    }}
+                                >
+                                    {item.icon}
+                                </Box>
+                            ))}
+                        </Box>
+                    </Box>
+                </Paper>
+
+                {/* MODULE CARDS */}
+                <Grid container spacing={2.5}>
+                    {PRIMARY_MODULES.map((item) => (
+                        <Grid item xs={12} md={item.span} key={item.path}>
+                            {/* Wrapper provides perspective for 3D child */}
+                            <Box
+                                sx={{
+                                    perspective: "900px",
+                                    perspectiveOrigin: "50% 50%",
+                                    height: "100%",
+                                }}
+                            >
+                                {/* 3D + float wrapper */}
+                                <Box
+                                    sx={{
+                                        position: "relative",
+                                        borderRadius: "20px",
+                                        animation: "cardFloat 6s ease-in-out infinite",
+                                        transformStyle: "preserve-3d",
+                                        transition: "transform 0.18s ease, box-shadow 0.18s ease",
+                                        boxShadow: `0 8px 32px ${alpha(item.color, 0.1)}`,
+                                        "&:hover": {
+                                            transform:
+                                                "rotateX(10deg) rotateY(-6deg) translateZ(24px) translateY(-6px)",
+                                            boxShadow: `0 32px 72px ${alpha(item.color, 0.24)}, 0 0 48px ${alpha(item.color, 0.12)}`,
+                                            animationPlayState: "paused",
+                                        },
+                                    }}
+                                >
+                                    <Paper
+                                        elevation={0}
+                                        onClick={() => navigate(item.path)}
+                                        sx={(theme) => ({
+                                            minHeight: { xs: 200, md: 280 },
+                                            p: { xs: 2.5, md: 3 },
+                                            borderRadius: "20px",
+                                            cursor: "pointer",
+                                            position: "relative",
+                                            overflow: "hidden",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            justifyContent: "space-between",
+                                            bgcolor: theme.palette.background.paper,
+                                            border: "1.5px solid",
+                                            borderColor: alpha(item.color, 0.15),
+                                            // spinning border: oversized conic rotates inside overflow:hidden
+                                            "&::before": {
+                                                content: '""',
+                                                position: "absolute",
+                                                // square big enough to cover all 4 sides when rotating
+                                                width: "250%",
+                                                height: "250%",
+                                                top: "-75%",
+                                                left: "-75%",
+                                                background: `conic-gradient(from 0deg, transparent 0deg, transparent 78deg, ${item.color} 90deg, transparent 102deg, transparent 258deg, ${alpha(item.color, 0.5)} 270deg, transparent 282deg, transparent 360deg)`,
+                                                animation: "borderSpin 3s linear infinite",
+                                                zIndex: 0,
+                                                pointerEvents: "none",
+                                            },
+                                            // white fill over the conic, leaving only 1.5px at the very edge
+                                            "&::after": {
+                                                content: '""',
+                                                position: "absolute",
+                                                inset: "1.5px",
+                                                borderRadius: "18.5px",
+                                                background: theme.palette.background.paper,
+                                                zIndex: 1,
+                                                pointerEvents: "none",
+                                            },
+                                        })}
+                                    >
+                                        <Stack
+                                            direction="row"
+                                            alignItems="center"
+                                            justifyContent="space-between"
+                                            sx={{ position: "relative", zIndex: 2 }}
+                                        >
+                                            <Chip
+                                                label={item.eyebrow}
+                                                size="small"
+                                                sx={(theme) => ({
+                                                    borderRadius: 5,
+                                                    bgcolor: alpha(item.color, 0.08),
+                                                    color: theme.palette.text.secondary,
+                                                    border: "1px solid",
+                                                    borderColor: alpha(item.color, 0.2),
+                                                    fontWeight: 700,
+                                                    fontSize: 11,
+                                                })}
+                                            />
+                                            <Box
+                                                sx={{
+                                                    width: 44,
+                                                    height: 44,
+                                                    borderRadius: "50%",
+                                                    bgcolor: alpha(item.color, 0.1),
+                                                    border: "1.5px solid",
+                                                    borderColor: alpha(item.color, 0.28),
+                                                    color: item.color,
+                                                    display: "grid",
+                                                    placeItems: "center",
+                                                    boxShadow: `0 0 16px ${alpha(item.color, 0.2)}`,
+                                                    "& svg": { fontSize: 22 },
+                                                }}
+                                            >
+                                                {item.icon}
+                                            </Box>
+                                        </Stack>
+
+                                        <Box sx={{ position: "relative", zIndex: 2 }}>
+                                            <Typography
+                                                fontWeight={950}
+                                                sx={{
+                                                    fontSize:
+                                                        item.span === 6
+                                                            ? { xs: 40, md: 62 }
+                                                            : { xs: 30, md: 42 },
+                                                    lineHeight: 0.92,
+                                                    letterSpacing: -1.5,
+                                                    color: "text.primary",
+                                                }}
+                                            >
+                                                {item.label}
+                                            </Typography>
+                                            <Typography
+                                                variant="body2"
+                                                sx={(theme) => ({
+                                                    mt: 1.2,
+                                                    color: theme.palette.text.secondary,
+                                                    lineHeight: 1.6,
+                                                })}
+                                            >
+                                                {item.description}
+                                            </Typography>
+                                            <Button
+                                                endIcon={<ArrowForwardRoundedIcon />}
+                                                sx={{
+                                                    mt: 2,
+                                                    px: 0,
+                                                    color: item.color,
+                                                    fontWeight: 900,
+                                                    fontSize: 13,
+                                                    transition: "transform 0.18s",
+                                                    "&:hover": {
+                                                        bgcolor: "transparent",
+                                                        transform: "translateX(6px)",
+                                                    },
+                                                }}
+                                            >
+                                                Mở {item.label}
+                                            </Button>
+                                        </Box>
+                                    </Paper>
+                                </Box>
+                                {/* /3D float wrapper */}
+                            </Box>
+                            {/* /perspective wrapper */}
+                        </Grid>
+                    ))}
+                </Grid>
+
+                {/* ADMIN STRIP */}
+                {visibleAdminModules.length > 0 && (
+                    <Paper
+                        elevation={0}
+                        sx={(theme) => ({
+                            mt: 2.5,
+                            p: { xs: 2, md: 2.5 },
+                            borderRadius: 2.5,
+                            border: "1px solid",
+                            borderColor: theme.palette.divider,
+                            bgcolor: alpha(theme.palette.background.paper, 0.8),
+                            backdropFilter: "blur(10px)",
+                        })}
+                    >
+                        <Stack
+                            direction={{ xs: "column", md: "row" }}
+                            alignItems={{ xs: "stretch", md: "center" }}
+                            justifyContent="space-between"
+                            spacing={2}
+                        >
+                            <Box>
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Box
+                                        sx={(theme) => ({
+                                            width: 7,
+                                            height: 7,
+                                            borderRadius: "50%",
+                                            bgcolor: theme.palette.success.main,
+                                            boxShadow: `0 0 8px ${theme.palette.success.main}`,
+                                            animation: "pulseDot 2s ease-in-out infinite",
+                                        })}
+                                    />
+                                    <Typography fontWeight={800} fontSize={14}>
+                                        Khu quản trị
+                                    </Typography>
+                                </Stack>
+                                <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{ display: "block", mt: 0.4 }}
+                                >
+                                    Các thao tác vận hành — chỉ hiện khi bạn có quyền.
+                                </Typography>
+                            </Box>
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                                {visibleAdminModules.map((item) => (
+                                    <Button
+                                        key={item.path}
+                                        variant="outlined"
+                                        startIcon={item.icon}
+                                        endIcon={<ArrowForwardRoundedIcon />}
+                                        onClick={() => navigate(item.path)}
+                                        sx={(theme) => ({
+                                            justifyContent: "space-between",
+                                            minWidth: { xs: "100%", sm: 180 },
+                                            borderRadius: 6,
+                                            fontWeight: 800,
+                                            fontSize: 13,
+                                            borderColor: alpha(theme.palette.primary.main, 0.3),
+                                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                                            transition: "all 0.2s",
+                                            "&:hover": {
+                                                borderColor: theme.palette.primary.main,
+                                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                transform: "translateY(-2px)",
+                                                boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.16)}`,
+                                            },
+                                        })}
+                                    >
+                                        {item.label}
+                                    </Button>
+                                ))}
+                            </Stack>
+                        </Stack>
+                    </Paper>
+                )}
+            </Box>
+        </Box>
+    );
 }

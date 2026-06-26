@@ -13,7 +13,10 @@ import {
 	ListItemIcon,
 	Menu,
 	MenuItem,
+	Portal,
 	Typography,
+	useMediaQuery,
+	useTheme,
 } from "@mui/material";
 import { useState } from "react";
 import { useNow } from "@/hooks/common/useNow";
@@ -60,6 +63,8 @@ export const MessengerConversationList = ({
 	onLoadMore,
 }: MessengerConversationListProps) => {
 	const now = useNow();
+	const muiTheme = useTheme();
+	const isTouchDevice = useMediaQuery(muiTheme.breakpoints.down("md"));
 	const [menuState, setMenuState] = useState<MenuState | null>(null);
 
 	const menuOpen = Boolean(menuState);
@@ -96,6 +101,19 @@ export const MessengerConversationList = ({
 
 	return (
 		<>
+			{isTouchDevice && menuState && (
+				<Portal>
+					<Box
+						sx={{
+							position: "fixed",
+							inset: 0,
+							bgcolor: "rgba(0,0,0,0.35)",
+							zIndex: (theme) => theme.zIndex.modal - 2,
+							pointerEvents: "none",
+						}}
+					/>
+				</Portal>
+			)}
 			<List sx={{ width: "100%", p: 0 }}>
 				{conversations.map((conversation, index) => {
 					const typingUserIds =
@@ -131,8 +149,27 @@ export const MessengerConversationList = ({
 							(p) => p.id !== currentUserId && onlineUserIds.has(p.id),
 						);
 
+					const isDimmed =
+						isTouchDevice &&
+						menuState !== null &&
+						menuState.conversation.id !== conversation.id;
+
 					return (
-						<Box key={conversation.id}>
+						<Box
+							key={conversation.id}
+							sx={
+								isDimmed
+									? {
+											opacity: 0.35,
+											filter: "blur(0.8px)",
+											transition: "opacity 0.2s ease, filter 0.2s ease",
+											pointerEvents: "none",
+										}
+									: {
+											transition: "opacity 0.2s ease, filter 0.2s ease",
+										}
+							}
+						>
 							<ConversationItem
 								conversation={conversation}
 								currentUserId={currentUserId}

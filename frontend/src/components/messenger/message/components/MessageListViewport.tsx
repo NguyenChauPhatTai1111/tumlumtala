@@ -1,6 +1,6 @@
 import { MessageListTypingIndicator } from "@components/messenger/typing/MessageListTypingIndicator";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
-import { Box, CircularProgress, IconButton, Typography } from "@mui/material";
+import { Box, CircularProgress, IconButton, Portal, Typography, useMediaQuery, useTheme } from "@mui/material";
 import { useCurrentUser } from "@hooks/common/useCurrentUser";
 import {
 	type Dispatch,
@@ -142,6 +142,8 @@ export const MessageListViewport = ({
 }: MessageListViewportProps) => {
 	const { data: currentUser } = useCurrentUser();
 	const [ctxMenu, setCtxMenu] = useState<MessageContextMenuState | null>(null);
+	const muiTheme = useTheme();
+	const isTouchDevice = useMediaQuery(muiTheme.breakpoints.down("md"));
 
 	const handleContextMenuOpen = (
 		pos: { top: number; left: number },
@@ -199,10 +201,10 @@ export const MessageListViewport = ({
 					pr: 0,
 					pb: 2,
 					pt: 0,
-					zIndex: 100,
 				}}
 				onScroll={handleScroll}
 			>
+
 				{loadingMore && (
 					<Box sx={{ display: "flex", justifyContent: "center", py: 0.5 }}>
 						<CircularProgress size={24} />
@@ -292,6 +294,20 @@ export const MessageListViewport = ({
 
 				<div ref={messagesEndRef} />
 			</Box>
+
+			{isTouchDevice && ctxMenu && (
+				<Portal>
+					<Box
+						sx={{
+							position: "fixed",
+							inset: 0,
+							bgcolor: "rgba(0,0,0,0.35)",
+							zIndex: (theme) => theme.zIndex.modal - 2,
+							pointerEvents: "none",
+						}}
+					/>
+				</Portal>
+			)}
 
 			<ContextMenu
 				ctxMenu={ctxMenu}

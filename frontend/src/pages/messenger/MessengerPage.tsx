@@ -11,6 +11,7 @@ import {
 } from "@components/messenger/utils/background";
 import type { ConversationThemeConfig } from "@components/messenger/utils/theme";
 import { parseConversationThemeConfig } from "@components/messenger/utils/theme";
+import { getMessagePreviewContent } from "@components/messenger/miniMessenger/utils";
 import {
 	DEFAULT_BACKGROUND_COLOR,
 	DEFAULT_INCOMING_BUBBLE_COLOR,
@@ -46,6 +47,7 @@ import { useMessengerPageState } from "@pages/messenger/hooks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChangeEvent, ReactNode, SyntheticEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSwipeBackGuard } from "@hooks/ui/useSwipeBackGuard";
 import { useSearchParams } from "react-router-dom";
 import { useShowMessageToast } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
@@ -67,6 +69,8 @@ import type {
 	Participant,
 	User,
 } from "@/types/messenger";
+
+const REACTION_SPAM_INTERVAL_MS = 300;
 
 export default function MessengerPage() {
 	const { open } = useNotification();
@@ -217,6 +221,7 @@ export default function MessengerPage() {
 	const onlineUserIds = usePresence(ws);
 	const queryClient = useQueryClient();
 	const selectedConversationIdRef = useRef<number | null>(null);
+	const lastReactionAtRef = useRef<number>(0);
 
 	const setConversationDraft = useCallback(
 		(
@@ -1034,7 +1039,7 @@ export default function MessengerPage() {
 					notifyNewMessage({
 						senderName: senderParticipant?.fullname,
 						conversationName: conv.is_group ? conv.name : undefined,
-						content: msg.content,
+						content: getMessagePreviewContent(msg),
 						senderAvatar: senderParticipant?.avatar,
 					});
 				})();
@@ -2657,6 +2662,16 @@ export default function MessengerPage() {
 			reaction = "👍",
 			action: "toggle" | "remove" = "toggle",
 		) => {
+			const now = Date.now();
+			if (now - lastReactionAtRef.current < REACTION_SPAM_INTERVAL_MS) {
+				open?.({
+					type: "error",
+					message: "Bạn đang thả cảm xúc quá nhanh. Vui lòng chờ một chút.",
+				});
+				return;
+			}
+			lastReactionAtRef.current = now;
+
 			const previousPendingMessages = pendingMessages;
 			const messageId = Number(message.id);
 			const messagesQueryKey =
@@ -2795,6 +2810,10 @@ export default function MessengerPage() {
 	const showDetail =
 		!isMobile || (!!selectedConversation && !showConversationList);
 	const showOverlayBackdrop = showInfoPanel || shouldShowSearchDetailPanel;
+
+	// Intercept browser swipe-back gesture on mobile so it returns to the
+	// conversation list instead of navigating away from /messenger
+	useSwipeBackGuard(isMobile && showDetail, handleBackToConversationList);
 	const displayedMessages = useMemo(() => {
 		if (searchedMessages) {
 			return searchedMessages;
@@ -2984,9 +3003,8 @@ export default function MessengerPage() {
 
 	return (
 		<MessengerEmojiProvider>
-			<Box sx={{ display: "flex", position: "absolute", inset: 0 }}>
-				{showSidebar && (
-					<MessengerSidebar
+			<Box sx={{ display: "flex", position: "absolute", inset: 0, overflow: "hidden" }}>
+				{showSidebar && <MessengerSidebar
 						isMobile={isMobile}
 						isSidebarCollapsed={isSidebarCollapsed}
 						conversationTab={conversationTab}
@@ -3032,10 +3050,9 @@ export default function MessengerPage() {
 						hasMoreConversations={hasMoreConversations}
 						loadingMoreConversations={loadingMoreConversations}
 						onLoadMoreConversations={handleLoadMoreConversations}
-					/>
-				)}
+					/>}
 
-				<MessengerContent
+				{(!isMobile || showDetail) && <MessengerContent
 					isMobile={isMobile}
 					showDetail={showDetail}
 					showOverlayBackdrop={showOverlayBackdrop}
@@ -3121,7 +3138,7 @@ export default function MessengerPage() {
 					draftFiles={currentDraft.files}
 					onDraftChange={handleDraftChange}
 					ws={ws}
-				/>
+				/>}
 
 				<input
 					ref={groupAvatarInputRef}

@@ -231,6 +231,7 @@ export const MessengerContent = memo(
 		const [customizeOpen, setCustomizeOpen] = useState(false);
 		const [isDragOverMessages, setIsDragOverMessages] = useState(false);
 		const messageDragCounterRef = useRef(0);
+		const swipeTouchRef = useRef<{ x: number; y: number } | null>(null);
 		const [avatarMenuAnchor, setAvatarMenuAnchor] =
 			useState<HTMLElement | null>(null);
 		const [avatarMenuParticipant, setAvatarMenuParticipant] =
@@ -334,8 +335,26 @@ export const MessengerContent = memo(
 			return null;
 		}
 
+		const handleTouchStart = (e: React.TouchEvent) => {
+			if (!isMobile) return;
+			const t = e.touches[0];
+			swipeTouchRef.current = { x: t.clientX, y: t.clientY };
+		};
+
+		const handleTouchEnd = (e: React.TouchEvent) => {
+			if (!isMobile || !swipeTouchRef.current) return;
+			const t = e.changedTouches[0];
+			const dx = t.clientX - swipeTouchRef.current.x;
+			const dy = Math.abs(t.clientY - swipeTouchRef.current.y);
+			swipeTouchRef.current = null;
+			// Swipe right ≥ 60px, clearly more horizontal than vertical, starting from left edge
+			if (dx > 60 && dy < dx) onBack();
+		};
+
 		return (
 			<Box
+				onTouchStart={handleTouchStart}
+				onTouchEnd={handleTouchEnd}
 				sx={{
 					display: "flex",
 					flex: 1,
@@ -343,6 +362,14 @@ export const MessengerContent = memo(
 					position: "relative",
 					height: "100%",
 					overflow: "hidden",
+
+					...(isMobile && {
+						"@keyframes slideInFromRight": {
+							from: { transform: "translateX(100%)" },
+							to: { transform: "translateX(0)" },
+						},
+						animation: "slideInFromRight 220ms cubic-bezier(0.4, 0, 0.2, 1)",
+					}),
 				}}
 			>
 				<Fade in={showOverlayBackdrop} timeout={180} mountOnEnter unmountOnExit>

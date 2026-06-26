@@ -1,8 +1,9 @@
 import type { MessageBubbleProps } from "@components/messenger/types/messages";
 import { getReadableTextColor } from "@components/messenger/utils/color";
 import { isMessageEdited } from "@components/messenger/utils/message";
-import { alpha, Box } from "@mui/material";
+import { alpha, Box, useMediaQuery, useTheme } from "@mui/material";
 import { useCurrentUser } from "@hooks/common/useCurrentUser";
+import { useLongPress } from "@hooks/ui/useLongPress";
 import {
 	useCallback,
 	useEffect,
@@ -80,6 +81,8 @@ export const MessageListBubble = ({
 	const reactionPickerRef = useRef<HTMLDivElement | null>(null);
 	const reactionAnimationIdRef = useRef(0);
 	const { data: currentUser } = useCurrentUser();
+	const muiTheme = useTheme();
+	const isTouchDevice = useMediaQuery(muiTheme.breakpoints.down("md"));
 
 	const myReactionEmoji = useMemo(() => {
 		if (message.my_reaction) return message.my_reaction;
@@ -249,6 +252,28 @@ export const MessageListBubble = ({
 	};
 
 	const isActivityMessage = Boolean(message.activity_type);
+
+	const bubbleLongPress = useLongPress({
+		onLongPress: (event) => {
+			if (isActivityMessage) return;
+			const touch = "touches" in event ? event.touches[0] : null;
+			const pos = touch
+				? { top: touch.clientY, left: touch.clientX }
+				: { top: 0, left: 0 };
+			onContextMenuOpen?.(pos, message);
+		},
+	});
+
+	const heartLongPress = useLongPress({
+		onLongPress: (event) => {
+			const touch = "touches" in event ? event.touches[0] : null;
+			openReactionPicker(touch as unknown as React.PointerEvent<HTMLElement> | undefined);
+		},
+		onClick: () => {
+			handleReactionTriggerClick({ stopPropagation: () => {} } as React.MouseEvent);
+		},
+	});
+
 	const { isFlagMessage } = isFlagMsg(message);
 	const isEmojiOnlyMessage = isEmojiOnly(message, isFlagMessage);
 	const isStickerMessage = message.message_type === "sticker";
@@ -427,14 +452,20 @@ export const MessageListBubble = ({
 			ref={reactionTriggerRef}
 			component="button"
 			type="button"
-			onMouseEnter={openReactionPicker}
-			onPointerEnter={openReactionPicker}
-			onMouseMove={(event) => {
-				if (!reactionPickerOpen) {
-					openReactionPicker(event);
-				}
-			}}
-			onClick={handleReactionTriggerClick}
+			{...(isTouchDevice ? {
+				onTouchStart: heartLongPress.onTouchStart,
+				onTouchMove: heartLongPress.onTouchMove,
+				onTouchEnd: heartLongPress.onTouchEnd,
+			} : {
+				onMouseEnter: openReactionPicker,
+				onPointerEnter: openReactionPicker,
+				onMouseMove: (event: React.MouseEvent<HTMLElement>) => {
+					if (!reactionPickerOpen) {
+						openReactionPicker(event);
+					}
+				},
+				onClick: handleReactionTriggerClick,
+			})}
 			aria-label="Cảm xúc"
 			sx={{
 				width: 24,
@@ -442,6 +473,9 @@ export const MessageListBubble = ({
 				flex: "0 0 24px",
 				p: 0,
 				border: "1px solid",
+				userSelect: "none",
+				WebkitUserSelect: "none",
+				WebkitTouchCallout: "none",
 				borderColor: reactionBorderColor,
 				borderRadius: 999,
 				display: "inline-flex",
@@ -493,6 +527,11 @@ export const MessageListBubble = ({
 					e.stopPropagation();
 					onContextMenuOpen?.({ top: e.clientY, left: e.clientX }, message);
 				}}
+				{...(isTouchDevice && !isActivityMessage ? {
+					onTouchStart: bubbleLongPress.onTouchStart,
+					onTouchMove: bubbleLongPress.onTouchMove,
+					onTouchEnd: bubbleLongPress.onTouchEnd,
+				} : {})}
 				sx={{
 					position: "relative",
 					display: "inline-flex",
@@ -500,6 +539,11 @@ export const MessageListBubble = ({
 					minWidth: 0,
 					flexShrink: 1,
 					maxWidth: "min(480px, 65vw)",
+					...(isTouchDevice && !isActivityMessage ? {
+						userSelect: "none",
+						WebkitUserSelect: "none",
+						WebkitTouchCallout: "none",
+					} : {}),
 				}}
 			>
 				{animatedReaction && (
@@ -595,13 +639,15 @@ export const MessageListBubble = ({
 					!isEmojiOnlyMessage) ? (
 					<Box
 						ref={reactionGroupRef}
-						onMouseEnter={openReactionPicker}
-						onPointerEnter={openReactionPicker}
-						onMouseMove={(event) => {
-							if (!reactionPickerOpen) {
-								openReactionPicker(event);
-							}
-						}}
+						{...(!isTouchDevice ? {
+							onMouseEnter: openReactionPicker,
+							onPointerEnter: openReactionPicker,
+							onMouseMove: (event: React.MouseEvent<HTMLElement>) => {
+								if (!reactionPickerOpen) {
+									openReactionPicker(event);
+								}
+							},
+						} : {})}
 						sx={{
 							position: "absolute",
 							bottom: -13,

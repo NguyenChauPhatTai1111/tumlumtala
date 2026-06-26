@@ -304,7 +304,7 @@ export const AppLayout = () => {
                   </IconButton>
                 </Tooltip>
 
-                <HeaderChatsMenu />
+                {!isMobile && <HeaderChatsMenu />}
 
                 {/* User menu */}
                 <Box

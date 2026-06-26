@@ -19,7 +19,10 @@ import {
     ListItemButton,
     Tooltip,
     Typography,
+    useMediaQuery,
+    useTheme,
 } from "@mui/material";
+import { useLongPress } from "@hooks/ui/useLongPress";
 import { type MouseEvent, useMemo, useRef } from "react";
 import { formatTimestampRealtime } from "@/utils";
 import { resolveCdnUrl } from "@/utils/urlUtils";
@@ -117,6 +120,19 @@ export const ConversationItem = ({
     onToggleNotifications,
 }: ConversationItemProps) => {
     const skipNextSelectRef = useRef(false);
+    const muiTheme = useTheme();
+    const isTouchDevice = useMediaQuery(muiTheme.breakpoints.down("md"));
+
+    const conversationLongPress = useLongPress({
+        onLongPress: (event) => {
+            if (!onMenuOpen) return;
+            const touch = "touches" in event ? event.touches[0] : null;
+            if (touch) {
+                skipNextSelectRef.current = true;
+                onMenuOpen({ top: touch.clientY, left: touch.clientX }, conversation);
+            }
+        },
+    });
     const displayName = getConversationDisplayName(conversation, currentUserId);
 
     const avatarSrc =
@@ -206,6 +222,11 @@ export const ConversationItem = ({
                 onSelect(conversation.id);
             }}
             onContextMenu={handleContextMenu}
+            {...(isTouchDevice ? {
+                onTouchStart: conversationLongPress.onTouchStart,
+                onTouchMove: conversationLongPress.onTouchMove,
+                onTouchEnd: conversationLongPress.onTouchEnd,
+            } : {})}
             sx={{
                 py: 1.5,
                 px: compact ? 1 : 2,
@@ -218,6 +239,11 @@ export const ConversationItem = ({
                 "&:hover": {
                     bgcolor: "action.hover",
                 },
+                ...(isTouchDevice ? {
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    WebkitTouchCallout: "none",
+                } : {}),
             }}
         >
             <ListItemAvatar sx={{ minWidth: compact ? 0 : 56, mr: compact ? 0 : 1 }}>
