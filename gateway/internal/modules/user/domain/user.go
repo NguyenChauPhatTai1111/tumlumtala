@@ -4,6 +4,8 @@ type CreateUserInput struct {
 	Email    string
 	Password string
 	Fullname string
+	Role     string
+	Status   string
 }
 
 type UpdateUserInput struct {
@@ -20,8 +22,14 @@ type User struct {
 	Fullname  string
 	Avatar    string
 	Role      string
+	Status    string
 	CreatedAt string
 	UpdatedAt string
+}
+
+type ChangeUserStatusInput struct {
+	UUID   string
+	Status string
 }
 
 type UpdateProfileInput struct {

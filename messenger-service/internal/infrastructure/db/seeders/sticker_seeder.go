@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -187,7 +188,8 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 		var err error
 		client, err = bunnycdn.NewClientFromEnv()
 		if err != nil {
-			return fmt.Errorf("bunnycdn init: %w", err)
+			fmt.Printf("  ⚠  bunnycdn init failed: %v — seeding stickers without upload\n", err)
+			skipUpload = true
 		}
 	}
 
@@ -210,16 +212,20 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 
 	resolveURL := func(folder, file string) (string, error) {
 		if skipUpload {
-			return fmt.Sprintf("local://%s/%s", folder, file), nil
+			return buildStickerCDNURL(assetsDir, folder, file)
 		}
-		return uploadStickerFile(ctx, client, assetsDir, folder, file)
+		url, err := uploadStickerFile(ctx, client, assetsDir, folder, file)
+		if err != nil {
+			fmt.Printf("  ⚠  upload failed %s/%s: %v — using existing CDN URL\n", folder, file, err)
+			return buildStickerCDNURL(assetsDir, folder, file)
+		}
+		return url, nil
 	}
 
 	for _, pd := range packDefs {
 		thumbURL, err := resolveURL(pd.folder, "thumbnail")
 		if err != nil {
-			fmt.Printf("  ⚠  thumbnail upload failed for %s: %v — skipping pack\n", pd.name, err)
-			continue
+			return fmt.Errorf("resolve thumbnail for %s: %w", pd.name, err)
 		}
 
 		desc := pd.description
@@ -241,8 +247,7 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 		for _, sd := range pd.stickers {
 			imageURL, err := resolveURL(pd.folder, sd.file)
 			if err != nil {
-				fmt.Printf("  ⚠  upload failed %s/%s: %v — skipping\n", pd.folder, sd.file, err)
-				continue
+				return fmt.Errorf("resolve sticker %s/%s: %w", pd.folder, sd.file, err)
 			}
 
 			sticker := model.Sticker{
@@ -271,6 +276,40 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 
 	fmt.Printf("[StickerSeeder] seeded %d sticker packs\n", len(packDefs))
 	return nil
+}
+
+func buildStickerCDNURL(assetsDir, folder, baseName string) (string, error) {
+	cdnBaseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("BUNNYCDN_CDN_BASE_URL")), "/")
+	if cdnBaseURL == "" {
+		return "", fmt.Errorf("missing BUNNYCDN_CDN_BASE_URL for sticker CDN URL")
+	}
+
+	fileName := findStickerAssetName(assetsDir, folder, baseName)
+	return fmt.Sprintf("%s/stickers/%s/%s", cdnBaseURL, folder, fileName), nil
+}
+
+func findStickerAssetName(assetsDir, folder, baseName string) string {
+	dir := filepath.Join(assetsDir, folder)
+	entries, err := os.ReadDir(dir)
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			if strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())) == baseName {
+				return entry.Name()
+			}
+		}
+	}
+
+	extension := strings.TrimSpace(os.Getenv("STICKER_FILE_EXTENSION"))
+	if extension == "" {
+		extension = ".png"
+	}
+	if !strings.HasPrefix(extension, ".") {
+		extension = "." + extension
+	}
+	return baseName + extension
 }
 
 // uploadStickerFile finds a file by base name (any extension) in dir/folder/, uploads to CDN, returns public URL.

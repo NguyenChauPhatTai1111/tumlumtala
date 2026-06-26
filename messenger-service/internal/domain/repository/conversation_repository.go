@@ -12,6 +12,7 @@ type UserConversationRepository interface {
 	GetUserConversations(ctx context.Context, userID uint, filter utils.QueryFilter) ([]entity.UserConversation, int64, error)
 	IsParticipant(ctx context.Context, conversationID, userID uint) (bool, error)
 	GetConversationIDsForUser(ctx context.Context, userID uint) ([]uint, error)
+	GetParticipantUserIDsForUser(ctx context.Context, userID uint) ([]uint, error)
 	GetParticipants(ctx context.Context, conversationID uint) ([]entity.ParticipantInfo, error)
 	GetParticipant(ctx context.Context, conversationID, userID uint) (*entity.ParticipantInfo, error)
 	FindNextOwner(ctx context.Context, conversationID, excludingUserID uint) (*entity.ParticipantInfo, error)

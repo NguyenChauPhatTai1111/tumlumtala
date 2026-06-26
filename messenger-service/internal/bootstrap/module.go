@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	httpAdapter "github.com/tumlumtala/messenger-service/internal/adapter/http"
 	wsAdapter "github.com/tumlumtala/messenger-service/internal/adapter/websocket"
@@ -15,6 +16,7 @@ import (
 	historyUC "github.com/tumlumtala/messenger-service/internal/application/usecase/history"
 	messageUC "github.com/tumlumtala/messenger-service/internal/application/usecase/message"
 	"github.com/tumlumtala/messenger-service/internal/config"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
 	ws "github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 	persistenceQS "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/queryservice"
 	persistenceRepo "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/repository"
@@ -55,6 +57,14 @@ func (b *bunnyCDNUploader) Upload(ctx context.Context, remotePath string, payloa
 		return "", fmt.Errorf("bunnyCDN upload failed: status %d", resp.StatusCode)
 	}
 	return b.baseURL + "/" + remotePath, nil
+}
+
+func newRedisClient(cfg config.Config) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:     cfg.Redis.Host + ":" + cfg.Redis.Port,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
 }
 
 func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
@@ -113,8 +123,12 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	pool := ws.NewConnectionPool()
 	go hub.Run()
 
+	// Presence
+	rdb := newRedisClient(cfg)
+	presenceStore := presence.NewStore(rdb)
+
 	// WebSocket handler
-	wsHandler := wsAdapter.NewHandler(conversationRepo, sendMessage, markRead, getConversations, getMessages, hub)
+	wsHandler := wsAdapter.NewHandler(conversationRepo, sendMessage, markRead, getConversations, getMessages, hub, presenceStore)
 
 	// HTTP handler
 	handler := httpAdapter.NewMessengerHandler(

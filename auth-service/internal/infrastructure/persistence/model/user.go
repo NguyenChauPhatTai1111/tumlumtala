@@ -13,6 +13,7 @@ type User struct {
 	Password  string    `gorm:"column:password;not null"`
 	Fullname  string    `gorm:"column:fullname;not null"`
 	Role      string    `gorm:"column:role;default:member"`
+	Status    string    `gorm:"column:status;default:active"`
 	CreatedAt time.Time `gorm:"column:created_at;precision:6"`
 	UpdatedAt time.Time `gorm:"column:updated_at;precision:6"`
 }
@@ -27,6 +28,7 @@ func (m *User) ToEntity() *entity.User {
 		Password:  m.Password,
 		Fullname:  m.Fullname,
 		Role:      m.Role,
+		Status:    m.Status,
 		CreatedAt: m.CreatedAt,
 		UpdatedAt: m.UpdatedAt,
 	}

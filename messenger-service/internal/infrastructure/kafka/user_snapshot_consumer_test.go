@@ -29,7 +29,7 @@ type upsertCall struct {
 	role     string
 }
 
-func (s *snapshotStoreStub) Upsert(_ context.Context, id uint64, userUUID, email, fullname, avatar, role string, _ time.Time) error {
+func (s *snapshotStoreStub) Upsert(_ context.Context, id uint64, userUUID, email, fullname, avatar, role, status string, _ time.Time) error {
 	if s.errOn == "upsert" {
 		return errors.New("db error")
 	}

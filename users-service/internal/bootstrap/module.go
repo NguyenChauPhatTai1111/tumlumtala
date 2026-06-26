@@ -24,6 +24,7 @@ func Register(server *grpc.Server, db *gorm.DB, kafkaBrokers []string, rabbitCfg
 		usecase.NewGetUserUseCase(queries),
 		usecase.NewListUsersUseCase(queries),
 		usecase.NewUpdateUserUseCase(repository, queries, kafkaEvents),
+		usecase.NewChangeUserStatusUseCase(repository, queries, kafkaEvents),
 		usecase.NewDeleteUserUseCase(repository, queries, kafkaEvents),
 	)
 	userpb.RegisterUserServiceServer(server, controller)

@@ -8,6 +8,8 @@ services:
     environment:
       DB_HOST: tumlumtala-users-mysql
       DB_PORT: "3306"
+      REDIS_HOST: tumlumtala-redis
+      REDIS_PORT: "6379"
     ports:
       - "${PORT:-25056}:${PORT:-25056}"
     networks:

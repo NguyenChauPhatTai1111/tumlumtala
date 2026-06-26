@@ -36,6 +36,7 @@ import {
 	useNewMessageNotification,
 	useSendMessengerMessage,
 } from "@hooks/messenger";
+import { usePresence } from "@hooks/messenger/usePresence";
 import { getConversations } from "@/services/messengerService";
 import { Box, useTheme } from "@mui/material";
 import { MessengerContent } from "@pages/messenger/components/MessengerContent";
@@ -213,6 +214,7 @@ export default function MessengerPage() {
 		selectedConversationId ?? undefined,
 	);
 	const ws = useMessengerWebSocketConnection();
+	const onlineUserIds = usePresence(ws);
 	const queryClient = useQueryClient();
 	const selectedConversationIdRef = useRef<number | null>(null);
 
@@ -2988,6 +2990,7 @@ export default function MessengerPage() {
 						visibleConversations={visibleConversations}
 						selectedConversationId={selectedConversationId}
 						currentUserId={Number(currentUser?.id ?? 0)}
+						onlineUserIds={onlineUserIds}
 						ws={ws}
 						searchAllKeyword={searchAllKeyword}
 						searchAllLoading={searchAllLoading}

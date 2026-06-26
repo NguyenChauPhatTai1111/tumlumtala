@@ -32,6 +32,7 @@ type UserService interface {
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
 	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
 	UpdateProfile(context.Context, domain.UpdateProfileInput) (domain.User, error)
+	ChangeUserStatus(context.Context, domain.ChangeUserStatusInput) (domain.User, error)
 	DeleteUser(context.Context, string) error
 }
 
@@ -58,6 +59,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			Email:    req.Email,
 			Password: req.Password,
 			Fullname: req.Fullname,
+			Role:     req.Role,
+			Status:   req.Status,
 		})
 		if err != nil {
 			return err
@@ -137,6 +140,27 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		Email:    req.Email,
 		Fullname: req.Fullname,
 		Role:     req.Role,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, http.StatusOK, mapUser(user))
+}
+
+func (h *UserHandler) ChangeUserStatus(c *gin.Context) {
+	uuid := c.Param("uuid")
+
+	var req ChangeUserStatusRequest
+	if err := validator.BindJSON(c, &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	user, err := h.service.ChangeUserStatus(c.Request.Context(), domain.ChangeUserStatusInput{
+		UUID:   uuid,
+		Status: req.Status,
 	})
 	if err != nil {
 		response.Error(c, err)
@@ -293,6 +317,7 @@ func mapUser(u domain.User) gin.H {
 		"fullname":   u.Fullname,
 		"avatar":     u.Avatar,
 		"role":       u.Role,
+		"status":     u.Status,
 		"created_at": u.CreatedAt,
 		"updated_at": u.UpdatedAt,
 	}

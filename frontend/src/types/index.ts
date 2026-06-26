@@ -17,7 +17,7 @@ export interface IUser {
   balance?: number;
   age?: number;
   gender?: UserGender;
-  status?: string;
+  status?: "active" | "inactive";
   level?: string;
   version?: number | string;
   idempotency_key?: string;

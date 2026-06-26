@@ -4,6 +4,7 @@ export interface ConversationItemProps {
 	conversation: Conversation;
 	currentUserId: number;
 	selected: boolean;
+	isOnline?: boolean;
 	compact: boolean;
 	now: number;
 	typingPreview?: {

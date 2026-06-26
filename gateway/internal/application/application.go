@@ -29,10 +29,10 @@ import (
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
-	bunnycdn "github.com/tumlumtala/gateway/pkg/bunnycdn"
 	"github.com/tumlumtala/gateway/internal/shared/logger"
 	"github.com/tumlumtala/gateway/internal/shared/metrics"
 	"github.com/tumlumtala/gateway/internal/shared/observability"
+	bunnycdn "github.com/tumlumtala/gateway/pkg/bunnycdn"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -184,7 +184,7 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 	})))
 	httproutes.RegisterRoutes(router, httproutes.RegisterOptions{
 		Logger:    log,
-		Auth:      middleware.Auth(jwtVerifier),
+		Auth:      middleware.Auth(jwtVerifier, userService),
 		Timeout:   middleware.Timeout(cfg.RequestTimeout),
 		RateLimit: middleware.RateLimit(cfg.RateLimitPerMin),
 	},
@@ -196,5 +196,8 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		httproutes.NewHealthRoutes(healthHandler),
 		httproutes.NewMetricsRoutes(),
 	)
+	for _, route := range router.Routes() {
+		log.Info().Str("method", route.Method).Str("path", route.Path).Msg("gateway route registered")
+	}
 	return router, nil
 }

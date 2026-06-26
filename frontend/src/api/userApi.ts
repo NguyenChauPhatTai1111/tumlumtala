@@ -14,6 +14,10 @@ export interface UpdateUserPayload {
   role?: string;
 }
 
+export interface ChangeUserStatusPayload {
+  status: "active" | "inactive";
+}
+
 export interface UpdateProfilePayload {
   email?: string;
   fullname?: string;
@@ -37,6 +41,14 @@ export const getUser = async (uuid: string): Promise<IUser> => {
 
 export const updateUser = async (uuid: string, data: UpdateUserPayload): Promise<IUser> => {
   const res = await apiClient.put(`/users/${uuid}`, data);
+  return res.data.data;
+};
+
+export const changeUserStatus = async (
+  uuid: string,
+  data: ChangeUserStatusPayload,
+): Promise<IUser> => {
+  const res = await apiClient.patch(`/user/status/${uuid}`, data);
   return res.data.data;
 };
 

@@ -460,7 +460,7 @@ export const getConversations = async (query: ConversationListQuery = {}) => {
 // Get single conversation
 export const getConversation = async (conversationId: number) => {
 	const response = await apiRequest(
-		`/api/v1/messenger/conversations/${conversationId}`,
+		`${MESSENGER_PREFIX}/conversations/${conversationId}`,
 		{ method: "GET" },
 	);
 	return toConversation(response);

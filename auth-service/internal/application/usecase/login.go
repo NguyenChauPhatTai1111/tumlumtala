@@ -58,6 +58,9 @@ func (uc *LoginUseCase) Execute(ctx context.Context, input dto.LoginInput) (dto.
 	if !uc.password.Verify(user.Password, input.Password) {
 		return dto.TokenPair{}, domainerrors.ErrInvalidCredentials
 	}
+	if user.Status != "" && user.Status != "active" {
+		return dto.TokenPair{}, domainerrors.ErrInvalidCredentials
+	}
 
 	tokenVersion, err := uc.tokenVersions.Get(ctx, user.UUID)
 	if err != nil {

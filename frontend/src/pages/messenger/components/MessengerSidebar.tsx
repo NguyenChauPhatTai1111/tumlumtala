@@ -72,6 +72,7 @@ type Props = {
 	onLeaveConversation: (conversation: Conversation) => void;
 	onToggleSidebarCollapse: () => void;
 	currentUserId: number;
+	onlineUserIds?: Set<number>;
 	loading: boolean;
 	ws?: MessengerWebSocketService | null;
 	hasMoreConversations?: boolean;
@@ -139,6 +140,7 @@ export const MessengerSidebar = memo(
 		onLeaveConversation,
 		onToggleSidebarCollapse,
 		currentUserId,
+		onlineUserIds,
 		loading,
 		ws,
 		hasMoreConversations,
@@ -559,6 +561,7 @@ export const MessengerSidebar = memo(
 							conversations={visibleConversations}
 							selectedId={selectedConversationId}
 							currentUserId={currentUserId}
+							onlineUserIds={onlineUserIds}
 							typingByConversation={typingByConversation}
 							loading={loading}
 							compact={!isMobile && isSidebarCollapsed}

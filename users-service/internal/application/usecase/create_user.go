@@ -39,9 +39,13 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 	return observability.TraceResult(ctx, "CreateUser UseCase", func(ctx context.Context) (*dto.UserDTO, error) {
 		email, fullname, err := normalizeUser(input.Email, input.Fullname)
 		if err != nil || len(input.Password) < 6 {
-		       	return nil, domainerrors.ErrInvalidInput
+			return nil, domainerrors.ErrInvalidInput
 		}
 		role, err := normalizeRole(input.Role, entity.RoleMember)
+		if err != nil {
+			return nil, err
+		}
+		status, err := normalizeStatus(input.Status, entity.StatusActive)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +79,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 		}
 
 		now := time.Now().UTC()
-		user := &entity.User{UUID: uuid.NewString(), Email: email, Password: string(hash), Fullname: fullname, Role: role, CreatedAt: now, UpdatedAt: now}
+		user := &entity.User{UUID: uuid.NewString(), Email: email, Password: string(hash), Fullname: fullname, Role: role, Status: status, CreatedAt: now, UpdatedAt: now}
 
 		if err := observability.Trace(ctx, "PersistUser", func(ctx context.Context) error {
 			return uc.repository.Create(ctx, user)
@@ -88,7 +92,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input dto.CreateUserIn
 		}
 
 		uc.publishRabbitMQUserCreated(ctx, user)
-		_ = uc.events.PublishUserCreated(ctx, user.ID, user.UUID, user.Email, user.Fullname, user.Avatar, string(user.Role))
+		_ = uc.events.PublishUserCreated(ctx, user.ID, user.UUID, user.Email, user.Fullname, user.Avatar, string(user.Role), string(user.Status))
 
 		return application.ToUserDTO(user), nil
 	},
@@ -111,6 +115,7 @@ func (uc *CreateUserUseCase) publishRabbitMQUserCreated(ctx context.Context, use
 		Email:     user.Email,
 		Fullname:  user.Fullname,
 		Role:      string(user.Role),
+		Status:    string(user.Status),
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := uc.domainEvents.Publish(ctx, "user.created", event); err != nil {

@@ -56,7 +56,7 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, input dto.UpdateUserIn
 		); err != nil {
 			return nil, err
 		}
-		_ = uc.events.PublishUserUpdated(ctx, user.ID, user.UUID, user.Email, user.Fullname, user.Avatar, string(user.Role))
+		_ = uc.events.PublishUserUpdated(ctx, user.ID, user.UUID, user.Email, user.Fullname, user.Avatar, string(user.Role), string(user.Status))
 		return application.ToUserDTO(user), nil
 	},
 		observability.AttrServiceName(logger.ServiceUsers),

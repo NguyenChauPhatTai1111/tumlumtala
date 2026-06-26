@@ -15,6 +15,7 @@ type UserClient interface {
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
 	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
 	UpdateProfile(context.Context, domain.UpdateProfileInput) (domain.User, error)
+	ChangeUserStatus(context.Context, domain.ChangeUserStatusInput) (domain.User, error)
 	DeleteUser(context.Context, string) error
 }
 
@@ -31,6 +32,8 @@ func (c *userClient) CreateUser(ctx context.Context, input domain.CreateUserInpu
 		Email:    input.Email,
 		Password: input.Password,
 		Fullname: input.Fullname,
+		Role:     input.Role,
+		Status:   input.Status,
 	})
 	if err != nil {
 		return domain.User{}, apperrors.FromGRPC(err)
@@ -89,6 +92,17 @@ func (c *userClient) UpdateProfile(ctx context.Context, input domain.UpdateProfi
 	return mapUser(resp), nil
 }
 
+func (c *userClient) ChangeUserStatus(ctx context.Context, input domain.ChangeUserStatusInput) (domain.User, error) {
+	resp, err := c.client.ChangeUserStatus(ctx, &userpb.ChangeUserStatusRequest{
+		Uuid:   input.UUID,
+		Status: input.Status,
+	})
+	if err != nil {
+		return domain.User{}, apperrors.FromGRPC(err)
+	}
+	return mapUser(resp), nil
+}
+
 func (c *userClient) DeleteUser(ctx context.Context, uuid string) error {
 	_, err := c.client.DeleteUser(ctx, &userpb.DeleteUserRequest{Uuid: uuid})
 	if err != nil {
@@ -104,6 +118,7 @@ func mapCreateResponse(r *userpb.CreateUserResponse) domain.User {
 		Email:    r.GetEmail(),
 		Fullname: r.GetFullname(),
 		Role:     r.GetRole(),
+		Status:   r.GetStatus(),
 	}
 }
 
@@ -115,6 +130,7 @@ func mapUser(u *userpb.User) domain.User {
 		Fullname:  u.GetFullname(),
 		Avatar:    u.GetAvatar(),
 		Role:      u.GetRole(),
+		Status:    u.GetStatus(),
 		CreatedAt: u.GetCreatedAt(),
 		UpdatedAt: u.GetUpdatedAt(),
 	}

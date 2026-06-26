@@ -9,7 +9,6 @@ import {
 	type UIEvent,
 	useState,
 } from "react";
-import type { IUser } from "@/types";
 import type { Conversation, Message } from "@/types/messenger";
 import { formatTimestamp } from "@/utils";
 import { ContextMenu, type MessageContextMenuState } from "./ContextMenu";
@@ -31,7 +30,6 @@ type MessageListViewportProps = {
 	messageListRef: RefObject<HTMLDivElement | null>;
 	messagesEndRef: RefObject<HTMLDivElement | null>;
 	chatBackground?: string;
-	hasImageBackground: boolean;
 	loadingMore: boolean;
 	sortedMessages: Message[];
 	conversation?: Conversation;
@@ -92,7 +90,6 @@ export const MessageListViewport = ({
 	messageListRef,
 	messagesEndRef,
 	chatBackground,
-	hasImageBackground,
 	loadingMore,
 	sortedMessages,
 	conversation,
@@ -194,21 +191,6 @@ export const MessageListViewport = ({
 							}
 						: { backgroundColor: "background.default" }),
 					position: "relative",
-					...(hasImageBackground
-						? {
-								"&::before": {
-									content: '""',
-									position: "absolute",
-									inset: 0,
-									background: "rgba(14, 23, 38, 0.34)",
-									zIndex: 0,
-								},
-								"& > *": {
-									position: "relative",
-									zIndex: 1,
-								},
-							}
-						: null),
 					display: "flex",
 					overflowY: "auto",
 					overflowX: "hidden",

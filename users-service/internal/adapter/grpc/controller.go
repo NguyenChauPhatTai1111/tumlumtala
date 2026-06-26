@@ -21,6 +21,7 @@ type UserController struct {
 	get    *usecase.GetUserUseCase
 	list   *usecase.ListUsersUseCase
 	update *usecase.UpdateUserUseCase
+	status *usecase.ChangeUserStatusUseCase
 	delete *usecase.DeleteUserUseCase
 }
 
@@ -29,9 +30,10 @@ func NewUserController(
 	get *usecase.GetUserUseCase,
 	list *usecase.ListUsersUseCase,
 	update *usecase.UpdateUserUseCase,
+	status *usecase.ChangeUserStatusUseCase,
 	deleteUC *usecase.DeleteUserUseCase,
 ) *UserController {
-	return &UserController{create: create, get: get, list: list, update: update, delete: deleteUC}
+	return &UserController{create: create, get: get, list: list, update: update, status: status, delete: deleteUC}
 }
 
 func mapError(err error) error {
@@ -48,12 +50,12 @@ func mapError(err error) error {
 }
 
 func toProto(user *dto.UserDTO) *userpb.User {
-	return &userpb.User{Id: user.ID, Uuid: user.UUID, Email: user.Email, Fullname: user.Fullname, Avatar: user.Avatar, Role: user.Role, CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00"), UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")}
+	return &userpb.User{Id: user.ID, Uuid: user.UUID, Email: user.Email, Fullname: user.Fullname, Avatar: user.Avatar, Role: user.Role, Status: user.Status, CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00"), UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")}
 }
 
 func (c *UserController) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
 	user, err := observability.TraceResult(ctx, "UserController.CreateUser", func(ctx context.Context) (*dto.UserDTO, error) {
-		user, err := c.create.Execute(ctx, dto.CreateUserInput{Email: req.GetEmail(), Password: req.GetPassword(), Fullname: req.GetFullname(), Role: req.GetRole()})
+		user, err := c.create.Execute(ctx, dto.CreateUserInput{Email: req.GetEmail(), Password: req.GetPassword(), Fullname: req.GetFullname(), Role: req.GetRole(), Status: req.GetStatus()})
 		if err != nil {
 			return nil, mapError(err)
 		}
@@ -81,7 +83,7 @@ func (c *UserController) CreateUser(ctx context.Context, req *userpb.CreateUserR
 		Str("user_uuid", user.UUID).
 		Str("role", user.Role).
 		Msg("user created")
-	return &userpb.CreateUserResponse{Id: user.ID, Uuid: user.UUID, Email: user.Email, Fullname: user.Fullname, Role: user.Role}, nil
+	return &userpb.CreateUserResponse{Id: user.ID, Uuid: user.UUID, Email: user.Email, Fullname: user.Fullname, Role: user.Role, Status: user.Status}, nil
 }
 
 func (c *UserController) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.User, error) {
@@ -106,6 +108,14 @@ func (c *UserController) ListUsers(ctx context.Context, req *userpb.ListUsersReq
 
 func (c *UserController) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.User, error) {
 	user, err := c.update.Execute(ctx, dto.UpdateUserInput{UUID: req.GetUuid(), Email: req.GetEmail(), Fullname: req.GetFullname(), Avatar: req.GetAvatar(), Role: req.GetRole()})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return toProto(user), nil
+}
+
+func (c *UserController) ChangeUserStatus(ctx context.Context, req *userpb.ChangeUserStatusRequest) (*userpb.User, error) {
+	user, err := c.status.Execute(ctx, dto.ChangeUserStatusInput{UUID: req.GetUuid(), Status: req.GetStatus()})
 	if err != nil {
 		return nil, mapError(err)
 	}

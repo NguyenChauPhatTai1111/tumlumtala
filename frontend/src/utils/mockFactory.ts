@@ -13,7 +13,7 @@ export const mockUserFactory = (overrides?: Partial<IUser>): IUser => ({
 	fullname: "Test User",
 	role: "member",
 	age: 25,
-	status: "Active",
+	status: "active",
 	level: "Member",
 	permissions: ["users.read", "users.create"],
 	created_at: new Date().toISOString(),

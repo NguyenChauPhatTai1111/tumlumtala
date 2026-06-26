@@ -29,6 +29,18 @@ func normalizeRole(value string, defaultRole entity.Role) (entity.Role, error) {
 	return role, nil
 }
 
+func normalizeStatus(value string, defaultStatus entity.Status) (entity.Status, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return defaultStatus, nil
+	}
+	status := entity.Status(value)
+	if !status.IsValid() {
+		return "", domainerrors.ErrInvalidInput
+	}
+	return status, nil
+}
+
 func validateUUID(value string) error {
 	if _, err := uuid.Parse(value); err != nil {
 		return domainerrors.ErrInvalidInput

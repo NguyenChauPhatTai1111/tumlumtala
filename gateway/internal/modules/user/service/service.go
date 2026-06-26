@@ -15,6 +15,7 @@ type UserClient interface {
 	ListUsers(context.Context, domain.ListUsersInput) (domain.ListUsersResult, error)
 	UpdateUser(context.Context, domain.UpdateUserInput) (domain.User, error)
 	UpdateProfile(context.Context, domain.UpdateProfileInput) (domain.User, error)
+	ChangeUserStatus(context.Context, domain.ChangeUserStatusInput) (domain.User, error)
 	DeleteUser(context.Context, string) error
 }
 
@@ -79,4 +80,15 @@ func (s *UserService) DeleteUser(ctx context.Context, uuid string) error {
 		return apperrors.New(apperrors.CodeBadRequest, "uuid is required", errors.New("missing uuid"))
 	}
 	return s.userClient.DeleteUser(ctx, uuid)
+}
+
+func (s *UserService) ChangeUserStatus(ctx context.Context, input domain.ChangeUserStatusInput) (domain.User, error) {
+	if strings.TrimSpace(input.UUID) == "" {
+		return domain.User{}, apperrors.New(apperrors.CodeBadRequest, "uuid is required", errors.New("missing uuid"))
+	}
+	input.Status = strings.ToLower(strings.TrimSpace(input.Status))
+	if input.Status != "active" && input.Status != "inactive" {
+		return domain.User{}, apperrors.New(apperrors.CodeBadRequest, "status must be active or inactive", errors.New("invalid status"))
+	}
+	return s.userClient.ChangeUserStatus(ctx, input)
 }

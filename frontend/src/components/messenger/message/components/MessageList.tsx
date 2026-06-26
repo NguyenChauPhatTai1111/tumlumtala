@@ -40,7 +40,6 @@ export const MessageList = ({
 		sortedMessages,
 		currentUserId,
 		currentUserNumericId,
-		hasImageBackground,
 		overlayTextColor,
 		overlayMutedTextColor,
 		overlayBorderColor,
@@ -144,7 +143,6 @@ export const MessageList = ({
 				messageListRef={messageListRef}
 				messagesEndRef={messagesEndRef}
 				chatBackground={chatBackground}
-				hasImageBackground={hasImageBackground}
 				loadingMore={loadingMore}
 				sortedMessages={sortedMessages}
 				conversation={conversation}

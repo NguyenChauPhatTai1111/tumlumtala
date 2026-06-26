@@ -21,16 +21,25 @@ func (s *UserSnapshotSeeder) Run(db *gorm.DB) error {
 		Fullname string `gorm:"column:fullname"`
 		Avatar   string `gorm:"column:avatar"`
 		Role     string `gorm:"column:role"`
+		Status   string `gorm:"column:status"`
 	}
 
 	// Check whether the avatar column exists in the source table (tumlumtala_users.users).
 	// The column may be absent if users-service migration 005 has not been applied yet.
 	srcHasAvatar := columnExists(db, "tumlumtala_users", "users", "avatar")
+	srcHasStatus := columnExists(db, "tumlumtala_users", "users", "status")
 	dstHasAvatar := columnExists(db, "", "user_snapshots", "avatar")
+	dstHasStatus := columnExists(db, "", "user_snapshots", "status")
 
-	selectSQL := "SELECT id, uuid, email, fullname, '' AS avatar, role FROM tumlumtala_users.users ORDER BY id ASC"
+	selectSQL := "SELECT id, uuid, email, fullname, '' AS avatar, role, 'active' AS status FROM tumlumtala_users.users ORDER BY id ASC"
 	if srcHasAvatar {
-		selectSQL = "SELECT id, uuid, email, fullname, COALESCE(avatar, '') AS avatar, role FROM tumlumtala_users.users ORDER BY id ASC"
+		selectSQL = "SELECT id, uuid, email, fullname, COALESCE(avatar, '') AS avatar, role, 'active' AS status FROM tumlumtala_users.users ORDER BY id ASC"
+	}
+	if srcHasStatus {
+		selectSQL = "SELECT id, uuid, email, fullname, '' AS avatar, role, status FROM tumlumtala_users.users ORDER BY id ASC"
+		if srcHasAvatar {
+			selectSQL = "SELECT id, uuid, email, fullname, COALESCE(avatar, '') AS avatar, role, status FROM tumlumtala_users.users ORDER BY id ASC"
+		}
 	}
 
 	var users []usersRow
@@ -41,7 +50,20 @@ func (s *UserSnapshotSeeder) Run(db *gorm.DB) error {
 
 	for _, u := range users {
 		var err error
-		if dstHasAvatar {
+		if dstHasAvatar && dstHasStatus {
+			err = db.Exec(`
+				INSERT INTO user_snapshots (id, uuid, email, fullname, avatar, role, status, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON DUPLICATE KEY UPDATE
+					uuid       = VALUES(uuid),
+					email      = VALUES(email),
+					fullname   = VALUES(fullname),
+					avatar     = VALUES(avatar),
+					role       = VALUES(role),
+					status     = VALUES(status),
+					updated_at = VALUES(updated_at)
+			`, u.ID, u.UUID, u.Email, u.Fullname, u.Avatar, u.Role, u.Status, now, now).Error
+		} else if dstHasAvatar {
 			err = db.Exec(`
 				INSERT INTO user_snapshots (id, uuid, email, fullname, avatar, role, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -53,6 +75,18 @@ func (s *UserSnapshotSeeder) Run(db *gorm.DB) error {
 					role       = VALUES(role),
 					updated_at = VALUES(updated_at)
 			`, u.ID, u.UUID, u.Email, u.Fullname, u.Avatar, u.Role, now, now).Error
+		} else if dstHasStatus {
+			err = db.Exec(`
+				INSERT INTO user_snapshots (id, uuid, email, fullname, role, status, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				ON DUPLICATE KEY UPDATE
+					uuid       = VALUES(uuid),
+					email      = VALUES(email),
+					fullname   = VALUES(fullname),
+					role       = VALUES(role),
+					status     = VALUES(status),
+					updated_at = VALUES(updated_at)
+			`, u.ID, u.UUID, u.Email, u.Fullname, u.Role, u.Status, now, now).Error
 		} else {
 			err = db.Exec(`
 				INSERT INTO user_snapshots (id, uuid, email, fullname, role, created_at, updated_at)

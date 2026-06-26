@@ -19,7 +19,7 @@ import type { IUser } from "@/types";
 const createSchema = yup.object({
   email: yup.string().email("Email không hợp lệ").required("Bắt buộc"),
   fullname: yup.string().min(2, "Tối thiểu 2 ký tự").required("Bắt buộc"),
-  password: yup.string().min(8, "Tối thiểu 8 ký tự").required("Bắt buộc"),
+  password: yup.string().min(6, "Tối thiểu 6 ký tự").required("Bắt buộc"),
   role: yup.string().required("Bắt buộc"),
 });
 

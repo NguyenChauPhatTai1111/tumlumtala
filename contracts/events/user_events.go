@@ -10,6 +10,7 @@ type UserCreatedEvent struct {
 	Fullname  string    `json:"fullname"`
 	Avatar    string    `json:"avatar"`
 	Role      string    `json:"role"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -21,6 +22,7 @@ type UserUpdatedEvent struct {
 	Fullname string `json:"fullname"`
 	Avatar   string `json:"avatar"`
 	Role     string `json:"role"`
+	Status   string `json:"status"`
 }
 
 // UserDeletedEvent published by users-service when a user is deleted.
@@ -38,4 +40,5 @@ type UserUpsertedEvent struct {
 	Fullname string `json:"fullname"`
 	Avatar   string `json:"avatar"`
 	Role     string `json:"role"`
+	Status   string `json:"status"`
 }

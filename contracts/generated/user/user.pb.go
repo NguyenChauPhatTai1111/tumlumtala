@@ -27,6 +27,7 @@ type CreateUserRequest struct {
 	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	Fullname      string                 `protobuf:"bytes,3,opt,name=fullname,proto3" json:"fullname,omitempty"`
 	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -89,6 +90,13 @@ func (x *CreateUserRequest) GetRole() string {
 	return ""
 }
 
+func (x *CreateUserRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 type CreateUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -96,6 +104,7 @@ type CreateUserResponse struct {
 	Fullname      string                 `protobuf:"bytes,3,opt,name=fullname,proto3" json:"fullname,omitempty"`
 	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
 	Uuid          string                 `protobuf:"bytes,5,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -165,6 +174,13 @@ func (x *CreateUserResponse) GetUuid() string {
 	return ""
 }
 
+func (x *CreateUserResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -175,6 +191,7 @@ type User struct {
 	Role          string                 `protobuf:"bytes,6,opt,name=role,proto3" json:"role,omitempty"`
 	Uuid          string                 `protobuf:"bytes,7,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	Avatar        string                 `protobuf:"bytes,8,opt,name=avatar,proto3" json:"avatar,omitempty"`
+	Status        string                 `protobuf:"bytes,9,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -261,6 +278,13 @@ func (x *User) GetUuid() string {
 func (x *User) GetAvatar() string {
 	if x != nil {
 		return x.Avatar
+	}
+	return ""
+}
+
+func (x *User) GetStatus() string {
+	if x != nil {
+		return x.Status
 	}
 	return ""
 }
@@ -497,6 +521,58 @@ func (x *UpdateUserRequest) GetAvatar() string {
 	return ""
 }
 
+type ChangeUserStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uuid          string                 `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeUserStatusRequest) Reset() {
+	*x = ChangeUserStatusRequest{}
+	mi := &file_grpc_user_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeUserStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeUserStatusRequest) ProtoMessage() {}
+
+func (x *ChangeUserStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_user_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeUserStatusRequest.ProtoReflect.Descriptor instead.
+func (*ChangeUserStatusRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_user_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ChangeUserStatusRequest) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *ChangeUserStatusRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 type DeleteUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Uuid          string                 `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
@@ -506,7 +582,7 @@ type DeleteUserRequest struct {
 
 func (x *DeleteUserRequest) Reset() {
 	*x = DeleteUserRequest{}
-	mi := &file_grpc_user_proto_msgTypes[7]
+	mi := &file_grpc_user_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +594,7 @@ func (x *DeleteUserRequest) String() string {
 func (*DeleteUserRequest) ProtoMessage() {}
 
 func (x *DeleteUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_grpc_user_proto_msgTypes[7]
+	mi := &file_grpc_user_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +607,7 @@ func (x *DeleteUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteUserRequest.ProtoReflect.Descriptor instead.
 func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
-	return file_grpc_user_proto_rawDescGZIP(), []int{7}
+	return file_grpc_user_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DeleteUserRequest) GetUuid() string {
@@ -550,7 +626,7 @@ type DeleteUserResponse struct {
 
 func (x *DeleteUserResponse) Reset() {
 	*x = DeleteUserResponse{}
-	mi := &file_grpc_user_proto_msgTypes[8]
+	mi := &file_grpc_user_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -562,7 +638,7 @@ func (x *DeleteUserResponse) String() string {
 func (*DeleteUserResponse) ProtoMessage() {}
 
 func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_grpc_user_proto_msgTypes[8]
+	mi := &file_grpc_user_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -575,7 +651,7 @@ func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteUserResponse.ProtoReflect.Descriptor instead.
 func (*DeleteUserResponse) Descriptor() ([]byte, []int) {
-	return file_grpc_user_proto_rawDescGZIP(), []int{8}
+	return file_grpc_user_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteUserResponse) GetDeleted() bool {
@@ -589,18 +665,20 @@ var File_grpc_user_proto protoreflect.FileDescriptor
 
 const file_grpc_user_proto_rawDesc = "" +
 	"\n" +
-	"\x0fgrpc/user.proto\x12\x04user\"u\n" +
+	"\x0fgrpc/user.proto\x12\x04user\"\x8d\x01\n" +
 	"\x11CreateUserRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1a\n" +
 	"\bfullname\x18\x03 \x01(\tR\bfullname\x12\x12\n" +
-	"\x04role\x18\x04 \x01(\tR\x04role\"~\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12\x16\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\"\x96\x01\n" +
 	"\x12CreateUserResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
 	"\bfullname\x18\x03 \x01(\tR\bfullname\x12\x12\n" +
 	"\x04role\x18\x04 \x01(\tR\x04role\x12\x12\n" +
-	"\x04uuid\x18\x05 \x01(\tR\x04uuid\"\xc6\x01\n" +
+	"\x04uuid\x18\x05 \x01(\tR\x04uuid\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\"\xde\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -611,7 +689,8 @@ const file_grpc_user_proto_rawDesc = "" +
 	"updated_at\x18\x05 \x01(\tR\tupdatedAt\x12\x12\n" +
 	"\x04role\x18\x06 \x01(\tR\x04role\x12\x12\n" +
 	"\x04uuid\x18\a \x01(\tR\x04uuid\x12\x16\n" +
-	"\x06avatar\x18\b \x01(\tR\x06avatar\"$\n" +
+	"\x06avatar\x18\b \x01(\tR\x06avatar\x12\x16\n" +
+	"\x06status\x18\t \x01(\tR\x06status\"$\n" +
 	"\x0eGetUserRequest\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\"X\n" +
 	"\x10ListUsersRequest\x12\x14\n" +
@@ -627,11 +706,14 @@ const file_grpc_user_proto_rawDesc = "" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
 	"\bfullname\x18\x03 \x01(\tR\bfullname\x12\x12\n" +
 	"\x04role\x18\x04 \x01(\tR\x04role\x12\x16\n" +
-	"\x06avatar\x18\x05 \x01(\tR\x06avatar\"'\n" +
+	"\x06avatar\x18\x05 \x01(\tR\x06avatar\"E\n" +
+	"\x17ChangeUserStatusRequest\x12\x12\n" +
+	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"'\n" +
 	"\x11DeleteUserRequest\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\".\n" +
 	"\x12DeleteUserResponse\x12\x18\n" +
-	"\adeleted\x18\x01 \x01(\bR\adeleted2\xad\x02\n" +
+	"\adeleted\x18\x01 \x01(\bR\adeleted2\xec\x02\n" +
 	"\vUserService\x12?\n" +
 	"\n" +
 	"CreateUser\x12\x17.user.CreateUserRequest\x1a\x18.user.CreateUserResponse\x12+\n" +
@@ -640,6 +722,8 @@ const file_grpc_user_proto_rawDesc = "" +
 	"\tListUsers\x12\x16.user.ListUsersRequest\x1a\x17.user.ListUsersResponse\x121\n" +
 	"\n" +
 	"UpdateUser\x12\x17.user.UpdateUserRequest\x1a\n" +
+	".user.User\x12=\n" +
+	"\x10ChangeUserStatus\x12\x1d.user.ChangeUserStatusRequest\x1a\n" +
 	".user.User\x12?\n" +
 	"\n" +
 	"DeleteUser\x12\x17.user.DeleteUserRequest\x1a\x18.user.DeleteUserResponseB7Z5github.com/tumlumtala/contracts/generated/user;userpbb\x06proto3"
@@ -656,17 +740,18 @@ func file_grpc_user_proto_rawDescGZIP() []byte {
 	return file_grpc_user_proto_rawDescData
 }
 
-var file_grpc_user_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_grpc_user_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_grpc_user_proto_goTypes = []any{
-	(*CreateUserRequest)(nil),  // 0: user.CreateUserRequest
-	(*CreateUserResponse)(nil), // 1: user.CreateUserResponse
-	(*User)(nil),               // 2: user.User
-	(*GetUserRequest)(nil),     // 3: user.GetUserRequest
-	(*ListUsersRequest)(nil),   // 4: user.ListUsersRequest
-	(*ListUsersResponse)(nil),  // 5: user.ListUsersResponse
-	(*UpdateUserRequest)(nil),  // 6: user.UpdateUserRequest
-	(*DeleteUserRequest)(nil),  // 7: user.DeleteUserRequest
-	(*DeleteUserResponse)(nil), // 8: user.DeleteUserResponse
+	(*CreateUserRequest)(nil),       // 0: user.CreateUserRequest
+	(*CreateUserResponse)(nil),      // 1: user.CreateUserResponse
+	(*User)(nil),                    // 2: user.User
+	(*GetUserRequest)(nil),          // 3: user.GetUserRequest
+	(*ListUsersRequest)(nil),        // 4: user.ListUsersRequest
+	(*ListUsersResponse)(nil),       // 5: user.ListUsersResponse
+	(*UpdateUserRequest)(nil),       // 6: user.UpdateUserRequest
+	(*ChangeUserStatusRequest)(nil), // 7: user.ChangeUserStatusRequest
+	(*DeleteUserRequest)(nil),       // 8: user.DeleteUserRequest
+	(*DeleteUserResponse)(nil),      // 9: user.DeleteUserResponse
 }
 var file_grpc_user_proto_depIdxs = []int32{
 	2, // 0: user.ListUsersResponse.users:type_name -> user.User
@@ -674,14 +759,16 @@ var file_grpc_user_proto_depIdxs = []int32{
 	3, // 2: user.UserService.GetUser:input_type -> user.GetUserRequest
 	4, // 3: user.UserService.ListUsers:input_type -> user.ListUsersRequest
 	6, // 4: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
-	7, // 5: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
-	1, // 6: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	2, // 7: user.UserService.GetUser:output_type -> user.User
-	5, // 8: user.UserService.ListUsers:output_type -> user.ListUsersResponse
-	2, // 9: user.UserService.UpdateUser:output_type -> user.User
-	8, // 10: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	6, // [6:11] is the sub-list for method output_type
-	1, // [1:6] is the sub-list for method input_type
+	7, // 5: user.UserService.ChangeUserStatus:input_type -> user.ChangeUserStatusRequest
+	8, // 6: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
+	1, // 7: user.UserService.CreateUser:output_type -> user.CreateUserResponse
+	2, // 8: user.UserService.GetUser:output_type -> user.User
+	5, // 9: user.UserService.ListUsers:output_type -> user.ListUsersResponse
+	2, // 10: user.UserService.UpdateUser:output_type -> user.User
+	2, // 11: user.UserService.ChangeUserStatus:output_type -> user.User
+	9, // 12: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
+	7, // [7:13] is the sub-list for method output_type
+	1, // [1:7] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -698,7 +785,7 @@ func file_grpc_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_grpc_user_proto_rawDesc), len(file_grpc_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

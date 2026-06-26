@@ -23,6 +23,7 @@ interface MessengerConversationListProps {
 	conversations: Conversation[];
 	selectedId?: number | null;
 	currentUserId: number;
+	onlineUserIds?: Set<number>;
 	typingByConversation?: Map<number, number[]>;
 	loading?: boolean;
 	loadingMore?: boolean;
@@ -45,6 +46,7 @@ export const MessengerConversationList = ({
 	conversations,
 	selectedId,
 	currentUserId,
+	onlineUserIds,
 	typingByConversation,
 	loading,
 	loadingMore,
@@ -122,12 +124,20 @@ export const MessengerConversationList = ({
 							}
 						: undefined;
 
+					const isOnline =
+						!conversation.is_group &&
+						onlineUserIds != null &&
+						(conversation.participants ?? []).some(
+							(p) => p.id !== currentUserId && onlineUserIds.has(p.id),
+						);
+
 					return (
 						<Box key={conversation.id}>
 							<ConversationItem
 								conversation={conversation}
 								currentUserId={currentUserId}
 								selected={selectedId === conversation.id}
+								isOnline={isOnline}
 								compact={compact}
 								now={now}
 								typingPreview={typingPreview}

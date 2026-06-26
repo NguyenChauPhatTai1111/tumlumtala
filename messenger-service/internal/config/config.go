@@ -39,9 +39,17 @@ type BunnyCDNConfig struct {
 	CDNBaseURL  string
 }
 
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
+}
+
 type Config struct {
 	Database       DatabaseConfig
 	BunnyCDN       BunnyCDNConfig
+	Redis          RedisConfig
 	KafkaBrokers   []string
 	Port           string
 	JWTSecret      string
@@ -57,6 +65,7 @@ func Load() (Config, error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		return Config{}, fmt.Errorf("load .env: %w", err)
 	}
+	redisDB, _ := strconv.Atoi(env("REDIS_DB", "0"))
 	cfg := Config{
 		Database: DatabaseConfig{
 			Host:     env("DB_HOST", "localhost"),
@@ -69,6 +78,12 @@ func Load() (Config, error) {
 			APIKey:      env("BUNNYCDN_API_KEY", ""),
 			StorageZone: env("BUNNYCDN_STORAGE_ZONE", ""),
 			CDNBaseURL:  env("BUNNYCDN_CDN_BASE_URL", ""),
+		},
+		Redis: RedisConfig{
+			Host:     env("REDIS_HOST", "localhost"),
+			Port:     env("REDIS_PORT", "6379"),
+			Password: env("REDIS_PASSWORD", ""),
+			DB:       redisDB,
 		},
 		KafkaBrokers: strings.Split(env("KAFKA_BROKERS", "tumlumtala-kafka:9092"), ","),
 		Port:        env("PORT", "25056"),
