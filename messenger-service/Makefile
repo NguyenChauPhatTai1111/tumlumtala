@@ -11,6 +11,11 @@ MIGRATIONS_MAIN_DIR    := internal/infrastructure/db/migrations/main
 MIGRATIONS_SNAPSHOT_DIR := internal/infrastructure/db/migrations/snapshots
 MYSQL_HOST_PORT ?= 23306
 MESSENGER_PORT  ?= 25056
+DOCKER_GO_IMAGE := golang:1.25
+DOCKER_GO_NETWORK := tumlumtala-net
+DOCKER_GO_SRC_DIR := $(abspath ..)
+DOCKER_GO_RUN := docker run --rm --network $(DOCKER_GO_NETWORK) -v "$(DOCKER_GO_SRC_DIR)":/src -w /src/messenger-service
+DOCKER_GO_ENV := -e DB_HOST=tumlumtala-users-mysql -e DB_PORT=3306 -e DB_NAME="$(DATABASE_NAME)" -e DB_USER="$(DATABASE_USER)" -e DB_PASSWORD="$(DATABASE_PASSWORD)" -e SKIP_CDN_UPLOAD -e SKIP_STICKER_UPLOAD
 
 .NOTPARALLEL:
 
@@ -97,13 +102,9 @@ SEEDER_ONLY ?=
 SEEDER_SKIP ?=
 
 seeder:
-	@DB_HOST=localhost DB_PORT=$(MYSQL_HOST_PORT) \
-		DB_NAME="$(DATABASE_NAME)" \
-		DB_USER="$(DATABASE_USER)" \
-		DB_PASSWORD="$(DATABASE_PASSWORD)" \
-		go run ./cmd/seed \
-		$(if $(SEEDER_ONLY),-only=$(SEEDER_ONLY)) \
-		$(if $(SEEDER_SKIP),-skip=$(SEEDER_SKIP))
+	@$(DOCKER_GO_RUN) $(DOCKER_GO_ENV) $(DOCKER_GO_IMAGE) go run ./cmd/seed \
+			$(if $(SEEDER_ONLY),-only=$(SEEDER_ONLY)) \
+			$(if $(SEEDER_SKIP),-skip=$(SEEDER_SKIP))
 
 migrate-fresh-seeder: fresh-db
 	@$(MAKE) migrate-up

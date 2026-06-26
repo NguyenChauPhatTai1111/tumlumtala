@@ -29,6 +29,9 @@ export interface MessengerHeaderProps {
 	onInfo: () => void;
 	onSearch: () => void;
 	onMute: () => void;
+	onAudioCall?: () => void;
+	onVideoCall?: () => void;
+	callDisabled?: boolean;
 	showBackButton?: boolean;
 	onBack?: () => void;
 	overrideTextColor?: string;

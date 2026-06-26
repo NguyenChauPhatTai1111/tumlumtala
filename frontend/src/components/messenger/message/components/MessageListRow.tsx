@@ -306,7 +306,29 @@ export const MessageListRow = memo(
 				group_avatar_changed: "Đổi ảnh đại diện nhóm",
 				theme_changed: "Đổi nền trò chuyện",
 				nickname_changed: "Thay đổi biệt danh",
+				call_ended: "Cuộc gọi đã kết thúc",
+				call_missed: "Cuộc gọi nhỡ",
+				call_rejected: "Cuộc gọi bị từ chối",
+				call_cancelled: "Cuộc gọi bị hủy",
 			};
+
+			if (message.activity_type?.startsWith("call_") && message.activity_metadata) {
+				try {
+					const meta = JSON.parse(message.activity_metadata) as {
+						call_type?: string;
+						duration_seconds?: number;
+					};
+					const icon = meta.call_type === "audio" ? "📞" : "📹";
+					const base = labels[message.activity_type] ?? message.activity_type;
+					const secs = meta.duration_seconds ?? 0;
+					const duration = message.activity_type === "call_ended" && secs > 0
+						? ` · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`
+						: "";
+					return `${icon} ${base}${duration}`;
+				} catch {
+					// fall through
+				}
+			}
 
 			return (
 				labels[message.activity_type ?? ""] ||

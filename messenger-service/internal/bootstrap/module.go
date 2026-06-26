@@ -12,6 +12,7 @@ import (
 
 	httpAdapter "github.com/tumlumtala/messenger-service/internal/adapter/http"
 	wsAdapter "github.com/tumlumtala/messenger-service/internal/adapter/websocket"
+	activityUC "github.com/tumlumtala/messenger-service/internal/application/usecase/activity"
 	conversationUC "github.com/tumlumtala/messenger-service/internal/application/usecase/conversation"
 	historyUC "github.com/tumlumtala/messenger-service/internal/application/usecase/history"
 	messageUC "github.com/tumlumtala/messenger-service/internal/application/usecase/message"
@@ -73,6 +74,7 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	messageRepo := persistenceRepo.NewUserMessageRepository(db)
 	historyRepo := persistenceRepo.NewMessageHistoryRepository(db)
 	activityRepo := persistenceRepo.NewUserConversationActivityRepository(db)
+	callRepo := persistenceRepo.NewCallSessionRepository(db)
 
 	// Query Services
 	conversationQS := persistenceQS.NewUserConversationQueryService(conversationRepo, messageRepo)
@@ -123,12 +125,15 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	pool := ws.NewConnectionPool()
 	go hub.Run()
 
+	// Activity use case (used by WebSocket handler for call history)
+	createActivity := activityUC.NewCreateActivityUseCase(activityRepo)
+
 	// Presence
 	rdb := newRedisClient(cfg)
 	presenceStore := presence.NewStore(rdb)
 
 	// WebSocket handler
-	wsHandler := wsAdapter.NewHandler(conversationRepo, sendMessage, markRead, getConversations, getMessages, hub, presenceStore)
+	wsHandler := wsAdapter.NewHandler(conversationRepo, callRepo, createActivity, sendMessage, markRead, getConversations, getMessages, hub, presenceStore)
 
 	// HTTP handler
 	handler := httpAdapter.NewMessengerHandler(

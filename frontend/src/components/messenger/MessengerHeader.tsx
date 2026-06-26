@@ -16,7 +16,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsOffIcon from "@mui/icons-material/NotificationsOff";
 import SearchIcon from "@mui/icons-material/Search";
 import VideocamIcon from "@mui/icons-material/Videocam";
-import { Avatar, Box, IconButton, Typography } from "@mui/material";
+import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
 import { resolveCdnUrl } from "@/utils";
 
 export const MessengerHeader = ({
@@ -28,6 +28,9 @@ export const MessengerHeader = ({
 	onInfo,
 	onSearch,
 	onMute,
+	onAudioCall,
+	onVideoCall,
+	callDisabled,
 	showBackButton = false,
 	onBack,
 	overrideTextColor,
@@ -156,23 +159,35 @@ export const MessengerHeader = ({
 				onClick={(e) => e.stopPropagation()}
 				sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
 			>
-				<IconButton
-					size="small"
-					sx={(theme) => ({
-						color: outgoingTextColor || theme.palette.primary.main,
-					})}
-				>
-					<CallIcon />
-				</IconButton>
+				<Tooltip title={callDisabled ? "Chỉ hỗ trợ cuộc trò chuyện 1-1" : "Gọi thoại"}>
+					<span>
+						<IconButton
+							size="small"
+							disabled={callDisabled}
+							onClick={onAudioCall}
+							sx={(theme) => ({
+								color: outgoingTextColor || theme.palette.primary.main,
+							})}
+						>
+							<CallIcon />
+						</IconButton>
+					</span>
+				</Tooltip>
 
-				<IconButton
-					size="small"
-					sx={(theme) => ({
-						color: outgoingTextColor || theme.palette.primary.main,
-					})}
-				>
-					<VideocamIcon />
-				</IconButton>
+				<Tooltip title={callDisabled ? "Chỉ hỗ trợ cuộc trò chuyện 1-1" : "Gọi video"}>
+					<span>
+						<IconButton
+							size="small"
+							disabled={callDisabled}
+							onClick={onVideoCall}
+							sx={(theme) => ({
+								color: outgoingTextColor || theme.palette.primary.main,
+							})}
+						>
+							<VideocamIcon />
+						</IconButton>
+					</span>
+				</Tooltip>
 
 				<IconButton
 					size="small"

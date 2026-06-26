@@ -908,12 +908,14 @@ export const MovieDetailDialog = ({
 														{tagline}
 													</Typography>
 												)}
-												{(tmdbOverview || detail?.content) && (
-													<Typography variant="body2" sx={{ lineHeight: 1.7 }}>
-														{tmdbOverview ??
-															detail?.content ? stripHtml(detail.content) : undefined}
-													</Typography>
-												)}
+													{(tmdbOverview || detail?.content) && (
+														<Typography variant="body2" sx={{ lineHeight: 1.7 }}>
+															{tmdbOverview ??
+																(detail?.content
+																	? stripHtml(detail.content)
+																	: undefined)}
+														</Typography>
+													)}
 											</Box>
 										)}
 										{episodes.length > 0 && (

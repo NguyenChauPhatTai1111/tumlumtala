@@ -12,7 +12,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/model"
-	"github.com/tumlumtala/messenger-service/pkg/bunnycdn"
 )
 
 type StickerSeeder struct{}
@@ -183,14 +182,9 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 	ctx := context.Background()
 	skipUpload := os.Getenv("SKIP_CDN_UPLOAD") == "true" || os.Getenv("SKIP_STICKER_UPLOAD") == "true"
 
-	var client *bunnycdn.Client
 	if !skipUpload {
-		var err error
-		client, err = bunnycdn.NewClientFromEnv()
-		if err != nil {
-			fmt.Printf("  ⚠  bunnycdn init failed: %v — seeding stickers without upload\n", err)
-			skipUpload = true
-		}
+		// bunnycdn client removed; upload handled at module level instead
+		skipUpload = true
 	}
 
 	// Resolve assets dir outside the block so it's available below
@@ -214,12 +208,7 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 		if skipUpload {
 			return buildStickerCDNURL(assetsDir, folder, file)
 		}
-		url, err := uploadStickerFile(ctx, client, assetsDir, folder, file)
-		if err != nil {
-			fmt.Printf("  ⚠  upload failed %s/%s: %v — using existing CDN URL\n", folder, file, err)
-			return buildStickerCDNURL(assetsDir, folder, file)
-		}
-		return url, nil
+		return uploadStickerFile(ctx, assetsDir, folder, file)
 	}
 
 	for _, pd := range packDefs {
@@ -313,36 +302,7 @@ func findStickerAssetName(assetsDir, folder, baseName string) string {
 }
 
 // uploadStickerFile finds a file by base name (any extension) in dir/folder/, uploads to CDN, returns public URL.
-func uploadStickerFile(ctx context.Context, client *bunnycdn.Client, assetsDir, folder, baseName string) (string, error) {
-	// dir := filepath.Join(assetsDir, folder)
-	// entries, err := os.ReadDir(dir)
-	// if err != nil {
-	// 	return "", fmt.Errorf("read dir %s: %w", dir, err)
-	// }
-
-	// for _, e := range entries {
-	// 	if e.IsDir() {
-	// 		continue
-	// 	}
-	// 	nameNoExt := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
-	// 	if nameNoExt != baseName {
-	// 		continue
-	// 	}
-
-	// 	localPath := filepath.Join(dir, e.Name())
-	// 	raw, err := os.ReadFile(localPath)
-	// 	if err != nil {
-	// 		return "", fmt.Errorf("read %s: %w", localPath, err)
-	// 	}
-
-	// 	mimeType := http.DetectContentType(raw)
-	// 	remotePath := fmt.Sprintf("stickers/%s/%s", folder, e.Name())
-	// 	url, err := client.Upload(ctx, remotePath, raw, mimeType)
-	// 	if err != nil {
-	// 		return "", fmt.Errorf("upload %s: %w", remotePath, err)
-	// 	}
-	// 	return url, nil
-	// }
-
+// ponytail: simplified since CDN upload is disabled in seeder
+func uploadStickerFile(ctx context.Context, assetsDir, folder, baseName string) (string, error) {
 	return "", fmt.Errorf("file not found: %s/%s.*", folder, baseName)
 }

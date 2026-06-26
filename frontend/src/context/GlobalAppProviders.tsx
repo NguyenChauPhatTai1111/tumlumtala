@@ -18,6 +18,7 @@ import { SnackbarProvider, useSnackbar } from "notistack";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { MessageToastProvider } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
+import { GlobalCallProvider } from "@/features/calls";
 import { setNotifyFn } from "@/utils/snackbar";
 
 const queryClient = new QueryClient({
@@ -114,9 +115,11 @@ export function GlobalAppProviders({ children }: { children: ReactNode }) {
 				<MessageToastProvider>
 					<ConfirmProvider>
 						<MessengerEmojiProvider>
-							<NotificationPermissionBanner />
-							{children}
-							<MiniMessenger />
+							<GlobalCallProvider>
+								<NotificationPermissionBanner />
+								{children}
+								<MiniMessenger />
+							</GlobalCallProvider>
 						</MessengerEmojiProvider>
 					</ConfirmProvider>
 				</MessageToastProvider>

@@ -35,6 +35,7 @@ import {
 	MessengerInfoPanel,
 	MessengerSearchDetailPanel,
 } from "./MessengerPanels";
+import { useGlobalCall } from "@/features/calls";
 
 export type MessengerContentProps = {
 	isMobile: boolean;
@@ -235,6 +236,13 @@ export const MessengerContent = memo(
 			useState<HTMLElement | null>(null);
 		const [avatarMenuParticipant, setAvatarMenuParticipant] =
 			useState<Participant | null>(null);
+		const { startConversationCall } = useGlobalCall();
+		const callDisabled =
+			!selectedConversation ||
+			selectedConversation.is_group ||
+			selectedConversation.participants.filter(
+				(participant) => Number(participant.id) !== Number(currentUser?.id),
+			).length !== 1;
 
 		const handleAvatarClick = useCallback(
 			(anchor: HTMLElement, senderId: string) => {
@@ -390,6 +398,9 @@ export const MessengerContent = memo(
 								onInfo={onToggleInfoPanel}
 								onSearch={onSearchConversation}
 								onMute={onMuteConversation}
+								onAudioCall={() => startConversationCall(selectedConversation, "audio")}
+								onVideoCall={() => startConversationCall(selectedConversation, "video")}
+								callDisabled={callDisabled}
 								showBackButton={isMobile}
 								onBack={onBack}
 							/>
@@ -699,6 +710,7 @@ export const MessengerContent = memo(
 						/>
 					</Box>
 				</Slide>
+
 			</Box>
 		);
 	},

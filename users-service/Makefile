@@ -8,6 +8,11 @@ DATABASE_PASSWORD ?= tala
 MIGRATIONS_DIR := internal/infrastructure/db/migrations
 SEEDER_CMD := ./cmd/seed
 REPLAY_CMD := ./cmd/replay
+DOCKER_GO_IMAGE := golang:1.25
+DOCKER_GO_NETWORK := tumlumtala-net
+DOCKER_GO_SRC_DIR := $(abspath ..)
+DOCKER_GO_RUN := docker run --rm --network $(DOCKER_GO_NETWORK) -v "$(DOCKER_GO_SRC_DIR)":/src -w /src/users-service
+DOCKER_GO_ENV := -e DB_HOST=tumlumtala-users-mysql -e DB_PORT=3306 -e DB_NAME="$(DATABASE_NAME)" -e DB_USER="$(DATABASE_USER)" -e DB_PASSWORD="$(DATABASE_PASSWORD)" -e KAFKA_BROKERS=tumlumtala-kafka:9092 -e SEED_NOOP_KAFKA
 
 .NOTPARALLEL:
 
@@ -63,10 +68,8 @@ migrate-up: ensure-db
 SEEDER_ONLY ?=
 
 seed: wait-db
-	@echo "→ run Go UserSeeder"
-	@DB_HOST=localhost DB_PORT=$${MYSQL_HOST_PORT:-23306} DB_NAME="$(DATABASE_NAME)" DB_USER="$(DATABASE_USER)" DB_PASSWORD="$(DATABASE_PASSWORD)" \
-		KAFKA_BROKERS=localhost:$${KAFKA_HOST_PORT:-29092} \
-		go run $(SEEDER_CMD) $(if $(SEEDER_ONLY),-only=$(SEEDER_ONLY))
+	@echo "→ run Go UserSeeder in Docker"
+	@$(DOCKER_GO_RUN) $(DOCKER_GO_ENV) $(DOCKER_GO_IMAGE) go run $(SEEDER_CMD) $(if $(SEEDER_ONLY),-only=$(SEEDER_ONLY))
 
 # replay publishes user.created events for every user in the DB so that all
 # consumer services (messenger, movies, …) can sync their user_snapshots tables.
@@ -74,10 +77,8 @@ seed: wait-db
 REPLAY_FLAGS ?= --no-wait
 
 replay: wait-db
-	@echo "→ publishing user.upserted events to Kafka"
-	@DB_HOST=localhost DB_PORT=$${MYSQL_HOST_PORT:-23306} DB_NAME="$(DATABASE_NAME)" DB_USER="$(DATABASE_USER)" DB_PASSWORD="$(DATABASE_PASSWORD)" \
-		KAFKA_BROKERS=localhost:$${KAFKA_HOST_PORT:-29092} \
-		go run $(REPLAY_CMD) $(REPLAY_FLAGS)
+	@echo "→ publishing user.upserted events to Kafka in Docker"
+	@$(DOCKER_GO_RUN) $(DOCKER_GO_ENV) $(DOCKER_GO_IMAGE) go run $(REPLAY_CMD) $(REPLAY_FLAGS)
 	@echo "✅ user.upserted events published — consumers will sync when they start"
 
 migrate-fresh-seeder: fresh-db migrate-up seed

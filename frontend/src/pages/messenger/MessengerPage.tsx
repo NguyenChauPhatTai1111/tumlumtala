@@ -1210,6 +1210,29 @@ export default function MessengerPage() {
 			);
 		};
 
+		const handleActivityCreated = (data: unknown) => {
+			const raw = data as Record<string, unknown>;
+			const conversationId = Number(raw.conversation_id ?? 0);
+			if (!conversationId) return;
+			const messagesKey = messengerKeys.messages(
+				String(conversationId),
+				MESSAGE_PAGE_SIZE,
+				0,
+			);
+			queryClient.setQueryData<PaginatedResult<Message>>(messagesKey, (old) => {
+				if (!old) return old;
+				const actMsg = toActivityMessage(raw);
+				const exists = old.items.some((m) => m.id === actMsg.id && m.activity_type);
+				if (exists) return old;
+				const merged = [...old.items, actMsg].sort((a, b) => {
+					const ta = new Date(a.created_at).getTime();
+					const tb = new Date(b.created_at).getTime();
+					return ta - tb;
+				});
+				return { ...old, items: merged };
+			});
+		};
+
 		const handlers = {
 			onMessageCreated: handleMessageCreated,
 			onMessageUpdated: handleMessageUpdated,
@@ -1219,6 +1242,7 @@ export default function MessengerPage() {
 			onConversationUpdated: handleConversationOrParticipantUpdated,
 			onParticipantUpdated: handleConversationOrParticipantUpdated,
 			onMessageSeenSeq: handleMessageSeenSeq,
+			onActivityCreated: handleActivityCreated,
 		};
 		ws.addHandlers(handlers);
 		return () => ws.removeHandlers(handlers);

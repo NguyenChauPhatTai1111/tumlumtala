@@ -208,6 +208,47 @@ func (h *MessengerHandler) GetConversations(c *gin.Context) {
 	})
 }
 
+func (h *MessengerHandler) GetCallSessions(c *gin.Context) {
+	convID, err := strconv.ParseUint(c.Param("conversation_id"), 10, 32)
+	if err != nil {
+		ResponseBadRequest(c, domainerrors.MsgInvalidConversationID)
+		return
+	}
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		ResponseUnauthorized(c)
+		return
+	}
+	var participantCount int64
+	if err := h.db.WithContext(c.Request.Context()).
+		Table("conversation_participants").
+		Where("conversation_id = ? AND user_id = ? AND deleted_at IS NULL", convID, userID).
+		Count(&participantCount).Error; err != nil {
+		ResponseInternalError(c)
+		return
+	}
+	if participantCount == 0 {
+		ResponseBadRequest(c, domainerrors.MsgCannotJoinConversation)
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	var calls []model.CallSession
+	if err := h.db.WithContext(c.Request.Context()).
+		Where("conversation_id = ?", uint(convID)).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&calls).Error; err != nil {
+		ResponseInternalError(c)
+		return
+	}
+	ResponseSuccess(c, http.StatusOK, "Lấy lịch sử cuộc gọi thành công", gin.H{
+		"items": calls,
+	})
+}
+
 func (h *MessengerHandler) RenameConversation(c *gin.Context) {
 	convID, err := strconv.ParseUint(c.Param("conversation_id"), 10, 32)
 	if err != nil {

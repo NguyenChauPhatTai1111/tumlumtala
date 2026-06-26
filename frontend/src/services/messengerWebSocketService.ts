@@ -75,6 +75,20 @@ export interface WebSocketHandlers {
 		conversation_id: number;
 		user_id: number;
 	}) => void;
+	onCallRinging?: (data: unknown) => void;
+	onCallIncoming?: (data: unknown) => void;
+	onCallAccept?: (data: unknown) => void;
+	onCallReject?: (data: unknown) => void;
+	onCallCancel?: (data: unknown) => void;
+	onCallOffer?: (data: unknown) => void;
+	onCallAnswer?: (data: unknown) => void;
+	onCallIceCandidate?: (data: unknown) => void;
+	onCallEnd?: (data: unknown) => void;
+	onCallBusy?: (data: unknown) => void;
+	onCallFailed?: (data: unknown) => void;
+	onCallMissed?: (data: unknown) => void;
+	onCallReconnect?: (data: unknown) => void;
+	onActivityCreated?: (data: unknown) => void;
 	onError?: (error: string) => void;
 	onPresenceUpdated?: (data: { user_id: number; status: "online" | "offline" }) => void;
 }
@@ -273,6 +287,49 @@ export class MessengerWebSocketService {
 				case "reaction_removed":
 					this.emit("onReactionRemoved", message.payload);
 					break;
+				case "call:ringing":
+					this.emit("onCallRinging", message.payload);
+					break;
+				case "call:incoming":
+					this.emit("onCallIncoming", message.payload);
+					break;
+				case "call:accept":
+					this.emit("onCallAccept", message.payload);
+					break;
+				case "call:reject":
+				case "call:rejected":
+					this.emit("onCallReject", message.payload);
+					break;
+				case "call:cancel":
+					this.emit("onCallCancel", message.payload);
+					break;
+				case "call:offer":
+					this.emit("onCallOffer", message.payload);
+					break;
+				case "call:answer":
+					this.emit("onCallAnswer", message.payload);
+					break;
+				case "call:ice-candidate":
+					this.emit("onCallIceCandidate", message.payload);
+					break;
+				case "call:end":
+					this.emit("onCallEnd", message.payload);
+					break;
+				case "call:busy":
+					this.emit("onCallBusy", message.payload);
+					break;
+				case "call:failed":
+					this.emit("onCallFailed", message.payload);
+					break;
+				case "call:missed":
+					this.emit("onCallMissed", message.payload);
+					break;
+				case "call:reconnect":
+					this.emit("onCallReconnect", message.payload);
+					break;
+				case "conversation.activity":
+					this.emit("onActivityCreated", message.payload);
+					break;
 				case "conversation.updated":
 				case "conversation_updated":
 					this.emit("onConversationUpdated", message.payload);
@@ -456,6 +513,10 @@ export class MessengerWebSocketService {
 
 	sendPresenceHeartbeat() {
 		this.send("presence.heartbeat", {});
+	}
+
+	sendCall(type: string, payload: unknown) {
+		this.send(type, payload);
 	}
 
 	private send(type: string, payload: unknown) {

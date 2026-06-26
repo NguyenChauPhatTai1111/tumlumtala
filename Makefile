@@ -202,7 +202,7 @@ seed-main: seed-users seed-messenger seed-movie seed-user-roles
 seed-users:
 	@$(MAKE) -C users-service seed SEED_NOOP_KAFKA=1
 
-seed-messenger:
+seed-messenger: migrate-messenger-snapshots
 	@$(MAKE) -C messenger-service seeder
 
 seed-movie:

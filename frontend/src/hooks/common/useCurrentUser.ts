@@ -1,12 +1,11 @@
-import { getMe } from "@api/authApi";
-import { useQuery } from "@tanstack/react-query";
-import type { IUser } from "@/types";
+import { useCurrentUser as useMainCurrentUser } from "@hooks/user/useCurrentUser";
 
 export const useCurrentUser = () => {
-  return useQuery<IUser>({
-    queryKey: ["currentUser"],
-    queryFn: getMe,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
+  const { user, loading, error, refresh } = useMainCurrentUser();
+  return {
+    data: user ?? undefined,
+    isLoading: loading,
+    error,
+    refetch: refresh,
+  } as any;
 };

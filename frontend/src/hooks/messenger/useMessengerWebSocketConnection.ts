@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { MessengerWebSocketService } from "@/services/messengerWebSocketService";
-import { useCurrentUser } from "@hooks/common/useCurrentUser";
+import { useCurrentUser } from "@hooks/user/useCurrentUser";
 
 export const useMessengerWebSocketConnection = () => {
 	const [ws, setWs] = useState<MessengerWebSocketService | null>(null);
-	const { data: currentUser } = useCurrentUser();
+	const { user: currentUser } = useCurrentUser();
 
 	useEffect(() => {
 		if (!currentUser?.id) return;

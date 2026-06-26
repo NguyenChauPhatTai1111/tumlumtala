@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	messageDTO "github.com/tumlumtala/messenger-service/internal/application/dto/message"
+	"github.com/tumlumtala/messenger-service/internal/application/usecase/activity"
 	"github.com/tumlumtala/messenger-service/internal/application/usecase/conversation"
 	"github.com/tumlumtala/messenger-service/internal/application/usecase/message"
-	messageDTO "github.com/tumlumtala/messenger-service/internal/application/dto/message"
 	domainerrors "github.com/tumlumtala/messenger-service/internal/domain/errors"
 	"github.com/tumlumtala/messenger-service/internal/domain/repository"
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
@@ -21,6 +22,8 @@ import (
 
 type Handler struct {
 	conversationRepo   repository.UserConversationRepository
+	callRepo           repository.CallSessionRepository
+	createActivityUC   *activity.CreateActivityUseCase
 	sendMessageUC      *message.SendMessageUseCase
 	markReadUC         *message.MarkReadUseCase
 	getConversationsUC *conversation.GetUserConversationsUseCase
@@ -29,6 +32,7 @@ type Handler struct {
 	presence           *presence.Store
 	rooms              sync.Map
 	clients            sync.Map
+	activeCallsByUser  sync.Map
 }
 
 type roomState struct {
@@ -85,6 +89,8 @@ type fileMetadataRequest struct {
 
 func NewHandler(
 	conversationRepo repository.UserConversationRepository,
+	callRepo repository.CallSessionRepository,
+	createActivityUC *activity.CreateActivityUseCase,
 	sendMessageUC *message.SendMessageUseCase,
 	markReadUC *message.MarkReadUseCase,
 	getConversationsUC *conversation.GetUserConversationsUseCase,
@@ -94,6 +100,8 @@ func NewHandler(
 ) *Handler {
 	return &Handler{
 		conversationRepo:   conversationRepo,
+		callRepo:           callRepo,
+		createActivityUC:   createActivityUC,
 		sendMessageUC:      sendMessageUC,
 		markReadUC:         markReadUC,
 		getConversationsUC: getConversationsUC,
@@ -128,6 +136,20 @@ func (h *Handler) Handle(client *websocket.Client, msg websocket.Message) {
 		h.handleMessageDelivered(client, msg)
 	case "room.leave":
 		h.handleLeaveRoom(client)
+	case "call:initiate":
+		h.handleCallInitiate(client, msg)
+	case "call:accept":
+		h.handleCallAccept(client, msg)
+	case "call:reject":
+		h.handleCallTerminal(client, msg, "rejected", "call:rejected")
+	case "call:cancel":
+		h.handleCallTerminal(client, msg, "cancelled", "call:cancel")
+	case "call:end":
+		h.handleCallTerminal(client, msg, "ended", "call:end")
+	case "call:failed":
+		h.handleCallTerminal(client, msg, "failed", "call:failed")
+	case "call:offer", "call:answer", "call:ice-candidate", "call:reconnect":
+		h.handleCallRelay(client, msg)
 	default:
 		h.sendError(client, domainerrors.MsgUnSupportedMessageType)
 	}

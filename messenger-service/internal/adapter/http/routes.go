@@ -61,6 +61,7 @@ func (r *MessengerRoutes) Register(router *gin.RouterGroup) {
 	group.PATCH("/conversations/:conversation_id/notifications", r.handler.ToggleNotifications)
 	group.PATCH("/conversations/:conversation_id/nickname/:target_user_id", r.handler.SetNickname)
 	group.POST("/conversations/:conversation_id/leave", r.handler.LeaveGroup)
+	group.GET("/conversations/:conversation_id/calls", r.handler.GetCallSessions)
 	group.GET("/conversations/:conversation_id/messages", r.handler.GetMessages)
 	group.GET("/conversations/:conversation_id/messages/search", r.handler.SearchMessages)
 	group.POST("/conversations/:conversation_id/archive", r.handler.ArchiveConversation)
