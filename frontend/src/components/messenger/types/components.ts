@@ -32,6 +32,7 @@ export interface MessengerHeaderProps {
 	onAudioCall?: () => void;
 	onVideoCall?: () => void;
 	callDisabled?: boolean;
+	callDisabledReason?: string;
 	showBackButton?: boolean;
 	onBack?: () => void;
 	overrideTextColor?: string;

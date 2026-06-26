@@ -29,6 +29,7 @@ export type BubbleContentProps = {
 		action?: "toggle" | "remove",
 	) => void;
 	onViewHistories?: (message: Message) => void;
+	onCallBack?: () => void;
 	lineClamp?: number;
 };
 

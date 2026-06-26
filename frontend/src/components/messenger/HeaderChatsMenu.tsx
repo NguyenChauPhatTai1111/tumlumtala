@@ -41,6 +41,7 @@ import { formatTimestampRealtime } from "@/utils";
 import { resolveCdnUrl } from "@/utils/urlUtils";
 import { buildGeneratedAvatar } from "./utils/avatar";
 import { hydrateConversationParticipantAvatars } from "./utils/avatarHydration";
+import { getConversationCallPreview } from "./utils/callMessage";
 import {
 	getConversationAvatar as getBaseConversationAvatar,
 	getConversationDisplayName,
@@ -106,11 +107,13 @@ function getLastSenderName(
 function getLastMessagePreviewContent(conversation: Conversation) {
 	const content = conversation.last_message_content?.trim();
 	const messageType = String(conversation.last_message_type ?? "").toLowerCase();
+	const callPreview = getConversationCallPreview(conversation);
 	const looksLikeAttachmentPath = Boolean(
 		content?.includes("/messenger/attachments/") ||
 			content?.includes("messenger/attachments/"),
 	);
 
+	if (callPreview) return callPreview;
 	if (messageType === "image") return "Hình ảnh";
 	if (messageType === "video") return "Video";
 	if (messageType === "file" || looksLikeAttachmentPath) return "Tệp đính kèm";

@@ -10,11 +10,21 @@ services:
       DB_PORT: "3306"
       REDIS_HOST: tumlumtala-redis
       REDIS_PORT: "6379"
+      NOTIFICATION_SERVICE_ADDR: ${NOTIFICATION_SERVICE_ADDR:-notification-api:8888}
+      NOTIFICATION_CALL_CHANNEL: ${NOTIFICATION_CALL_CHANNEL:-alert}
+      NOTIFICATION_CALL_TIMEOUT: ${NOTIFICATION_CALL_TIMEOUT:-1500ms}
+      LOCAL_UPLOAD_DIR: /app/uploads
+      LOCAL_UPLOAD_BASE_URL: /api/v1/messenger-uploads
     ports:
       - "${PORT:-25056}:${PORT:-25056}"
+    volumes:
+      - messenger_uploads:/app/uploads
     networks:
       - tumlumtala-net
     restart: unless-stopped
+
+volumes:
+  messenger_uploads:
 
 networks:
   tumlumtala-net:

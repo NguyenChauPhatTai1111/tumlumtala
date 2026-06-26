@@ -52,6 +52,7 @@ export const MessageListBubble = ({
 	onReplyMessage,
 	onJumpToMessage,
 	onViewHistories,
+	onCallBack,
 	onContextMenuOpen,
 }: MessageBubbleProps) => {
 	const [hovered, setHovered] = useState(false);
@@ -255,6 +256,9 @@ export const MessageListBubble = ({
 	const isImageMessage = message.message_type === "image";
 	const isVideoMessage = message.message_type === "video";
 	const isFileMessage = message.message_type === "file";
+	const isCallMessage =
+		message.message_type === "video_call" ||
+		message.message_type === "audio_call";
 	const isEmojiTypeMessage =
 		String(message.message_type ?? "")
 			.trim()
@@ -271,6 +275,7 @@ export const MessageListBubble = ({
 		!isImageMessage &&
 		!isVideoMessage &&
 		!isFileMessage &&
+		!isCallMessage &&
 		!isFlagMessage;
 
 	const _msgType = String(message.message_type ?? "")
@@ -283,6 +288,7 @@ export const MessageListBubble = ({
 		!isImageMessage &&
 		!isVideoMessage &&
 		!isFileMessage &&
+		!isCallMessage &&
 		!isFlagMessage;
 
 	const isPlainBubble =
@@ -294,11 +300,13 @@ export const MessageListBubble = ({
 
 	const showActions =
 		!isActivityMessage &&
+		!isCallMessage &&
 		(hovered || isRowHovered || actionsLocked) &&
 		!reactionPickerOpen &&
 		!isContextMenuOpen;
 	const showReactionTrigger =
 		!isActivityMessage &&
+		!isCallMessage &&
 		(hovered || isRowHovered || actionsLocked || reactionPickerOpen);
 
 	const hasCustomBubbleBackground = Boolean(
@@ -583,6 +591,7 @@ export const MessageListBubble = ({
 						onJumpToMessage={onJumpToMessage}
 						onToggleReaction={onToggleReaction}
 						onViewHistories={onViewHistories}
+						onCallBack={onCallBack}
 					/>
 				</Box>
 

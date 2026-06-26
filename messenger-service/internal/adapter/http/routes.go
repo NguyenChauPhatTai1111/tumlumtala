@@ -51,6 +51,7 @@ func (r *MessengerRoutes) Register(router *gin.RouterGroup) {
 	// Conversation routes
 	group.POST("/conversations", r.handler.CreateConversation)
 	group.GET("/conversations", r.handler.GetConversations)
+	group.GET("/conversations/:conversation_id", r.handler.GetConversation)
 	group.PATCH("/conversations/:conversation_id/name", r.handler.RenameConversation)
 	group.POST("/conversations/:conversation_id/members", r.handler.AddMembers)
 	group.DELETE("/conversations/:conversation_id/members/:user_id", r.handler.RemoveMember)

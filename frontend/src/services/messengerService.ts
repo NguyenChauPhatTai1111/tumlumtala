@@ -463,7 +463,8 @@ export const getConversation = async (conversationId: number) => {
 		`${MESSENGER_PREFIX}/conversations/${conversationId}`,
 		{ method: "GET" },
 	);
-	return toConversation(response);
+	const root = toRecord(response);
+	return toConversation(root.data ?? root);
 };
 
 // Get messages in a conversation

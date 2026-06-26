@@ -25,7 +25,9 @@ import {
 	Typography,
 } from "@mui/material";
 import type { MouseEvent, SyntheticEvent } from "react";
-import { memo, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSwipeBack } from "@/hooks/ui/useSwipeBack";
 import {
 	buildGeneratedAvatar,
 	getConversationDisplayName,
@@ -151,6 +153,12 @@ export const MessengerSidebar = memo(
 		const lastLoadScrollHeightRef = useRef(0);
 		const typingByConversation = useMessengerConversationTyping(ws ?? null);
 		const openMenu = Boolean(anchorEl);
+		const navigate = useNavigate();
+		const handleSwipeToHome = useCallback(() => navigate("/"), [navigate]);
+		const swipeToHome = useSwipeBack({
+			onSwipe: handleSwipeToHome,
+			disabled: !isMobile,
+		});
 
 		const handleOpenMenu = (event: MouseEvent<HTMLElement>) => {
 			setAnchorEl(event.currentTarget);
@@ -180,6 +188,7 @@ export const MessengerSidebar = memo(
 					position: isMobile ? "relative" : "static",
 					zIndex: isMobile ? 5 : "auto",
 				}}
+				ref={swipeToHome.ref}
 			>
 				<Box
 					sx={{

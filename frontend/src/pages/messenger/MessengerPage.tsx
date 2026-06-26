@@ -32,7 +32,6 @@ import {
 	useMessengerMessages,
 	useMessengerSearch,
 	useMessengerSendMessage,
-	useMessengerWebSocketConnection,
 	useNewMessageNotification,
 	useSendMessengerMessage,
 } from "@hooks/messenger";
@@ -49,6 +48,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useShowMessageToast } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
+import { useSharedMessengerWS } from "@/context/MessengerWebSocketContext";
+import { useMobileVisualViewport } from "@/hooks/ui/useMobileVisualViewport";
 import {
 	getMessages,
 	parsePaginated,
@@ -213,10 +214,11 @@ export default function MessengerPage() {
 	const messageActions = useMessengerMessageActions(
 		selectedConversationId ?? undefined,
 	);
-	const ws = useMessengerWebSocketConnection();
+	const ws = useSharedMessengerWS();
 	const onlineUserIds = usePresence(ws);
 	const queryClient = useQueryClient();
 	const selectedConversationIdRef = useRef<number | null>(null);
+	const mobileViewport = useMobileVisualViewport(isMobile);
 
 	const setConversationDraft = useCallback(
 		(
@@ -410,11 +412,14 @@ export default function MessengerPage() {
 		const found = conversations.find((c) => c.id === paramId);
 		if (!found) return;
 		setSelectedConversationId(found.id);
+		if (isMobile) {
+			setShowConversationList(false);
+		}
 		setSearchParams((prev) => {
 			prev.delete("conversationId");
 			return prev;
 		}, { replace: true });
-	}, [searchParams, conversations, setSelectedConversationId, setSearchParams]);
+	}, [searchParams, conversations, isMobile, setSelectedConversationId, setShowConversationList, setSearchParams]);
 
 	const conversationsWithDrafts = useMemo(
 		() =>
@@ -3002,7 +3007,23 @@ export default function MessengerPage() {
 
 	return (
 		<MessengerEmojiProvider>
-			<Box sx={{ display: "flex", position: "absolute", inset: 0 }}>
+			<Box
+				sx={{
+					display: "flex",
+					position: isMobile ? "fixed" : "absolute",
+					inset: isMobile ? "auto" : 0,
+					top: isMobile ? `${mobileViewport?.offsetTop ?? 0}px` : undefined,
+					left: isMobile ? 0 : undefined,
+					right: isMobile ? 0 : undefined,
+					height: isMobile
+						? mobileViewport?.height
+							? `${mobileViewport.height}px`
+							: "100dvh"
+						: undefined,
+					overflow: "hidden",
+					overscrollBehavior: "contain",
+				}}
+			>
 				{showSidebar && (
 					<MessengerSidebar
 						isMobile={isMobile}

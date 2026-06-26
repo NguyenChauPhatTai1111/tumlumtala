@@ -1,5 +1,6 @@
 import { AdminKeyBadge } from "@components/messenger/AdminKeyBadge";
 import type { MessageListRowProps } from "@components/messenger/types/messages";
+import { getActivityText } from "@components/messenger/utils/activityText";
 import { buildGeneratedAvatar } from "@components/messenger/utils/avatar";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -15,7 +16,8 @@ import {
 	Tooltip,
 	Typography,
 } from "@mui/material";
-import { memo } from "react";
+import { memo, useCallback } from "react";
+import { useGlobalCall } from "@/features/calls";
 import { formatTimestampV2, resolveCdnUrl } from "@/utils";
 import { MessageListBubble } from "./MessageListBubble";
 
@@ -68,6 +70,17 @@ export const MessageListRow = memo(
 			Boolean(currentUserId) &&
 			currentUserId !== "undefined" &&
 			String(message.sender_id) === String(currentUserId);
+		const { startConversationCall } = useGlobalCall();
+		const handleCallBack = useCallback(() => {
+			if (!conversation) return;
+			const callType =
+				message.message_type === "audio_call" ? "audio" : "video";
+			startConversationCall(conversation, callType);
+		}, [conversation, message.message_type, startConversationCall]);
+		const isCallActivity = String(message.activity_type ?? "").startsWith("call_");
+		if (isCallActivity) {
+			return null;
+		}
 		const senderProfile = getSenderProfile(message.sender_id);
 		const isSenderAdmin =
 			conversation?.is_group === true &&
@@ -284,57 +297,7 @@ export const MessageListRow = memo(
 
 		const activityText = (() => {
 			if (!message.activity_type) return "";
-			if (message.content?.trim()) return message.content;
-			if (message.activity_metadata) {
-				try {
-					const md = JSON.parse(message.activity_metadata);
-					if (typeof md === "string") return md;
-					if (md && typeof md === "object") {
-						if (md.nickname) return String(md.nickname);
-						if (md.user_id) return `Người dùng ${md.user_id}`;
-						return JSON.stringify(md);
-					}
-				} catch {
-					return message.activity_metadata;
-				}
-			}
-
-			const labels: Record<string, string> = {
-				left_group: "Rời nhóm",
-				member_removed: "Thành viên bị xóa",
-				member_added: "Thành viên mới được thêm",
-				group_avatar_changed: "Đổi ảnh đại diện nhóm",
-				theme_changed: "Đổi nền trò chuyện",
-				nickname_changed: "Thay đổi biệt danh",
-				call_ended: "Cuộc gọi đã kết thúc",
-				call_missed: "Cuộc gọi nhỡ",
-				call_rejected: "Cuộc gọi bị từ chối",
-				call_cancelled: "Cuộc gọi bị hủy",
-			};
-
-			if (message.activity_type?.startsWith("call_") && message.activity_metadata) {
-				try {
-					const meta = JSON.parse(message.activity_metadata) as {
-						call_type?: string;
-						duration_seconds?: number;
-					};
-					const icon = meta.call_type === "audio" ? "📞" : "📹";
-					const base = labels[message.activity_type] ?? message.activity_type;
-					const secs = meta.duration_seconds ?? 0;
-					const duration = message.activity_type === "call_ended" && secs > 0
-						? ` · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`
-						: "";
-					return `${icon} ${base}${duration}`;
-				} catch {
-					// fall through
-				}
-			}
-
-			return (
-				labels[message.activity_type ?? ""] ||
-				message.activity_type ||
-				"Hoạt động"
-			);
+			return getActivityText(message);
 		})();
 
 		return (
@@ -594,6 +557,7 @@ export const MessageListRow = memo(
 										onJumpToMessage={onJumpToMessage}
 										onViewHistories={onViewHistories}
 										onSpeakMessage={onSpeakMessage}
+										onCallBack={handleCallBack}
 										onContextMenuOpen={onContextMenuOpen}
 									/>
 								</Box>
@@ -705,6 +669,7 @@ export const MessageListRow = memo(
 										onJumpToMessage={onJumpToMessage}
 										onViewHistories={onViewHistories}
 										onSpeakMessage={onSpeakMessage}
+										onCallBack={handleCallBack}
 										onContextMenuOpen={onContextMenuOpen}
 									/>
 								</Box>

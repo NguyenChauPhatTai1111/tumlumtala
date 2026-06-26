@@ -15,6 +15,7 @@ import (
 	"github.com/tumlumtala/messenger-service/internal/application/usecase/message"
 	domainerrors "github.com/tumlumtala/messenger-service/internal/domain/errors"
 	"github.com/tumlumtala/messenger-service/internal/domain/repository"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/notification"
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 	"github.com/tumlumtala/messenger-service/internal/shared/utils"
@@ -30,6 +31,7 @@ type Handler struct {
 	getMessagesUC      *message.GetMessagesByConversationUseCase
 	hub                *websocket.Hub
 	presence           *presence.Store
+	callNotifier       notification.IncomingCallNotifier
 	rooms              sync.Map
 	clients            sync.Map
 	activeCallsByUser  sync.Map
@@ -97,6 +99,7 @@ func NewHandler(
 	getMessagesUC *message.GetMessagesByConversationUseCase,
 	hub *websocket.Hub,
 	presenceStore *presence.Store,
+	callNotifier notification.IncomingCallNotifier,
 ) *Handler {
 	return &Handler{
 		conversationRepo:   conversationRepo,
@@ -108,6 +111,7 @@ func NewHandler(
 		getMessagesUC:      getMessagesUC,
 		hub:                hub,
 		presence:           presenceStore,
+		callNotifier:       callNotifier,
 	}
 }
 

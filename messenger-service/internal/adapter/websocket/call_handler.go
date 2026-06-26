@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	activityDTO "github.com/tumlumtala/messenger-service/internal/application/dto/activity"
+	messageDTO "github.com/tumlumtala/messenger-service/internal/application/dto/message"
 	"github.com/tumlumtala/messenger-service/internal/domain/entity"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/notification"
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 )
 
@@ -67,6 +68,7 @@ func (h *Handler) handleCallInitiate(client *websocket.Client, msg websocket.Mes
 	h.activeCallsByUser.Store(req.ReceiverID, call.ID)
 	h.sendCallEvent(client, "call:ringing", call)
 	h.broadcastCallEvent(req.ReceiverID, "call:incoming", call)
+	go h.notifyIncomingCall(call)
 	go h.expireRingingCall(call.ID)
 }
 
@@ -192,6 +194,34 @@ func (h *Handler) broadcastCallEvent(userID uint, eventType string, call *entity
 	h.hub.BroadcastRoom(userChannel(userID), msg)
 }
 
+func (h *Handler) notifyIncomingCall(call *entity.CallSession) {
+	if h.callNotifier == nil || call == nil {
+		return
+	}
+	event := notification.IncomingCallEvent{
+		CallID:         call.ID,
+		ConversationID: call.ConversationID,
+		CallerID:       call.CallerID,
+		ReceiverID:     call.ReceiverID,
+		CallType:       call.CallType,
+		ExpiresAt:      call.CreatedAt.Add(callRingTimeout),
+	}
+	participants, err := h.conversationRepo.GetParticipants(context.Background(), call.ConversationID)
+	if err == nil {
+		for _, participant := range participants {
+			if participant.ID == call.CallerID {
+				event.CallerName = participant.FullName
+			}
+			if participant.ID == call.ReceiverID {
+				event.ReceiverEmail = participant.Email
+			}
+		}
+	}
+	if err := h.callNotifier.NotifyIncomingCall(context.Background(), event); err != nil {
+		fmt.Printf("[notification] incoming call notify failed: %v\n", err)
+	}
+}
+
 func (h *Handler) expireRingingCall(callID string) {
 	time.Sleep(callRingTimeout)
 	call, err := h.callRepo.Get(context.Background(), callID)
@@ -209,7 +239,7 @@ func (h *Handler) expireRingingCall(callID string) {
 }
 
 func (h *Handler) createCallActivity(call *entity.CallSession) {
-	if call == nil || call.ConversationID == 0 || h.createActivityUC == nil {
+	if call == nil || call.ConversationID == 0 {
 		return
 	}
 	// Only record meaningful terminal states.
@@ -218,22 +248,27 @@ func (h *Handler) createCallActivity(call *entity.CallSession) {
 	default:
 		return
 	}
-	meta := fmt.Sprintf(`{"call_type":%q,"duration_seconds":%d,"caller_id":%d}`,
-		call.CallType, call.Duration, call.CallerID)
-	out, err := h.createActivityUC.Execute(context.Background(), &activityDTO.CreateActivityInput{
+	meta := fmt.Sprintf(`{"call_type":%q,"duration_seconds":%d,"caller_id":%d,"status":%q}`,
+		call.CallType, call.Duration, call.CallerID, call.Status)
+
+	h.createCallMessage(call, meta)
+}
+
+func (h *Handler) createCallMessage(call *entity.CallSession, meta string) {
+	if h.sendMessageUC == nil {
+		return
+	}
+	msgType := call.CallType + "_call"
+	msgOut, err := h.sendMessageUC.Execute(context.Background(), messageDTO.SendMessageInput{
 		ConversationID: call.ConversationID,
-		ActorUserID:    call.CallerID,
-		ActionType:     "call_" + call.Status,
-		MetaData:       meta,
+		SenderID:       call.CallerID,
+		Content:        meta,
+		MessageType:    msgType,
 	})
-	if err != nil || out == nil {
+	if err != nil || msgOut == nil {
 		return
 	}
-	event, err := websocket.NewMessage("conversation.activity", out)
-	if err != nil {
-		return
-	}
-	h.hub.BroadcastRoom(channel(call.ConversationID), event)
+	h.broadcastCreatedMessage(call.ConversationID, call.CallerID, msgOut)
 }
 
 func (h *Handler) callEventPayload(call *entity.CallSession) map[string]any {

@@ -7,11 +7,19 @@ import ImageGalleryModal from "@components/messenger/dialogs/ImageGalleryModal";
 import type { BubbleContentProps } from "@components/messenger/types/message-ui";
 import { getActivityText } from "@components/messenger/utils/activityText";
 import {
+	getCallStatusLabel,
+	getCallTitle,
+	isCallMessageType,
+	parseCallMeta,
+} from "@components/messenger/utils/callMessage";
+import {
 	formatFileSize,
 	formatVideoDuration,
 } from "@components/messenger/utils/format";
+import CallIcon from "@mui/icons-material/Call";
 import DownloadIcon from "@mui/icons-material/Download";
-import { Box, Chip, Typography } from "@mui/material";
+import VideocamIcon from "@mui/icons-material/Videocam";
+import { Box, Button, Chip, Typography } from "@mui/material";
 import emojiRegex from "emoji-regex";
 import Linkify from "linkify-react";
 import { useState } from "react";
@@ -269,6 +277,7 @@ export const BubbleContent = ({
 	onJumpToMessage,
 	onToggleReaction,
 	onViewHistories,
+	onCallBack,
 	lineClamp,
 }: BubbleContentProps) => {
 	const [galleryModalOpen, setGalleryModalOpen] = useState(false);
@@ -287,6 +296,9 @@ export const BubbleContent = ({
 	const isImageMessage = message.message_type === "image";
 	const isVideoMessage = message.message_type === "video";
 	const isFileMessage = message.message_type === "file";
+	const isVideoCallMessage = message.message_type === "video_call";
+	const isAudioCallMessage = message.message_type === "audio_call";
+	const isCallMessage = isCallMessageType(message.message_type);
 
 	const fileOriginalName = message.metadata?.original_name;
 	const fileExt = isFileMessage
@@ -298,6 +310,13 @@ export const BubbleContent = ({
 	const fileIconCfg = isFileMessage ? getFileIconConfig(fileExt) : null;
 
 	const activityDescription = isActivityMessage ? getActivityText(message) : "";
+
+	const callMeta = isCallMessage ? parseCallMeta(message.content) : null;
+	const callTitle = getCallTitle(message.message_type, callMeta?.call_type);
+	const callStatusLabel = getCallStatusLabel(
+		callMeta?.status,
+		callMeta?.duration_seconds,
+	);
 
 	return (
 		<>
@@ -378,6 +397,75 @@ export const BubbleContent = ({
 					>
 						{activityDescription}
 					</Typography>
+				) : isCallMessage ? (
+					<Box
+						sx={{
+							display: "flex",
+							alignItems: "center",
+							gap: 1.5,
+							minWidth: 180,
+							maxWidth: 260,
+						}}
+					>
+						<Box
+							sx={{
+								width: 40,
+								height: 40,
+								borderRadius: "50%",
+								bgcolor: isCurrentUserSender
+									? "rgba(255,255,255,0.2)"
+									: "primary.main",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								flexShrink: 0,
+							}}
+						>
+							{isVideoCallMessage ? (
+								<VideocamIcon sx={{ fontSize: 20, color: "#fff" }} />
+							) : (
+								<CallIcon sx={{ fontSize: 20, color: "#fff" }} />
+							)}
+						</Box>
+						<Box sx={{ flex: 1, minWidth: 0 }}>
+							<Typography
+								variant="body2"
+								sx={{ fontWeight: 600, color: bubbleTextColor, lineHeight: 1.3 }}
+							>
+								{callTitle}
+							</Typography>
+							<Typography
+								variant="caption"
+								sx={{ opacity: 0.7, color: bubbleTextColor }}
+							>
+								{callStatusLabel}
+							</Typography>
+						</Box>
+						{!isCurrentUserSender && onCallBack && (
+							<Button
+								size="small"
+								variant="outlined"
+								onClick={(e) => {
+									e.stopPropagation();
+									onCallBack();
+								}}
+								sx={{
+									minWidth: 0,
+									px: 1.5,
+									py: 0.5,
+									fontSize: 12,
+									fontWeight: 600,
+									borderRadius: 2,
+									color: bubbleTextColor,
+									borderColor: "rgba(255,255,255,0.4)",
+									"&:hover": { borderColor: bubbleTextColor, bgcolor: "rgba(255,255,255,0.1)" },
+									flexShrink: 0,
+								}}
+							>
+								Gọi lại
+							</Button>
+						)}
+					</Box>
 				) : message.message_type === "markdown" ? (
 					<ReactMarkdown
 						remarkPlugins={[remarkGfm]}

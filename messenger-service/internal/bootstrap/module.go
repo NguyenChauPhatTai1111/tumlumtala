@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -17,10 +20,11 @@ import (
 	historyUC "github.com/tumlumtala/messenger-service/internal/application/usecase/history"
 	messageUC "github.com/tumlumtala/messenger-service/internal/application/usecase/message"
 	"github.com/tumlumtala/messenger-service/internal/config"
-	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
-	ws "github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
+	notificationClient "github.com/tumlumtala/messenger-service/internal/infrastructure/notification"
 	persistenceQS "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/queryservice"
 	persistenceRepo "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/repository"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
+	ws "github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 	"gorm.io/gorm"
 )
 
@@ -30,6 +34,43 @@ type bunnyCDNUploader struct {
 	storageZone string
 	baseURL     string
 	client      *http.Client
+}
+
+type localUploader struct {
+	rootDir string
+	baseURL string
+}
+
+func newLocalUploader(cfg config.Config) *localUploader {
+	rootDir := strings.TrimSpace(cfg.LocalUpload.Dir)
+	if rootDir == "" {
+		return nil
+	}
+	return &localUploader{
+		rootDir: rootDir,
+		baseURL: strings.TrimRight(strings.TrimSpace(cfg.LocalUpload.BaseURL), "/"),
+	}
+}
+
+func (u *localUploader) Upload(_ context.Context, remotePath string, payload []byte, _ string) (string, error) {
+	if u == nil || strings.TrimSpace(u.rootDir) == "" {
+		return "", fmt.Errorf("local upload dir is not configured")
+	}
+	cleanRemotePath := strings.TrimLeft(filepath.Clean(remotePath), string(filepath.Separator))
+	if cleanRemotePath == "." || strings.HasPrefix(cleanRemotePath, "..") {
+		return "", fmt.Errorf("invalid upload path")
+	}
+	targetPath := filepath.Join(u.rootDir, cleanRemotePath)
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(targetPath, payload, 0o644); err != nil {
+		return "", err
+	}
+	if u.baseURL != "" {
+		return u.baseURL + "/" + strings.ReplaceAll(cleanRemotePath, string(filepath.Separator), "/"), nil
+	}
+	return strings.ReplaceAll(cleanRemotePath, string(filepath.Separator), "/"), nil
 }
 
 func newBunnyCDNUploader(cfg config.Config) *bunnyCDNUploader {
@@ -113,11 +154,13 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	// History use case
 	getMessageHistory := historyUC.NewGetMessageHistoryUseCase(historyRepo)
 
-	// Media upload (nil when BunnyCDN not configured — gracefully degraded)
+	// Media upload: BunnyCDN in production, local filesystem in development.
 	var mediaUploadService *conversationUC.MediaUploadService
 	if cfg.BunnyCDN.APIKey != "" && cfg.BunnyCDN.StorageZone != "" {
 		bunny := newBunnyCDNUploader(cfg)
 		mediaUploadService = conversationUC.NewMediaUploadService(bunny)
+	} else if local := newLocalUploader(cfg); local != nil {
+		mediaUploadService = conversationUC.NewMediaUploadService(local)
 	}
 
 	// WebSocket
@@ -132,8 +175,15 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	rdb := newRedisClient(cfg)
 	presenceStore := presence.NewStore(rdb)
 
+	// Notification client is optional. When configured, incoming calls are also
+	// sent to notification-service so offline receivers can be reached.
+	callNotifier, err := notificationClient.NewClient(cfg.Notification)
+	if err != nil {
+		fmt.Printf("[notification] init client failed: %v\n", err)
+	}
+
 	// WebSocket handler
-	wsHandler := wsAdapter.NewHandler(conversationRepo, callRepo, createActivity, sendMessage, markRead, getConversations, getMessages, hub, presenceStore)
+	wsHandler := wsAdapter.NewHandler(conversationRepo, callRepo, createActivity, sendMessage, markRead, getConversations, getMessages, hub, presenceStore, callNotifier)
 
 	// HTTP handler
 	handler := httpAdapter.NewMessengerHandler(
@@ -174,4 +224,7 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	v1 := engine.Group("/api/v1")
 	routes.Register(v1)
 	routes.RegisterInfra(engine)
+	if cfg.LocalUpload.Dir != "" && cfg.LocalUpload.BaseURL != "" {
+		engine.Static(cfg.LocalUpload.BaseURL, cfg.LocalUpload.Dir)
+	}
 }

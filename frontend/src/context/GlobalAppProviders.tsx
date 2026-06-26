@@ -18,6 +18,7 @@ import { SnackbarProvider, useSnackbar } from "notistack";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { MessageToastProvider } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
+import { MessengerWebSocketProvider } from "@/context/MessengerWebSocketContext";
 import { GlobalCallProvider } from "@/features/calls";
 import { setNotifyFn } from "@/utils/snackbar";
 
@@ -115,11 +116,13 @@ export function GlobalAppProviders({ children }: { children: ReactNode }) {
 				<MessageToastProvider>
 					<ConfirmProvider>
 						<MessengerEmojiProvider>
-							<GlobalCallProvider>
-								<NotificationPermissionBanner />
-								{children}
-								<MiniMessenger />
-							</GlobalCallProvider>
+							<MessengerWebSocketProvider>
+								<GlobalCallProvider>
+									<NotificationPermissionBanner />
+									{children}
+									<MiniMessenger />
+								</GlobalCallProvider>
+							</MessengerWebSocketProvider>
 						</MessengerEmojiProvider>
 					</ConfirmProvider>
 				</MessageToastProvider>

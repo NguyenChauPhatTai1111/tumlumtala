@@ -36,6 +36,7 @@ import {
 	MessengerSearchDetailPanel,
 } from "./MessengerPanels";
 import { useGlobalCall } from "@/features/calls";
+import { useSwipeBack } from "@/hooks/ui/useSwipeBack";
 
 export type MessengerContentProps = {
 	isMobile: boolean;
@@ -236,8 +237,22 @@ export const MessengerContent = memo(
 			useState<HTMLElement | null>(null);
 		const [avatarMenuParticipant, setAvatarMenuParticipant] =
 			useState<Participant | null>(null);
-		const { startConversationCall } = useGlobalCall();
+		const { startConversationCall, callState } = useGlobalCall();
+
+		const swipeBack = useSwipeBack({
+			onSwipe: onBack,
+			disabled: !isMobile || !selectedConversation,
+		});
+		const isInActiveCall = [
+			"permission_checking",
+			"calling",
+			"ringing",
+			"connecting",
+			"connected",
+			"reconnecting",
+		].includes(callState);
 		const callDisabled =
+			isInActiveCall ||
 			!selectedConversation ||
 			selectedConversation.is_group ||
 			selectedConversation.participants.filter(
@@ -344,6 +359,7 @@ export const MessengerContent = memo(
 
 		return (
 			<Box
+				ref={swipeBack.ref}
 				sx={{
 					display: "flex",
 					flex: 1,
@@ -401,6 +417,11 @@ export const MessengerContent = memo(
 								onAudioCall={() => startConversationCall(selectedConversation, "audio")}
 								onVideoCall={() => startConversationCall(selectedConversation, "video")}
 								callDisabled={callDisabled}
+								callDisabledReason={
+									isInActiveCall
+										? "Bạn đang trong một cuộc gọi khác"
+										: "Chỉ hỗ trợ cuộc trò chuyện 1-1"
+								}
 								showBackButton={isMobile}
 								onBack={onBack}
 							/>

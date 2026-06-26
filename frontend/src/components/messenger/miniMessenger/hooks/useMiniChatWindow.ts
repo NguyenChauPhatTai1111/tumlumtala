@@ -10,8 +10,8 @@ import {
 	useMessengerConversationActions,
 	useMessengerMessageActions,
 	useMessengerMessages,
-	useMessengerWebSocketConnection,
 } from "@hooks/messenger";
+import { useSharedMessengerWS } from "@/context/MessengerWebSocketContext";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -99,7 +99,7 @@ export function useMiniChatWindow({
 	const queryClient = useQueryClient();
 	const { open } = useNotification();
 	const navigate = useNavigate();
-	const ws = useMessengerWebSocketConnection();
+	const ws = useSharedMessengerWS();
 	const conversationActions = useMessengerConversationActions();
 	const messageActions = useMessengerMessageActions(conversation.id);
 	const themesQuery = useQuery({

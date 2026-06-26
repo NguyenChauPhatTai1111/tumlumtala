@@ -4,6 +4,7 @@ import {
     getConversationDisplayName,
 } from "@components/messenger/messengerUtils";
 import type { ConversationItemProps } from "@components/messenger/types/conversation";
+import { getConversationCallPreview } from "@components/messenger/utils/callMessage";
 import type { Participant } from "@/types/messenger";
 import AttachFileOutlinedIcon from "@mui/icons-material/AttachFileOutlined";
 import GroupIcon from "@mui/icons-material/Group";
@@ -412,6 +413,7 @@ export const ConversationItem = ({
                                             conversation.last_message_type ?? "text";
                                         const isReaction = message_type === "reaction";
                                         const isActivity = message_type === "activity";
+                                        const callPreview = getConversationCallPreview(conversation);
                                         if (isActivity) {
                                             return content;
                                         }
@@ -455,11 +457,11 @@ export const ConversationItem = ({
                                         };
 
                                         const displayContent =
-                                            messageTypeLabels[message_type] ?? content;
+                                            callPreview || (messageTypeLabels[message_type] ?? content);
 
                                         return isReaction
                                             ? displayContent
-                                            : `${sender} ${displayContent}`;
+                                            : `${sender}${displayContent}`;
                                     })()
                                 ) : (
                                     "Chưa có tin nhắn"

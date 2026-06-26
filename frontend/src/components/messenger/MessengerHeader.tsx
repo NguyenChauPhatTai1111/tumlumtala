@@ -31,6 +31,7 @@ export const MessengerHeader = ({
 	onAudioCall,
 	onVideoCall,
 	callDisabled,
+	callDisabledReason,
 	showBackButton = false,
 	onBack,
 	overrideTextColor,
@@ -159,7 +160,7 @@ export const MessengerHeader = ({
 				onClick={(e) => e.stopPropagation()}
 				sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
 			>
-				<Tooltip title={callDisabled ? "Chỉ hỗ trợ cuộc trò chuyện 1-1" : "Gọi thoại"}>
+				<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi thoại"}>
 					<span>
 						<IconButton
 							size="small"
@@ -174,7 +175,7 @@ export const MessengerHeader = ({
 					</span>
 				</Tooltip>
 
-				<Tooltip title={callDisabled ? "Chỉ hỗ trợ cuộc trò chuyện 1-1" : "Gọi video"}>
+				<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi video"}>
 					<span>
 						<IconButton
 							size="small"

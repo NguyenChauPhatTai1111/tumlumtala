@@ -3,10 +3,11 @@ import { useNotification } from "@hooks/common/useNotification";
 import { messengerKeys } from "@hooks/keys/messengerKeys";
 import {
 	useMessengerConversations,
-	useMessengerWebSocketConnection,
 	useNewMessageNotification,
 } from "@hooks/messenger";
+import { useSharedMessengerWS } from "@/context/MessengerWebSocketContext";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { listUsers } from "@/api/userApi";
@@ -81,6 +82,10 @@ function readStoredRailCleared() {
 	return window.localStorage.getItem(MINI_RAIL_CLEARED_STORAGE_KEY) === "true";
 }
 
+function getHttpStatus(error: unknown) {
+	return axios.isAxiosError(error) ? error.response?.status : undefined;
+}
+
 export function useMiniMessenger() {
 	const [openConversationIds, setOpenConversationIds] = useState<number[]>(
 		readStoredOpenConversationIds,
@@ -103,6 +108,7 @@ export function useMiniMessenger() {
 	const currentUserId = currentUser?.id;
 	const { open } = useNotification();
 	const { notify: notifyNewMessage } = useNewMessageNotification();
+	const queryClient = useQueryClient();
 	const conversationsQuery = useMessengerConversations(
 		CONVERSATION_FETCH_LIMIT,
 		0,
@@ -131,12 +137,17 @@ export function useMiniMessenger() {
 		[conversations, openConversationIds, pinnedRailConversationIds],
 	);
 	const restoredConversationQueries = useQueries({
-		queries: missingConversationIds.map((conversationId) => ({
-			queryKey: messengerKeys.conversation(String(conversationId)),
-			queryFn: () => getConversation(conversationId),
-			staleTime: 30_000,
-		})),
-	});
+			queries: missingConversationIds.map((conversationId) => ({
+				queryKey: messengerKeys.conversation(String(conversationId)),
+				queryFn: () => getConversation(conversationId),
+				staleTime: 30_000,
+				retry: (failureCount: number, error: unknown) => {
+					const status = getHttpStatus(error);
+					if (status === 403 || status === 404) return false;
+					return failureCount < 1;
+				},
+			})),
+		});
 	const restoredConversations = useMemo(
 		() =>
 			restoredConversationQueries
@@ -146,6 +157,33 @@ export function useMiniMessenger() {
 				),
 		[restoredConversationQueries],
 	);
+	useEffect(() => {
+		const unavailableIds = missingConversationIds.filter(
+			(conversationId, index) => {
+				const query = restoredConversationQueries[index];
+				const status = getHttpStatus(query?.error);
+				return query?.isError && (status === 403 || status === 404);
+			},
+		);
+		if (unavailableIds.length === 0) return;
+
+		const unavailable = new Set(unavailableIds);
+		setOpenConversationIds((prev) => prev.filter((id) => !unavailable.has(id)));
+		setPinnedRailConversationIds((prev) =>
+			prev.filter((id) => !unavailable.has(id)),
+		);
+		setDismissedConversationIds((prev) =>
+			prev.filter((id) => !unavailable.has(id)),
+		);
+		setActiveConversationId((prev) =>
+			prev !== null && unavailable.has(prev) ? null : prev,
+		);
+		for (const conversationId of unavailableIds) {
+			queryClient.removeQueries({
+				queryKey: messengerKeys.conversation(String(conversationId)),
+			});
+		}
+	}, [missingConversationIds, queryClient, restoredConversationQueries]);
 	const availableConversations = useMemo(() => {
 		const byId = new Map<number, Conversation>();
 		for (const conversation of [...conversations, ...restoredConversations]) {
@@ -157,8 +195,7 @@ export function useMiniMessenger() {
 		return Array.from(byId.values());
 	}, [conversations, restoredConversations, usersForAvatar]);
 
-	const ws = useMessengerWebSocketConnection();
-	const queryClient = useQueryClient();
+	const ws = useSharedMessengerWS();
 
 	// Persist state to localStorage
 	useEffect(() => {

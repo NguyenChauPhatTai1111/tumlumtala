@@ -46,6 +46,7 @@ export type MessageBubbleProps = {
 	onReplyMessage?: (message: Message) => void;
 	onJumpToMessage?: (id: number) => void;
 	onViewHistories?: (message: Message) => void;
+	onCallBack?: () => void;
 	onContextMenuOpen?: (
 		pos: { top: number; left: number },
 		message: Message,

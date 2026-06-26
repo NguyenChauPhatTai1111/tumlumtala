@@ -51,6 +51,21 @@ export function useCall({
 		[ws],
 	);
 
+	// Attach session routing fields so the backend can relay without a DB lookup.
+	const sendWithSession = useCallback(
+		(type: string, extra: Record<string, unknown>) => {
+			const session = contextRef.current.session;
+			ws?.sendCall(type, {
+				call_id: session?.id ?? activeCallIdRef.current,
+				caller_id: session?.caller_id,
+				receiver_id: session?.receiver_id,
+				conversation_id: session?.conversation_id,
+				...extra,
+			});
+		},
+		[ws],
+	);
+
 	const cleanup = useCallback(() => {
 		clientRef.current?.stop();
 		clientRef.current = null;
@@ -76,8 +91,12 @@ export function useCall({
 			clientRef.current = new WebRTCClient(
 				(candidate) => {
 					if (!activeCallIdRef.current) return;
-					send("call:ice-candidate", {
+					const session = contextRef.current.session;
+					ws?.sendCall("call:ice-candidate", {
 						call_id: activeCallIdRef.current,
+						caller_id: session?.caller_id,
+						receiver_id: session?.receiver_id,
+						conversation_id: session?.conversation_id,
 						candidate,
 					});
 				},
@@ -87,7 +106,13 @@ export function useCall({
 					if (connectionState === "disconnected") {
 						setCallState("reconnecting");
 						if (activeCallIdRef.current) {
-							send("call:reconnect", { call_id: activeCallIdRef.current });
+							const session = contextRef.current.session;
+							ws?.sendCall("call:reconnect", {
+								call_id: activeCallIdRef.current,
+								caller_id: session?.caller_id,
+								receiver_id: session?.receiver_id,
+								conversation_id: session?.conversation_id,
+							});
 						}
 					}
 					if (connectionState === "failed") setCallState("failed");
@@ -95,13 +120,14 @@ export function useCall({
 			);
 			return clientRef.current;
 		},
-		[send, setCallState],
+		[ws, setCallState],
 	);
 
 	const startCall = useCallback(
 		async (callType: CallType, conversationOverride?: Conversation) => {
 			const conversation = conversationOverride ?? selectedConversation;
 			const peer = getPeer(conversation, currentUserId);
+			console.log("[startCall] callType=", callType, "conversation=", conversation?.id, "peer=", peer?.id, "currentUserId=", currentUserId, "ws connected=", ws?.isConnected());
 			if (!conversation || !peer || !currentUserId) return;
 			if (conversation.is_group) {
 				setError("Cuộc gọi nhóm chưa được hỗ trợ.");
@@ -156,24 +182,24 @@ export function useCall({
 			const stream = await client.prepare(session.call_type);
 			setLocalStream(stream);
 			callRingtone.stop();
-			send("call:accept", { call_id: session.id });
+			sendWithSession("call:accept", {});
 			setCallState("connecting");
 		} catch {
 			setError("Không thể truy cập camera/microphone.");
-			send("call:failed", { call_id: session.id });
+			sendWithSession("call:failed", {});
 			setCallState("failed");
 			cleanup();
 		}
-	}, [cleanup, ensureClient, send, setCallState]);
+	}, [cleanup, ensureClient, sendWithSession, setCallState]);
 
 	const rejectCall = useCallback(() => {
 		const session = contextRef.current.session;
 		if (!session) return;
 		callRingtone.stop();
-		send("call:reject", { call_id: session.id });
+		sendWithSession("call:reject", {});
 		setCallState("rejected");
 		resetLater();
-	}, [resetLater, send, setCallState]);
+	}, [resetLater, send, sendWithSession, setCallState]);
 
 	const cancelOrEndCall = useCallback(() => {
 		// Use activeCallIdRef as fallback: contextRef.current.session is updated
@@ -191,10 +217,10 @@ export function useCall({
 				? "call:cancel"
 				: "call:end";
 		callRingtone.stop();
-		send(eventType, { call_id: callId });
+		sendWithSession(eventType, {});
 		setCallState(eventType === "call:cancel" ? "cancelled" : "ended");
 		resetLater();
-	}, [cleanup, resetLater, send, setCallState, state]);
+	}, [cleanup, resetLater, send, sendWithSession, setCallState, state]);
 
 	const toggleMic = useCallback(() => {
 		const enabled = clientRef.current?.toggleMic();
@@ -216,12 +242,19 @@ export function useCall({
 		const handlers = {
 			onCallIncoming: (raw: unknown) => {
 				const session = normalizeSession(raw);
+				console.log("[call:incoming] raw=", raw, "session=", session, "currentUserId=", currentUserId);
 				if (!session) return;
 				// Backend already routes call:incoming to the correct user channel.
 				// Only skip if we KNOW our ID and it doesn't match (safety guard).
-				if (currentUserId > 0 && session.receiver_id !== currentUserId) return;
+				if (currentUserId > 0 && session.receiver_id !== currentUserId) {
+					console.log("[call:incoming] ignored — receiver_id mismatch", session.receiver_id, "!=", currentUserId);
+					return;
+				}
 				// Don't show incoming popup if we're the caller.
-				if (currentUserId > 0 && session.caller_id === currentUserId) return;
+				if (currentUserId > 0 && session.caller_id === currentUserId) {
+					console.log("[call:incoming] ignored — we are the caller");
+					return;
+				}
 				activeCallIdRef.current = session.id;
 				const conversation =
 					selectedConversation?.id === session.conversation_id
@@ -276,15 +309,28 @@ export function useCall({
 				if (!amCaller) return;
 				const client = ensureClient();
 				const offer = await client.createOffer();
-				send("call:offer", { call_id: session.id, sdp: offer });
+				ws?.sendCall("call:offer", {
+					call_id: session.id,
+					caller_id: session.caller_id,
+					receiver_id: session.receiver_id,
+					conversation_id: session.conversation_id,
+					sdp: offer,
+				});
 			},
 			onCallOffer: async (raw: unknown) => {
 				const payload = raw as CallSignalPayload;
 				const callID = payload.call_id || payload.id;
 				if (!callID || !payload.sdp) return;
 				activeCallIdRef.current = callID;
+				const session = contextRef.current.session;
 				const answer = await ensureClient().handleOffer(payload.sdp);
-				send("call:answer", { call_id: callID, sdp: answer });
+				ws?.sendCall("call:answer", {
+					call_id: callID,
+					caller_id: session?.caller_id ?? payload.caller_id,
+					receiver_id: session?.receiver_id ?? payload.receiver_id,
+					conversation_id: session?.conversation_id ?? payload.conversation_id,
+					sdp: answer,
+				});
 			},
 			onCallAnswer: async (raw: unknown) => {
 				const payload = raw as CallSignalPayload;

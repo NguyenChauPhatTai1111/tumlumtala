@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -139,6 +140,13 @@ func userIDFromContext(c *gin.Context) (uint, bool) {
 	return 0, false
 }
 
+func (h *MessengerHandler) ensureMediaUploadService() *conversationUC.MediaUploadService {
+	if h.mediaUploadService == nil {
+		h.mediaUploadService = conversationUC.NewMediaUploadService(newFallbackLocalUploader())
+	}
+	return h.mediaUploadService
+}
+
 func (h *MessengerHandler) CreateConversation(c *gin.Context) {
 	var req CreateConversationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -206,6 +214,119 @@ func (h *MessengerHandler) GetConversations(c *gin.Context) {
 		"data":           out.Data,
 		"paginator_info": out.PaginatorInfo,
 	})
+}
+
+func (h *MessengerHandler) GetConversation(c *gin.Context) {
+	convID, err := strconv.ParseUint(c.Param("conversation_id"), 10, 32)
+	if err != nil || convID == 0 {
+		ResponseBadRequest(c, domainerrors.MsgInvalidConversationID)
+		return
+	}
+
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		ResponseUnauthorized(c)
+		return
+	}
+
+	var participant model.UserConversationParticipant
+	if err := h.db.WithContext(c.Request.Context()).
+		Where("conversation_id = ? AND user_id = ? AND deleted_at IS NULL", uint(convID), userID).
+		First(&participant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			ResponseForbidden(c, domainerrors.MsgNotParticipant)
+			return
+		}
+		ResponseInternalError(c)
+		return
+	}
+
+	var conv model.UserConversation
+	if err := h.db.WithContext(c.Request.Context()).First(&conv, uint(convID)).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			ResponseNotFound(c, domainerrors.MsgConversationNotFound)
+			return
+		}
+		ResponseInternalError(c)
+		return
+	}
+
+	var participants []conversationDTO.ParticipantInfo
+	if err := h.db.WithContext(c.Request.Context()).
+		Table("conversation_participants p").
+		Select("u.id AS id, u.fullname AS full_name, u.email AS email, COALESCE(u.avatar, '') AS avatar, '' AS gender, COALESCE(p.nickname, '') AS nickname, p.last_read_at, p.last_read_seq").
+		Joins("JOIN user_snapshots u ON p.user_id = u.id").
+		Where("p.conversation_id = ? AND p.deleted_at IS NULL", uint(convID)).
+		Scan(&participants).Error; err != nil {
+		ResponseInternalError(c)
+		return
+	}
+
+	var lastMessageType string
+	if conv.LastMessageID != nil {
+		var lastMessage struct {
+			MessageType string `gorm:"column:message_type"`
+		}
+		if err := h.db.WithContext(c.Request.Context()).
+			Table("messages").
+			Select("message_type").
+			Where("id = ? AND deleted_at IS NULL", *conv.LastMessageID).
+			Scan(&lastMessage).Error; err == nil {
+			lastMessageType = lastMessage.MessageType
+		}
+	}
+
+	var lastSenderName string
+	if conv.LastMessageSenderID != nil {
+		_ = h.db.WithContext(c.Request.Context()).
+			Table("user_snapshots").
+			Select("COALESCE(fullname, '')").
+			Where("id = ?", *conv.LastMessageSenderID).
+			Scan(&lastSenderName).Error
+	}
+
+	dto := conversationDTO.ConversationDTO{
+		ID:                    conv.ID,
+		IsGroup:               conv.IsGroup,
+		IsArchived:            participant.IsArchived,
+		Name:                  conv.Name,
+		Avatar:                conv.Avatar,
+		ThemeID:               conv.ThemeID,
+		ThemeURL:              conv.ThemeURL,
+		NotificationsEnabled:  participant.NotificationsEnabled,
+		CreatedAt:             conv.CreatedAt,
+		CreatedBy:             conv.CreatedBy,
+		UnreadCount:           participant.UnreadCount,
+		LastMessageAt:         conv.LastMessageAt,
+		LastMessageID:         conv.LastMessageID,
+		LastMessageContent:    conv.LastMessageContent,
+		LastMessageSenderID:   conv.LastMessageSenderID,
+		LastMessageType:       lastMessageType,
+		LastMessageSenderName: lastSenderName,
+		LastReadMessageID:     participant.LastReadSeq,
+		Participants:          participants,
+	}
+
+	if conv.ThemeID != nil {
+		var theme model.Theme
+		if err := h.db.WithContext(c.Request.Context()).
+			Where("id = ? AND status = 'active'", *conv.ThemeID).
+			First(&theme).Error; err == nil {
+			dto.Theme = &conversationDTO.ConversationThemeDTO{
+				ID:                  theme.ID,
+				PresetID:            theme.PresetID,
+				Name:                theme.Name,
+				Background:          theme.Background,
+				BackgroundColor:     theme.BackgroundColor,
+				IncomingBubbleColor: theme.IncomingBubbleColor,
+				OutgoingBubbleColor: theme.OutgoingBubbleColor,
+				IncomingTextColor:   theme.IncomingTextColor,
+				OutgoingTextColor:   theme.OutgoingTextColor,
+			}
+		}
+	}
+
+	ResponseSuccess(c, http.StatusOK, "Lấy cuộc trò chuyện thành công", dto)
 }
 
 func (h *MessengerHandler) GetCallSessions(c *gin.Context) {
@@ -754,8 +875,21 @@ func (h *MessengerHandler) UploadMessageAttachment(c *gin.Context) {
 		return
 	}
 
-	if h.mediaUploadService == nil {
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		ResponseUnauthorized(c)
+		return
+	}
+	var participantCount int64
+	if err := h.db.WithContext(c.Request.Context()).
+		Table("conversation_participants").
+		Where("conversation_id = ? AND user_id = ? AND deleted_at IS NULL", uint(convID), userID).
+		Count(&participantCount).Error; err != nil {
 		ResponseInternalError(c)
+		return
+	}
+	if participantCount == 0 {
+		ResponseForbidden(c, domainerrors.MsgNotParticipant)
 		return
 	}
 
@@ -765,8 +899,9 @@ func (h *MessengerHandler) UploadMessageAttachment(c *gin.Context) {
 		return
 	}
 
-	assetURL, uploadErr := h.mediaUploadService.UploadMessageAttachment(c.Request.Context(), uint(convID), fileHeader)
+	assetURL, uploadErr := h.ensureMediaUploadService().UploadMessageAttachment(c.Request.Context(), uint(convID), fileHeader)
 	if uploadErr != nil {
+		fmt.Printf("[messenger] upload attachment failed conversation_id=%d user_id=%d filename=%q size=%d err=%v\n", convID, userID, fileHeader.Filename, fileHeader.Size, uploadErr)
 		ResponseBadRequest(c, domainerrors.MsgFailedToUploadAsset)
 		return
 	}

@@ -1,6 +1,10 @@
 import type { Conversation, Message } from "@/types/messenger";
 import { resolveCdnUrl } from "@/utils/urlUtils";
 import { buildGeneratedAvatar } from "../utils/avatar";
+import {
+	getConversationCallPreview,
+	getMessageCallPreview,
+} from "../utils/callMessage";
 
 export function getConversationTitle(
 	conversation: Conversation | undefined,
@@ -87,11 +91,13 @@ export function getLastMessagePreviewContent(conversation: Conversation) {
 	const messageType = String(
 		conversation.last_message_type ?? "",
 	).toLowerCase();
+	const callPreview = getConversationCallPreview(conversation);
 	const looksLikeAttachmentPath = Boolean(
 		content?.includes("/messenger/attachments/") ||
 			content?.includes("messenger/attachments/"),
 	);
 
+	if (callPreview) return callPreview;
 	if (messageType === "image") return "Hình ảnh";
 	if (messageType === "video") return "Video";
 	if (messageType === "file" || looksLikeAttachmentPath) return "Tệp đính kèm";
@@ -104,11 +110,13 @@ export function getLastMessagePreviewContent(conversation: Conversation) {
 export function getMessagePreviewContent(message: Message) {
 	const content = message.content?.trim();
 	const messageType = String(message.message_type ?? "").toLowerCase();
+	const callPreview = getMessageCallPreview(message);
 	const looksLikeAttachmentPath = Boolean(
 		content?.includes("/messenger/attachments/") ||
 			content?.includes("messenger/attachments/"),
 	);
 
+	if (callPreview) return callPreview;
 	if (messageType === "image") return "Hình ảnh";
 	if (messageType === "video") return "Video";
 	if (messageType === "file" || looksLikeAttachmentPath) return "Tệp đính kèm";

@@ -62,7 +62,14 @@ export const useMessengerPageState = () => {
 		setCreateGroupPreselectedParticipants,
 	] = useState<import("@/types/messenger").Participant[]>([]);
 	const [showConversationList, setShowConversationList] = useState(true);
-	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+	const [isSidebarCollapsed, _setIsSidebarCollapsed] = useState(false);
+	const setIsSidebarCollapsed = useCallback(
+		(value: boolean | ((prev: boolean) => boolean)) => {
+			if (isMobile) return;
+			_setIsSidebarCollapsed(value);
+		},
+		[isMobile],
+	);
 	const [conversationTab, setConversationTab] = useState<
 		"active" | "unread" | "archived"
 	>("active");
@@ -350,7 +357,7 @@ export const useMessengerPageState = () => {
 		setOpeningUnreadSnapshot,
 		conversationDrafts,
 		setConversationDrafts,
-		isSidebarCollapsed,
+		isSidebarCollapsed: isMobile ? false : isSidebarCollapsed,
 		setIsSidebarCollapsed,
 
 		// search / messages

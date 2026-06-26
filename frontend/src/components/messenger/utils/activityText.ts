@@ -1,4 +1,10 @@
 import type { Message } from "@/types/messenger";
+import {
+	formatCallDuration,
+	getCallStatusLabel,
+	getCallTitle,
+	parseCallMeta,
+} from "./callMessage";
 
 const ACTIVITY_LABELS: Record<string, string> = {
 	left_group: "Rời nhóm",
@@ -13,33 +19,23 @@ const ACTIVITY_LABELS: Record<string, string> = {
 	call_cancelled: "Cuộc gọi bị hủy",
 };
 
-function formatCallDuration(seconds: number): string {
-	if (seconds <= 0) return "";
-	const m = Math.floor(seconds / 60);
-	const s = seconds % 60;
-	return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`;
-}
-
 export function getActivityText(message: Message): string {
 	if (!message.activity_type) return "";
-	if (message.content?.trim()) return message.content;
-
-	if (message.activity_type.startsWith("call_") && message.activity_metadata) {
-		try {
-			const meta = JSON.parse(message.activity_metadata) as {
-				call_type?: string;
-				duration_seconds?: number;
-			};
-			const icon = meta.call_type === "audio" ? "📞" : "📹";
-			const base = ACTIVITY_LABELS[message.activity_type] ?? message.activity_type;
-			const duration = message.activity_type === "call_ended" && meta.duration_seconds
+	if (message.activity_type.startsWith("call_")) {
+		const meta = parseCallMeta(message.activity_metadata || message.content);
+		const icon = meta?.call_type === "audio" ? "📞" : "📹";
+		const base = ACTIVITY_LABELS[message.activity_type] ?? getCallTitle("", meta?.call_type);
+		const duration =
+			message.activity_type === "call_ended" && meta?.duration_seconds
 				? ` · ${formatCallDuration(meta.duration_seconds)}`
 				: "";
-			return `${icon} ${base}${duration}`;
-		} catch {
-			// fall through
-		}
+		const status =
+			!ACTIVITY_LABELS[message.activity_type] && meta
+				? ` · ${getCallStatusLabel(meta.status, meta.duration_seconds)}`
+				: "";
+		return `${icon} ${base}${duration}${status}`;
 	}
+	if (message.content?.trim()) return message.content;
 
 	if (message.activity_metadata) {
 		try {
