@@ -114,7 +114,8 @@ export function useMiniMessenger() {
 	const usersForAvatarQuery = useQuery({
 		queryKey: ["users", "messenger-avatar-hydration"],
 		queryFn: () => listUsers(200, 0),
-		staleTime: 60_000,
+		staleTime: 5 * 60_000,
+		gcTime: 10 * 60_000,
 		enabled: Boolean(currentUserId),
 	});
 	const usersForAvatar = useMemo(
@@ -481,43 +482,49 @@ export function useMiniMessenger() {
 			});
 
 			if (Number(msg.sender_id) !== Number(currentUserId)) {
-				if (!location.pathname.startsWith("/messenger")) {
-					const conversation = availableConversations.find(
-						(item) => item.id === msg.conversation_id,
-					);
-					const senderParticipant = conversation?.participants.find(
-						(participant) =>
-							Number(participant.id) === Number(msg.sender_id),
-					);
+				void (async () => {
+					const conversation =
+						availableConversations.find(
+							(item) => item.id === msg.conversation_id,
+						) ?? (await getConversation(msg.conversation_id).catch(() => null));
+					if (!conversation || conversation.notifications_enabled === false)
+						return;
 
-					notifyNewMessage({
-						senderName:
-							senderParticipant?.nickname ||
-							senderParticipant?.fullname ||
-							msg.sender_name,
-						conversationName: conversation?.is_group
-							? getConversationTitle(conversation, currentUserId)
-							: undefined,
-						content: getMessagePreviewContent(msg),
-						senderAvatar: resolveCdnUrl(senderParticipant?.avatar),
-					});
-				}
+					if (!location.pathname.startsWith("/messenger")) {
+						const senderParticipant = conversation.participants.find(
+							(participant) =>
+								Number(participant.id) === Number(msg.sender_id),
+						);
 
-				if (openConversationIds.includes(msg.conversation_id)) return;
+						notifyNewMessage({
+							senderName:
+								senderParticipant?.nickname ||
+								senderParticipant?.fullname ||
+								msg.sender_name,
+							conversationName: conversation.is_group
+								? getConversationTitle(conversation, currentUserId)
+								: undefined,
+							content: getMessagePreviewContent(msg),
+							senderAvatar: resolveCdnUrl(senderParticipant?.avatar),
+						});
+					}
 
-				if (openConversationIds.length > 0) {
-					setRailCleared(false);
-					setDismissedConversationIds((prev) =>
-						prev.filter((id) => id !== msg.conversation_id),
-					);
-					setPinnedRailConversationIds((prev) => [
-						msg.conversation_id,
-						...prev.filter((id) => id !== msg.conversation_id),
-					]);
-					return;
-				}
+					if (openConversationIds.includes(msg.conversation_id)) return;
 
-				openConversation(msg.conversation_id);
+					if (openConversationIds.length > 0) {
+						setRailCleared(false);
+						setDismissedConversationIds((prev) =>
+							prev.filter((id) => id !== msg.conversation_id),
+						);
+						setPinnedRailConversationIds((prev) => [
+							msg.conversation_id,
+							...prev.filter((id) => id !== msg.conversation_id),
+						]);
+						return;
+					}
+
+					openConversation(msg.conversation_id);
+				})();
 			}
 		};
 

@@ -73,19 +73,22 @@ func (c *UserSnapshotConsumer) Run(ctx context.Context) {
 
 func (c *UserSnapshotConsumer) handleUpsert(ctx context.Context, env envelope.Envelope) error {
 	var id uint64
-	var userUUID, email, fullname, avatar, role string
+	var userUUID, email, fullname, avatar, role, status string
 
 	if ev, err := consumer.Unmarshal[events.UserCreatedEvent](env); err == nil {
-		id, userUUID, email, fullname, avatar, role = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role
+		id, userUUID, email, fullname, avatar, role, status = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role, ev.Status
 	} else if ev, err := consumer.Unmarshal[events.UserUpdatedEvent](env); err == nil {
-		id, userUUID, email, fullname, avatar, role = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role
+		id, userUUID, email, fullname, avatar, role, status = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role, ev.Status
 	} else if ev, err := consumer.Unmarshal[events.UserUpsertedEvent](env); err == nil {
-		id, userUUID, email, fullname, avatar, role = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role
+		id, userUUID, email, fullname, avatar, role, status = ev.ID, ev.UUID, ev.Email, ev.Fullname, ev.Avatar, ev.Role, ev.Status
 	} else {
 		return fmt.Errorf("handleUpsert: cannot unmarshal envelope topic=%s", env.Topic)
 	}
+	if status == "" {
+		status = "active"
+	}
 
-	return c.store.Upsert(ctx, id, userUUID, email, fullname, avatar, role, time.Now().UTC())
+	return c.store.Upsert(ctx, id, userUUID, email, fullname, avatar, role, status, time.Now().UTC())
 }
 
 func (c *UserSnapshotConsumer) handleDelete(ctx context.Context, env envelope.Envelope) error {

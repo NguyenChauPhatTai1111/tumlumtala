@@ -10,6 +10,10 @@ func NewMessengerRoutes(proxy *MessengerProxy) *MessengerRoutes {
 	return &MessengerRoutes{proxy: proxy}
 }
 
+func (r *MessengerRoutes) RegisterPublic(router *gin.RouterGroup) {
+	router.Any("/messenger-uploads/*path", r.proxy.ServeHTTP)
+}
+
 // Register proxies all authenticated /messenger/* and related resource requests to the messenger-service.
 func (r *MessengerRoutes) Register(router *gin.RouterGroup) {
 	messenger := router.Group("/messenger")

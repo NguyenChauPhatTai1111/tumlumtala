@@ -37,7 +37,7 @@ import {
 	useSendMessengerMessage,
 } from "@hooks/messenger";
 import { usePresence } from "@hooks/messenger/usePresence";
-import { getConversations } from "@/services/messengerService";
+import { getConversation, getConversations } from "@/services/messengerService";
 import { Box, useTheme } from "@mui/material";
 import { MessengerContent } from "@pages/messenger/components/MessengerContent";
 import { MessengerSidebar } from "@pages/messenger/components/MessengerSidebar";
@@ -1022,16 +1022,22 @@ export default function MessengerPage() {
 				conversationId === selectedConversationIdRef.current &&
 				document.hasFocus();
 			if (!isSenderCurrentUser && !isViewingConversation) {
-				const conv = conversations.find((c) => c.id === conversationId);
-				const senderParticipant = conv?.participants?.find(
-					(p) => p.id === Number(msg.sender_id),
-				);
-				notifyNewMessage({
-					senderName: senderParticipant?.fullname,
-					conversationName: conv?.is_group ? conv.name : undefined,
-					content: msg.content,
-					senderAvatar: senderParticipant?.avatar,
-				});
+				void (async () => {
+					const conv =
+						conversations.find((c) => c.id === conversationId) ??
+						(await getConversation(conversationId).catch(() => null));
+					if (!conv || conv.notifications_enabled === false) return;
+
+					const senderParticipant = conv.participants?.find(
+						(p) => p.id === Number(msg.sender_id),
+					);
+					notifyNewMessage({
+						senderName: senderParticipant?.fullname,
+						conversationName: conv.is_group ? conv.name : undefined,
+						content: msg.content,
+						senderAvatar: senderParticipant?.avatar,
+					});
+				})();
 			}
 
 			// Auto mark-as-read if the user is currently viewing this conversation.

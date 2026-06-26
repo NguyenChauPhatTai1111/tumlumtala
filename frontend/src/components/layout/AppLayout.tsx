@@ -21,6 +21,7 @@ import { alpha } from "@mui/material/styles";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DashboardIcon from "@mui/icons-material/Dashboard";
+import HomeIcon from "@mui/icons-material/Home";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MovieIcon from "@mui/icons-material/Movie";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
@@ -39,16 +40,23 @@ import { useThemeMode } from "@store/themeStore";
 import { useCurrentUser, currentUserCache } from "@hooks/user/useCurrentUser";
 import { ProfileDialog } from "@components/user/dialog/ProfileDialog";
 import { HeaderChatsMenu } from "@components/messenger/HeaderChatsMenu";
+import { isAdminIdentity, hasAnyPermissionForResource } from "@/utils/permissionAccess";
 
 const DRAWER_WIDTH = 240;
 const DRAWER_COLLAPSED = 64;
 
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: <DashboardIcon />, path: "/" },
-  { label: "Người dùng", icon: <PeopleIcon />, path: "/users" },
+// Items always visible to any authenticated user
+const PUBLIC_NAV_ITEMS = [
+  { label: "Trang chủ", icon: <HomeIcon />, path: "/" },
   { label: "Phim", icon: <MovieIcon />, path: "/movie" },
   { label: "Âm nhạc", icon: <MusicNoteIcon />, path: "/music" },
   { label: "Tin nhắn", icon: <ChatIcon />, path: "/messenger" },
+];
+
+// Items gated by permission
+const ADMIN_NAV_ITEMS = [
+  { label: "Dashboard", icon: <DashboardIcon />, path: "/dashboard", resource: "dashboard" },
+  { label: "Người dùng", icon: <PeopleIcon />, path: "/users", resource: "user" },
 ];
 
 const SiderContent = ({
@@ -56,13 +64,20 @@ const SiderContent = ({
   onClose,
   onNavigate,
   activePath,
+  user,
 }: {
   collapsed: boolean;
   onClose?: () => void;
   onNavigate: (path: string) => void;
   activePath: string;
+  user: import("@/types").IUser | null;
 }) => {
   const theme = useTheme();
+  const isAdmin = isAdminIdentity(user);
+  const visibleAdminItems = ADMIN_NAV_ITEMS.filter(
+    (item) => isAdmin || hasAnyPermissionForResource(user, item.resource),
+  );
+  const navItems = [...visibleAdminItems, ...PUBLIC_NAV_ITEMS];
 
   return (
     <Box
@@ -115,7 +130,7 @@ const SiderContent = ({
 
       {/* Nav items */}
       <List sx={{ flexGrow: 1, pt: 1 }}>
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isActive = activePath === item.path || (item.path !== "/" && activePath.startsWith(item.path));
           return (
             <Tooltip
@@ -224,6 +239,7 @@ export const AppLayout = () => {
               onClose={() => setMobileOpen(false)}
               onNavigate={navigate}
               activePath={location.pathname}
+              user={user ?? null}
             />
           </Drawer>
         )}
@@ -244,6 +260,7 @@ export const AppLayout = () => {
               collapsed={collapsed}
               onNavigate={navigate}
               activePath={location.pathname}
+              user={user ?? null}
             />
           </Box>
         )}

@@ -1,11 +1,7 @@
 package bootstrap
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -16,48 +12,13 @@ import (
 	historyUC "github.com/tumlumtala/messenger-service/internal/application/usecase/history"
 	messageUC "github.com/tumlumtala/messenger-service/internal/application/usecase/message"
 	"github.com/tumlumtala/messenger-service/internal/config"
-	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
-	ws "github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 	persistenceQS "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/queryservice"
 	persistenceRepo "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/repository"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/storage"
+	ws "github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 	"gorm.io/gorm"
 )
-
-// bunnyCDNUploader implements conversationUC.MessengerAssetUploader via BunnyCDN Storage API.
-type bunnyCDNUploader struct {
-	apiKey      string
-	storageZone string
-	baseURL     string
-	client      *http.Client
-}
-
-func newBunnyCDNUploader(cfg config.Config) *bunnyCDNUploader {
-	return &bunnyCDNUploader{
-		apiKey:      cfg.BunnyCDN.APIKey,
-		storageZone: cfg.BunnyCDN.StorageZone,
-		baseURL:     cfg.BunnyCDN.CDNBaseURL,
-		client:      &http.Client{},
-	}
-}
-
-func (b *bunnyCDNUploader) Upload(ctx context.Context, remotePath string, payload []byte, contentType string) (string, error) {
-	url := fmt.Sprintf("https://storage.bunnycdn.com/%s/%s", b.storageZone, remotePath)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(payload))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("AccessKey", b.apiKey)
-	req.Header.Set("Content-Type", contentType)
-	resp, err := b.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _, _ = io.ReadAll(resp.Body); _ = resp.Body.Close() }()
-	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("bunnyCDN upload failed: status %d", resp.StatusCode)
-	}
-	return b.baseURL + "/" + remotePath, nil
-}
 
 func newRedisClient(cfg config.Config) *redis.Client {
 	return redis.NewClient(&redis.Options{
@@ -111,11 +72,12 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	// History use case
 	getMessageHistory := historyUC.NewGetMessageHistoryUseCase(historyRepo)
 
-	// Media upload (nil when BunnyCDN not configured — gracefully degraded)
 	var mediaUploadService *conversationUC.MediaUploadService
-	if cfg.BunnyCDN.APIKey != "" && cfg.BunnyCDN.StorageZone != "" {
-		bunny := newBunnyCDNUploader(cfg)
-		mediaUploadService = conversationUC.NewMediaUploadService(bunny)
+	localUploader, err := storage.NewLocalUploader(cfg.LocalUploadDir, cfg.LocalUploadURL)
+	if err == nil {
+		mediaUploadService = conversationUC.NewMediaUploadService(localUploader)
+	} else {
+		fmt.Printf("messenger local uploader disabled: %v\n", err)
 	}
 
 	// WebSocket
@@ -167,6 +129,7 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	routes := httpAdapter.NewMessengerRoutes(handler, wsHandler, pool, hub, db, cfg.JWTSecret)
 
 	v1 := engine.Group("/api/v1")
+	engine.Static(cfg.LocalUploadURL, cfg.LocalUploadDir)
 	routes.Register(v1)
 	routes.RegisterInfra(engine)
 }

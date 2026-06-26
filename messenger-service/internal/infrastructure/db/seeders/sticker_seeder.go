@@ -1,7 +1,6 @@
 package seeders
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +11,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/model"
-	"github.com/tumlumtala/messenger-service/pkg/bunnycdn"
 )
 
 type StickerSeeder struct{}
@@ -180,19 +178,6 @@ var packDefs = []stickerPackDef{
 }
 
 func (s *StickerSeeder) Run(db *gorm.DB) error {
-	ctx := context.Background()
-	skipUpload := os.Getenv("SKIP_CDN_UPLOAD") == "true" || os.Getenv("SKIP_STICKER_UPLOAD") == "true"
-
-	var client *bunnycdn.Client
-	if !skipUpload {
-		var err error
-		client, err = bunnycdn.NewClientFromEnv()
-		if err != nil {
-			fmt.Printf("  ⚠  bunnycdn init failed: %v — seeding stickers without upload\n", err)
-			skipUpload = true
-		}
-	}
-
 	// Resolve assets dir outside the block so it's available below
 	assetsDir := os.Getenv("STICKER_ASSETS_DIR")
 	if assetsDir == "" {
@@ -211,15 +196,7 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 	}
 
 	resolveURL := func(folder, file string) (string, error) {
-		if skipUpload {
-			return buildStickerCDNURL(assetsDir, folder, file)
-		}
-		url, err := uploadStickerFile(ctx, client, assetsDir, folder, file)
-		if err != nil {
-			fmt.Printf("  ⚠  upload failed %s/%s: %v — using existing CDN URL\n", folder, file, err)
-			return buildStickerCDNURL(assetsDir, folder, file)
-		}
-		return url, nil
+		return copyStickerAsset(assetsDir, folder, file)
 	}
 
 	for _, pd := range packDefs {
@@ -267,25 +244,36 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 			}
 		}
 
-		if skipUpload {
-			fmt.Printf("  ✓  pack %-30s seeded (no upload)\n", pd.name)
-		} else {
-			fmt.Printf("  ✓  pack %-30s uploaded\n", pd.name)
-		}
+		fmt.Printf("  ✓  pack %-30s seeded (local)\n", pd.name)
 	}
 
 	fmt.Printf("[StickerSeeder] seeded %d sticker packs\n", len(packDefs))
 	return nil
 }
 
-func buildStickerCDNURL(assetsDir, folder, baseName string) (string, error) {
-	cdnBaseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("BUNNYCDN_CDN_BASE_URL")), "/")
-	if cdnBaseURL == "" {
-		return "", fmt.Errorf("missing BUNNYCDN_CDN_BASE_URL for sticker CDN URL")
+func copyStickerAsset(assetsDir, folder, baseName string) (string, error) {
+	fileName := findStickerAssetName(assetsDir, folder, baseName)
+	sourcePath := filepath.Join(assetsDir, folder, fileName)
+	uploadDir := os.Getenv("LOCAL_UPLOAD_DIR")
+	if uploadDir == "" {
+		cwd, _ := os.Getwd()
+		uploadDir = filepath.Join(cwd, "..", "..", "uploads")
+	}
+	targetDir := filepath.Join(uploadDir, "stickers", folder)
+	targetPath := filepath.Join(targetDir, fileName)
+
+	if raw, err := os.ReadFile(sourcePath); err == nil {
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(targetPath, raw, 0o644); err != nil {
+			return "", err
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
 	}
 
-	fileName := findStickerAssetName(assetsDir, folder, baseName)
-	return fmt.Sprintf("%s/stickers/%s/%s", cdnBaseURL, folder, fileName), nil
+	return fmt.Sprintf("/api/v1/messenger-uploads/stickers/%s/%s", folder, fileName), nil
 }
 
 func findStickerAssetName(assetsDir, folder, baseName string) string {
@@ -310,39 +298,4 @@ func findStickerAssetName(assetsDir, folder, baseName string) string {
 		extension = "." + extension
 	}
 	return baseName + extension
-}
-
-// uploadStickerFile finds a file by base name (any extension) in dir/folder/, uploads to CDN, returns public URL.
-func uploadStickerFile(ctx context.Context, client *bunnycdn.Client, assetsDir, folder, baseName string) (string, error) {
-	// dir := filepath.Join(assetsDir, folder)
-	// entries, err := os.ReadDir(dir)
-	// if err != nil {
-	// 	return "", fmt.Errorf("read dir %s: %w", dir, err)
-	// }
-
-	// for _, e := range entries {
-	// 	if e.IsDir() {
-	// 		continue
-	// 	}
-	// 	nameNoExt := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
-	// 	if nameNoExt != baseName {
-	// 		continue
-	// 	}
-
-	// 	localPath := filepath.Join(dir, e.Name())
-	// 	raw, err := os.ReadFile(localPath)
-	// 	if err != nil {
-	// 		return "", fmt.Errorf("read %s: %w", localPath, err)
-	// 	}
-
-	// 	mimeType := http.DetectContentType(raw)
-	// 	remotePath := fmt.Sprintf("stickers/%s/%s", folder, e.Name())
-	// 	url, err := client.Upload(ctx, remotePath, raw, mimeType)
-	// 	if err != nil {
-	// 		return "", fmt.Errorf("upload %s: %w", remotePath, err)
-	// 	}
-	// 	return url, nil
-	// }
-
-	return "", fmt.Errorf("file not found: %s/%s.*", folder, baseName)
 }

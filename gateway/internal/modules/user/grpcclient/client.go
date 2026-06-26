@@ -3,6 +3,7 @@ package grpcclient
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	userpb "github.com/tumlumtala/contracts/generated/user"
 	"github.com/tumlumtala/gateway/internal/modules/user/domain"
@@ -123,6 +124,10 @@ func mapCreateResponse(r *userpb.CreateUserResponse) domain.User {
 }
 
 func mapUser(u *userpb.User) domain.User {
+	status := strings.TrimSpace(u.GetStatus())
+	if status == "" {
+		status = "active"
+	}
 	return domain.User{
 		ID:        strconv.FormatUint(u.GetId(), 10),
 		UUID:      u.GetUuid(),
@@ -130,7 +135,7 @@ func mapUser(u *userpb.User) domain.User {
 		Fullname:  u.GetFullname(),
 		Avatar:    u.GetAvatar(),
 		Role:      u.GetRole(),
-		Status:    u.GetStatus(),
+		Status:    status,
 		CreatedAt: u.GetCreatedAt(),
 		UpdatedAt: u.GetUpdatedAt(),
 	}
