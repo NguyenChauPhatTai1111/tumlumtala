@@ -72,8 +72,8 @@ export const StickerPicker = ({
 					display: "grid",
 					gap: 1.5,
 					gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-					maxHeight: 280,
-					overflowY: "auto",
+					maxHeight: { xs: "none", md: 280 },
+					overflowY: { xs: "visible", md: "auto" },
 					pr: 1,
 					pt: 1,
 				}}

@@ -319,6 +319,14 @@ export const MessageListRow = memo(
 					position: "relative",
 					pr: 0.5,
 					mb: isLastInList || isLastInSenderGroup || hasReaction ? 2 : 0.1,
+					...(contextMenuMessageId !== null && contextMenuMessageId !== message.id ? {
+						opacity: 0.35,
+						filter: "blur(0.8px)",
+						transition: "opacity 0.2s ease, filter 0.2s ease",
+						pointerEvents: "none",
+					} : contextMenuMessageId === message.id ? {
+						transition: "opacity 0.2s ease, filter 0.2s ease",
+					} : {}),
 				}}
 			>
 				{shouldShowUnreadDivider && (

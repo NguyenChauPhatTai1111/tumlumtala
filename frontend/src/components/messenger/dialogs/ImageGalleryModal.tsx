@@ -16,6 +16,8 @@ import {
 	Skeleton,
 	Tooltip,
 	Typography,
+	useMediaQuery,
+	useTheme,
 } from "@mui/material";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Message } from "@/types/messenger";
@@ -104,6 +106,9 @@ export function ImageGalleryModal({
 		? formatTimestampV2(selectedMessage.created_at)
 		: "";
 
+	const muiTheme = useTheme();
+	const isMobile = useMediaQuery(muiTheme.breakpoints.down("md"));
+
 	const {
 		videoRef,
 		imageViewerRef,
@@ -181,6 +186,24 @@ export function ImageGalleryModal({
 		setSelectedMediaId(id);
 		resetMediaState();
 	};
+
+	const swipeTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+	const handleViewerTouchStart = useCallback((e: React.TouchEvent) => {
+		const t = e.touches[0];
+		swipeTouchStartRef.current = { x: t.clientX, y: t.clientY };
+	}, []);
+
+	const handleViewerTouchEnd = useCallback((e: React.TouchEvent) => {
+		if (!swipeTouchStartRef.current) return;
+		const t = e.changedTouches[0];
+		const dx = t.clientX - swipeTouchStartRef.current.x;
+		const dy = Math.abs(t.clientY - swipeTouchStartRef.current.y);
+		swipeTouchStartRef.current = null;
+		if (Math.abs(dx) < 50 || dy > Math.abs(dx)) return;
+		if (dx < 0) goToNext();
+		else goToPrev();
+	}, [goToNext, goToPrev]);
 
 	const handleZoomIn = () =>
 		setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)));
@@ -324,17 +347,20 @@ export function ImageGalleryModal({
 			onClose={onClose}
 			maxWidth="lg"
 			fullWidth
+			fullScreen={isMobile}
 			PaperProps={{
 				sx: { backgroundColor: "background.paper", color: "white" },
 			}}
 		>
 			<Box
 				sx={{
-					p: 2,
-					minHeight: 560,
+					p: isMobile ? 0 : 2,
+					pt: isMobile ? "max(12px, env(safe-area-inset-top))" : 2,
+					minHeight: isMobile ? 0 : 560,
 					display: "flex",
-					gap: 2,
-					height: "80vh",
+					flexDirection: isMobile ? "column" : "row",
+					gap: isMobile ? 0 : 2,
+					height: isMobile ? "100%" : "80vh",
 					overflowY: "hidden",
 				}}
 			>
@@ -353,6 +379,8 @@ export function ImageGalleryModal({
 						onMouseDown={handleMouseDown}
 						onMouseEnter={handleVideoAreaMouseEnter}
 						onMouseLeave={handleVideoAreaMouseLeave}
+						onTouchStart={isMobile ? handleViewerTouchStart : undefined}
+						onTouchEnd={isMobile ? handleViewerTouchEnd : undefined}
 						sx={{
 							position: "relative",
 							flex: 1,
@@ -569,9 +597,9 @@ export function ImageGalleryModal({
 								alignItems: "center",
 								gap: 1,
 								zIndex: 20,
-								opacity: showVideoControls ? 1 : 0,
+								opacity: isMobile || showVideoControls ? 1 : 0,
 								transition: "opacity 0.3s ease",
-								pointerEvents: showVideoControls ? "auto" : "none",
+								pointerEvents: isMobile || showVideoControls ? "auto" : "none",
 							}}
 						>
 							<IconButton
@@ -626,12 +654,12 @@ export function ImageGalleryModal({
 								backgroundColor: "rgba(0,0,0,0.35)",
 								borderRadius: 1,
 								p: 0.25,
-								opacity: showVideoControls ? 1 : 0,
+								opacity: isMobile || showVideoControls ? 1 : 0,
 								transition: "opacity 0.3s ease",
-								pointerEvents: showVideoControls ? "auto" : "none",
+								pointerEvents: isMobile || showVideoControls ? "auto" : "none",
 							}}
 						>
-							{!isVideo && (
+							{!isVideo && !isMobile && (
 								<>
 									<Tooltip title="Thu nhỏ (Scroll down)">
 										<span>
@@ -738,117 +766,203 @@ export function ImageGalleryModal({
 					</Box>
 				</Box>
 
-				{/* Thumbnail sidebar */}
+				{/* Thumbnail strip — sidebar on desktop, horizontal scroll strip on mobile */}
 				<Box
-					sx={{
-						width: 100,
-						height: "100%",
-						overflowY: "auto",
-						backgroundColor: "background.paper",
-						borderRadius: 2,
-						pt: 1,
-						pr: 1,
-						pl: 1,
-					}}
+					sx={
+						isMobile
+							? {
+									width: "100%",
+									height: 90,
+									flexShrink: 0,
+									overflowX: "auto",
+									overflowY: "hidden",
+									display: "flex",
+									flexDirection: "row",
+									alignItems: "center",
+									gap: 1,
+									px: 1.5,
+									py: 1,
+									borderTop: "1px solid rgba(255,255,255,.12)",
+									backgroundColor: "background.paper",
+								}
+							: {
+									width: 100,
+									height: "100%",
+									overflowY: "auto",
+									backgroundColor: "background.paper",
+									borderRadius: 2,
+									pt: 1,
+									pr: 1,
+									pl: 1,
+								}
+					}
 				>
-					{Object.entries(groupedMedia)
-						.sort(([a], [b]) => b.localeCompare(a))
-						.map(([dateKey, items]) => (
-							<Box key={dateKey}>
-								<Box
-									sx={{
-										fontSize: 12,
-										fontWeight: 700,
-										color: "rgba(255,255,255,.7)",
-										mb: 1,
-										mt: 1,
-									}}
-								>
-									{formatDateV2(dateKey)}
-								</Box>
-								{items.map((msg) => (
+					{isMobile
+						? // Mobile: flat horizontal list, no date headers
+							mediaMessages.map((msg) =>
+								msg.message_type === "video" ? (
 									<Box
 										key={msg.id}
 										onClick={() => selectMedia(msg.id)}
-										sx={{ cursor: "pointer", mb: 1, borderRadius: 4 }}
+										sx={{
+											position: "relative",
+											flexShrink: 0,
+											width: 64,
+											height: 64,
+											borderRadius: 1,
+											overflow: "hidden",
+											cursor: "pointer",
+											border:
+												msg.id === selectedMediaId
+													? "2px solid #f5a461"
+													: "1px solid rgba(255,255,255,.18)",
+											bgcolor: "rgba(0,0,0,0.4)",
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "center",
+										}}
 									>
-										{msg.message_type === "video" ? (
+										<Box
+											component="video"
+											src={resolveCdnUrl(msg.content)}
+											preload="metadata"
+											muted
+											sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+										/>
+										<PlayArrowIcon
+											sx={{
+												position: "absolute",
+												fontSize: 20,
+												color: "white",
+												opacity: 0.9,
+												filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.6))",
+												backgroundColor: "rgba(0,0,0,.5)",
+												borderRadius: "50%",
+											}}
+										/>
+									</Box>
+								) : (
+									<Box
+										key={msg.id}
+										onClick={() => selectMedia(msg.id)}
+										component="img"
+										src={resolveCdnUrl(msg.content)}
+										alt=""
+										sx={{
+											flexShrink: 0,
+											width: 64,
+											height: 64,
+											objectFit: "cover",
+											borderRadius: 1,
+											cursor: "pointer",
+											border:
+												msg.id === selectedMediaId
+													? "2px solid #f5a461"
+													: "1px solid rgba(255,255,255,.18)",
+										}}
+									/>
+								),
+							)
+						: // Desktop: grouped by date, vertical scroll
+							Object.entries(groupedMedia)
+								.sort(([a], [b]) => b.localeCompare(a))
+								.map(([dateKey, items]) => (
+									<Box key={dateKey}>
+										<Box
+											sx={{
+												fontSize: 12,
+												fontWeight: 700,
+												color: "rgba(255,255,255,.7)",
+												mb: 1,
+												mt: 1,
+											}}
+										>
+											{formatDateV2(dateKey)}
+										</Box>
+										{items.map((msg) => (
 											<Box
-												sx={{
-													position: "relative",
-													width: "100%",
-													height: 80,
-													borderRadius: 1,
-													overflow: "hidden",
-													border:
-														msg.id === selectedMediaId
-															? "2px solid #f5a461"
-															: "1px solid rgba(255,255,255,.18)",
-													bgcolor: "rgba(0,0,0,0.4)",
-													display: "flex",
-													alignItems: "center",
-													justifyContent: "center",
-												}}
+												key={msg.id}
+												onClick={() => selectMedia(msg.id)}
+												sx={{ cursor: "pointer", mb: 1, borderRadius: 4 }}
 											>
-												<Box
-													component="video"
-													src={resolveCdnUrl(msg.content)}
-													preload="metadata"
-													muted
-													sx={{
-														width: "100%",
-														height: "100%",
-														objectFit: "cover",
-													}}
-												/>
-												<PlayArrowIcon
-													sx={{
-														position: "absolute",
-														fontSize: 22,
-														color: "white",
-														opacity: 0.9,
-														filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.6))",
-														backgroundColor: "rgba(0,0,0,.5)",
-														borderRadius: "50%",
-													}}
-												/>
-												{msg.metadata?.duration && (
-													<Typography
-														variant="caption"
+												{msg.message_type === "video" ? (
+													<Box
 														sx={{
-															position: "absolute",
-															bottom: 2,
-															right: 4,
-															color: "#fff",
-															fontSize: 9,
-															fontWeight: 600,
-															textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+															position: "relative",
+															width: "100%",
+															height: 80,
+															borderRadius: 1,
+															overflow: "hidden",
+															border:
+																msg.id === selectedMediaId
+																	? "2px solid #f5a461"
+																	: "1px solid rgba(255,255,255,.18)",
+															bgcolor: "rgba(0,0,0,0.4)",
+															display: "flex",
+															alignItems: "center",
+															justifyContent: "center",
 														}}
 													>
-														{formatVideoTime(msg.metadata.duration / 1000)}
-													</Typography>
+														<Box
+															component="video"
+															src={resolveCdnUrl(msg.content)}
+															preload="metadata"
+															muted
+															sx={{
+																width: "100%",
+																height: "100%",
+																objectFit: "cover",
+															}}
+														/>
+														<PlayArrowIcon
+															sx={{
+																position: "absolute",
+																fontSize: 22,
+																color: "white",
+																opacity: 0.9,
+																filter:
+																	"drop-shadow(0 1px 3px rgba(0,0,0,0.6))",
+																backgroundColor: "rgba(0,0,0,.5)",
+																borderRadius: "50%",
+															}}
+														/>
+														{msg.metadata?.duration && (
+															<Typography
+																variant="caption"
+																sx={{
+																	position: "absolute",
+																	bottom: 2,
+																	right: 4,
+																	color: "#fff",
+																	fontSize: 9,
+																	fontWeight: 600,
+																	textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+																}}
+															>
+																{formatVideoTime(msg.metadata.duration / 1000)}
+															</Typography>
+														)}
+													</Box>
+												) : (
+													<img
+														src={resolveCdnUrl(msg.content)}
+														alt=""
+														style={{
+															width: "100%",
+															height: 80,
+															objectFit: "cover",
+															borderRadius: 4,
+															border:
+																msg.id === selectedMediaId
+																	? "2px solid #f5a461"
+																	: "1px solid rgba(255,255,255,.18)",
+														}}
+													/>
 												)}
 											</Box>
-										) : (
-											<img
-												src={resolveCdnUrl(msg.content)}
-												alt=""
-												style={{
-													width: "100%",
-													height: 80,
-													objectFit: "cover",
-													borderRadius: 4,
-													border:
-														msg.id === selectedMediaId
-															? "2px solid #f5a461"
-															: "1px solid rgba(255,255,255,.18)",
-												}}
-											/>
-										)}
+										))}
 									</Box>
 								))}
-							</Box>
-						))}
 				</Box>
 			</Box>
 		</Dialog>

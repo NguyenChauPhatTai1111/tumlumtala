@@ -36,12 +36,6 @@ func (c DatabaseConfig) DSN() string {
 	return cfg.FormatDSN()
 }
 
-type BunnyCDNConfig struct {
-	APIKey      string
-	StorageZone string
-	CDNBaseURL  string
-}
-
 type LocalUploadConfig struct {
 	Dir     string
 	BaseURL string
@@ -62,7 +56,6 @@ type NotificationConfig struct {
 
 type Config struct {
 	Database     DatabaseConfig
-	BunnyCDN     BunnyCDNConfig
 	LocalUpload  LocalUploadConfig
 	Redis        RedisConfig
 	Notification NotificationConfig
@@ -89,11 +82,6 @@ func Load() (Config, error) {
 			User:     env("DB_USER", "tumlum"),
 			Password: env("DB_PASSWORD", "tala"),
 			Name:     env("DB_NAME", "tumlumtala_messenger"),
-		},
-		BunnyCDN: BunnyCDNConfig{
-			APIKey:      env("BUNNYCDN_API_KEY", ""),
-			StorageZone: env("BUNNYCDN_STORAGE_ZONE", ""),
-			CDNBaseURL:  env("BUNNYCDN_CDN_BASE_URL", ""),
 		},
 		LocalUpload: LocalUploadConfig{
 			Dir:     env("LOCAL_UPLOAD_DIR", defaultLocalUploadDir()),

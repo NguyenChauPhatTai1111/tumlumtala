@@ -1,5 +1,5 @@
 import type { ComposerTab } from "@components/messenger/composer/types";
-import { Box, Popover, Tab, Tabs } from "@mui/material";
+import { Box, Drawer, Popover, Tab, Tabs, useMediaQuery, useTheme } from "@mui/material";
 import type { IEmoji } from "@/types/emoji";
 import type { ISticker, IStickerPack } from "@/types/sticker";
 import { EmojiPicker } from "./EmojiPicker";
@@ -31,9 +31,7 @@ type PickerPopoverProps = {
 	setActiveStickerPackTab: (tab: string) => void;
 };
 
-export const PickerPopover = ({
-	open,
-	anchorEl,
+const PickerContent = ({
 	activeTab,
 	loadingEmojis,
 	emojiError,
@@ -48,82 +46,139 @@ export const PickerPopover = ({
 	stickerPacks,
 	activeStickerPackTab,
 	displayedStickers,
-	onClose,
 	onTabChange,
 	onPickEmoji,
 	onPickSticker,
 	setActiveEmojiCategoryTab,
 	scrollToEmojiCategory,
 	setActiveStickerPackTab,
-}: PickerPopoverProps) => (
-	<Popover
-		open={open}
-		anchorEl={anchorEl}
-		onClose={onClose}
-		anchorOrigin={{ vertical: "top", horizontal: "center" }}
-		transformOrigin={{ vertical: "bottom", horizontal: "center" }}
-		slotProps={{
-			paper: {
-				sx: {
-					borderRadius: 3,
-					p: 0,
-					minWidth: 560,
-					maxWidth: 560,
-					overflow: "hidden",
-					bgcolor: "background.paper",
-					boxShadow: "0 18px 48px rgba(15,23,42,0.18)",
-				},
-			},
+}: Omit<PickerPopoverProps, "open" | "anchorEl" | "onClose">) => (
+	<Box
+		sx={{
+			display: "flex",
+			flexDirection: "column",
+			width: 1,
+			border: "1px solid",
+			borderColor: "divider",
 		}}
 	>
-		<Box
-			sx={{
-				display: "flex",
-				flexDirection: "column",
-				width: 1,
-				border: "1px solid",
-				borderColor: "divider",
+		<Tabs
+			value={activeTab}
+			onChange={async (_, newValue) => {
+				await onTabChange(newValue as ComposerTab);
+			}}
+			variant="fullWidth"
+			sx={{ borderBottom: 1, borderColor: "divider" }}
+		>
+			<Tab value="emoji" label="Emoji" />
+			<Tab value="sticker" label="Sticker" />
+		</Tabs>
+
+		<Box sx={{ p: 1.25, minHeight: 220 }}>
+			{activeTab === "emoji" ? (
+				<EmojiPicker
+					loadingEmojis={loadingEmojis}
+					emojiError={emojiError ?? null}
+					emojiTypeTabs={emojiTypeTabs}
+					effectiveActiveEmojiCategoryTab={effectiveActiveEmojiCategoryTab}
+					setActiveEmojiCategoryTab={setActiveEmojiCategoryTab}
+					emojiTypeMap={emojiTypeMap}
+					recentEmojiItems={recentEmojiItems}
+					emojiTypeGroups={emojiTypeGroups}
+					emojiScrollContainerRef={emojiScrollContainerRef}
+					categorySectionRefs={categorySectionRefs}
+					scrollToEmojiCategory={scrollToEmojiCategory}
+					onPickEmoji={onPickEmoji}
+				/>
+			) : (
+				<StickerPicker
+					loadingStickers={loadingStickers}
+					stickerPacks={stickerPacks}
+					activeStickerPackTab={activeStickerPackTab}
+					setActiveStickerPackTab={setActiveStickerPackTab}
+					displayedStickers={displayedStickers}
+					onPickSticker={onPickSticker}
+				/>
+			)}
+		</Box>
+	</Box>
+);
+
+export const PickerPopover = ({
+	open,
+	anchorEl,
+	onClose,
+	...contentProps
+}: PickerPopoverProps) => {
+	const muiTheme = useTheme();
+	const isMobile = useMediaQuery(muiTheme.breakpoints.down("md"));
+
+	if (isMobile) {
+		return (
+			<Drawer
+				anchor="bottom"
+				open={open}
+				onClose={onClose}
+				slotProps={{
+					paper: {
+						sx: {
+							borderRadius: "16px 16px 0 0",
+							maxHeight: "72vh",
+							overflow: "hidden",
+							display: "flex",
+							flexDirection: "column",
+						},
+					},
+				}}
+			>
+				{/* Drag handle */}
+				<Box
+					sx={{
+						display: "flex",
+						justifyContent: "center",
+						pt: 1,
+						pb: 0.5,
+						flexShrink: 0,
+					}}
+				>
+					<Box
+						sx={{
+							width: 36,
+							height: 4,
+							borderRadius: 99,
+							bgcolor: "divider",
+						}}
+					/>
+				</Box>
+				<Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+					<PickerContent {...contentProps} />
+				</Box>
+			</Drawer>
+		);
+	}
+
+	return (
+		<Popover
+			open={open}
+			anchorEl={anchorEl}
+			onClose={onClose}
+			anchorOrigin={{ vertical: "top", horizontal: "center" }}
+			transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+			slotProps={{
+				paper: {
+					sx: {
+						borderRadius: 3,
+						p: 0,
+						minWidth: 560,
+						maxWidth: 560,
+						overflow: "hidden",
+						bgcolor: "background.paper",
+						boxShadow: "0 18px 48px rgba(15,23,42,0.18)",
+					},
+				},
 			}}
 		>
-			<Tabs
-				value={activeTab}
-				onChange={async (_, newValue) => {
-					await onTabChange(newValue as ComposerTab);
-				}}
-				variant="fullWidth"
-				sx={{ borderBottom: 1, borderColor: "divider" }}
-			>
-				<Tab value="emoji" label="Emoji" />
-				<Tab value="sticker" label="Sticker" />
-			</Tabs>
-
-			<Box sx={{ p: 1.25, minHeight: 220 }}>
-				{activeTab === "emoji" ? (
-					<EmojiPicker
-						loadingEmojis={loadingEmojis}
-						emojiError={emojiError ?? null}
-						emojiTypeTabs={emojiTypeTabs}
-						effectiveActiveEmojiCategoryTab={effectiveActiveEmojiCategoryTab}
-						setActiveEmojiCategoryTab={setActiveEmojiCategoryTab}
-						emojiTypeMap={emojiTypeMap}
-						recentEmojiItems={recentEmojiItems}
-						emojiTypeGroups={emojiTypeGroups}
-						emojiScrollContainerRef={emojiScrollContainerRef}
-						categorySectionRefs={categorySectionRefs}
-						scrollToEmojiCategory={scrollToEmojiCategory}
-						onPickEmoji={onPickEmoji}
-					/>
-				) : (
-					<StickerPicker
-						loadingStickers={loadingStickers}
-						stickerPacks={stickerPacks}
-						activeStickerPackTab={activeStickerPackTab}
-						setActiveStickerPackTab={setActiveStickerPackTab}
-						displayedStickers={displayedStickers}
-						onPickSticker={onPickSticker}
-					/>
-				)}
-			</Box>
-		</Box>
-	</Popover>
-);
+			<PickerContent {...contentProps} />
+		</Popover>
+	);
+};

@@ -33,8 +33,15 @@ func Auth(verifier *jwtinfra.Verifier, users ActiveUserChecker) gin.HandlerFunc 
 		}
 		if users != nil {
 			user, err := users.GetUser(c.Request.Context(), claims.UserID)
-			if err != nil || user.Status != "active" {
-				response.ErrorCode(c, http.StatusUnauthorized, "UNAUTHORIZED", "account inactive")
+			status := strings.ToLower(strings.TrimSpace(user.Status))
+			if err != nil || status == "inactive" {
+				reason := "account inactive"
+				if err != nil {
+					reason = "get user error: " + err.Error()
+				} else {
+					reason = "status=" + user.Status + " userID=" + claims.UserID
+				}
+				response.ErrorCode(c, http.StatusUnauthorized, "UNAUTHORIZED", reason)
 				c.Abort()
 				return
 			}

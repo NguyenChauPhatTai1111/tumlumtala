@@ -38,7 +38,7 @@ type UserService interface {
 
 type UserHandler struct {
 	service  UserService
-	uploader AvatarUploader // nil when BunnyCDN is not configured
+	uploader AvatarUploader // nil when local upload storage is not configured
 }
 
 func NewUserHandler(service UserService, uploader AvatarUploader) *UserHandler {
@@ -226,7 +226,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 
 func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	if h.uploader == nil {
-		response.ErrorCode(c, http.StatusServiceUnavailable, "CDN_UNAVAILABLE", "avatar upload is not configured")
+		response.ErrorCode(c, http.StatusServiceUnavailable, "UPLOAD_UNAVAILABLE", "avatar upload is not configured")
 		return
 	}
 
@@ -270,7 +270,7 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	filename := fmt.Sprintf("%d_%s%s", time.Now().Unix(), shortID, ext)
 	remotePath := path.Join("users", "avatars", filename)
 
-	cdnURL, err := h.uploader.Upload(c.Request.Context(), remotePath, raw, mimeType)
+	avatarURL, err := h.uploader.Upload(c.Request.Context(), remotePath, raw, mimeType)
 	if err != nil {
 		response.ErrorCode(c, http.StatusInternalServerError, "UPLOAD_FAILED", "failed to upload avatar")
 		return
@@ -286,7 +286,7 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 		UUID:     claims.UserID,
 		Email:    existing.Email,
 		Fullname: existing.Fullname,
-		Avatar:   cdnURL,
+		Avatar:   avatarURL,
 	})
 	if err != nil {
 		response.Error(c, err)

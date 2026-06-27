@@ -11,6 +11,7 @@ import {
 } from "@components/messenger/utils/background";
 import type { ConversationThemeConfig } from "@components/messenger/utils/theme";
 import { parseConversationThemeConfig } from "@components/messenger/utils/theme";
+import { getMessagePreviewContent } from "@components/messenger/miniMessenger/utils";
 import {
 	DEFAULT_BACKGROUND_COLOR,
 	DEFAULT_INCOMING_BUBBLE_COLOR,
@@ -36,7 +37,7 @@ import {
 	useSendMessengerMessage,
 } from "@hooks/messenger";
 import { usePresence } from "@hooks/messenger/usePresence";
-import { getConversations } from "@/services/messengerService";
+import { getConversation, getConversations } from "@/services/messengerService";
 import { Box, useTheme } from "@mui/material";
 import { MessengerContent } from "@pages/messenger/components/MessengerContent";
 import { MessengerSidebar } from "@pages/messenger/components/MessengerSidebar";
@@ -45,6 +46,7 @@ import { useMessengerPageState } from "@pages/messenger/hooks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChangeEvent, ReactNode, SyntheticEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSwipeBackGuard } from "@hooks/ui/useSwipeBackGuard";
 import { useSearchParams } from "react-router-dom";
 import { useShowMessageToast } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
@@ -68,6 +70,8 @@ import type {
 	Participant,
 	User,
 } from "@/types/messenger";
+
+const REACTION_SPAM_INTERVAL_MS = 300;
 
 export default function MessengerPage() {
 	const { open } = useNotification();
@@ -219,6 +223,7 @@ export default function MessengerPage() {
 	const queryClient = useQueryClient();
 	const selectedConversationIdRef = useRef<number | null>(null);
 	const mobileViewport = useMobileVisualViewport(isMobile);
+	const lastReactionAtRef = useRef<number>(0);
 
 	const setConversationDraft = useCallback(
 		(
@@ -1027,16 +1032,22 @@ export default function MessengerPage() {
 				conversationId === selectedConversationIdRef.current &&
 				document.hasFocus();
 			if (!isSenderCurrentUser && !isViewingConversation) {
-				const conv = conversations.find((c) => c.id === conversationId);
-				const senderParticipant = conv?.participants?.find(
-					(p) => p.id === Number(msg.sender_id),
-				);
-				notifyNewMessage({
-					senderName: senderParticipant?.fullname,
-					conversationName: conv?.is_group ? conv.name : undefined,
-					content: msg.content,
-					senderAvatar: senderParticipant?.avatar,
-				});
+				void (async () => {
+					const conv =
+						conversations.find((c) => c.id === conversationId) ??
+						(await getConversation(conversationId).catch(() => null));
+					if (!conv || conv.notifications_enabled === false) return;
+
+					const senderParticipant = conv.participants?.find(
+						(p) => p.id === Number(msg.sender_id),
+					);
+					notifyNewMessage({
+						senderName: senderParticipant?.fullname,
+						conversationName: conv.is_group ? conv.name : undefined,
+						content: getMessagePreviewContent(msg),
+						senderAvatar: senderParticipant?.avatar,
+					});
+				})();
 			}
 
 			// Auto mark-as-read if the user is currently viewing this conversation.
@@ -1066,10 +1077,10 @@ export default function MessengerPage() {
 			const applyUpdate = (m: Message): Message =>
 				m.id === event.id
 					? {
-							...m,
-							content: event.content ?? m.content,
-							updated_at: event.updated_at ?? m.updated_at,
-						}
+						...m,
+						content: event.content ?? m.content,
+						updated_at: event.updated_at ?? m.updated_at,
+					}
 					: m;
 			const key = messengerKeys.messages(
 				String(event.conversation_id),
@@ -1134,9 +1145,9 @@ export default function MessengerPage() {
 								: m.my_reaction,
 							reactions: event.reaction
 								? [
-										...withoutUser,
-										{ user_id: eventUserId, emoji: event.reaction },
-									]
+									...withoutUser,
+									{ user_id: eventUserId, emoji: event.reaction },
+								]
 								: withoutUser,
 						};
 					}),
@@ -1273,8 +1284,8 @@ export default function MessengerPage() {
 	useEffect(() => {
 		const hasSearchPanel = Boolean(
 			selectedConversation &&
-				searchDetailConversationId &&
-				selectedConversation.id === searchDetailConversationId,
+			searchDetailConversationId &&
+			selectedConversation.id === searchDetailConversationId,
 		);
 
 		if (!showInfoPanel && !hasSearchPanel) {
@@ -1442,8 +1453,8 @@ export default function MessengerPage() {
 
 	const shouldShowSearchDetailPanel = Boolean(
 		selectedConversation &&
-			searchDetailConversationId &&
-			selectedConversation.id === searchDetailConversationId,
+		searchDetailConversationId &&
+		selectedConversation.id === searchDetailConversationId,
 	);
 	const shouldReopenInfoPanelAfterSearchRef = useRef(false);
 
@@ -1678,8 +1689,8 @@ export default function MessengerPage() {
 			);
 			const lastReadSeq = Number(
 				currentUserParticipant?.last_read_seq ??
-					conversation.last_read_message_id ??
-					0,
+				conversation.last_read_message_id ??
+				0,
 			);
 			setOpeningUnreadSnapshot({
 				conversationId,
@@ -2680,15 +2691,25 @@ export default function MessengerPage() {
 			reaction = "👍",
 			action: "toggle" | "remove" = "toggle",
 		) => {
+			const now = Date.now();
+			if (now - lastReactionAtRef.current < REACTION_SPAM_INTERVAL_MS) {
+				open?.({
+					type: "error",
+					message: "Bạn đang thả cảm xúc quá nhanh. Vui lòng chờ một chút.",
+				});
+				return;
+			}
+			lastReactionAtRef.current = now;
+
 			const previousPendingMessages = pendingMessages;
 			const messageId = Number(message.id);
 			const messagesQueryKey =
 				selectedConversationId != null
 					? messengerKeys.messages(
-							String(selectedConversationId),
-							MESSAGE_PAGE_SIZE,
-							0,
-						)
+						String(selectedConversationId),
+						MESSAGE_PAGE_SIZE,
+						0,
+					)
 					: null;
 			const previousMessagesCache = messagesQueryKey
 				? queryClient.getQueryData<PaginatedResult<Message>>(messagesQueryKey)
@@ -2710,13 +2731,13 @@ export default function MessengerPage() {
 					(current) =>
 						current
 							? {
-									...current,
-									items: current.items.map((item) =>
-										matchesMessage(item)
-											? applyLocalReaction(item, reaction, action)
-											: item,
-									),
-								}
+								...current,
+								items: current.items.map((item) =>
+									matchesMessage(item)
+										? applyLocalReaction(item, reaction, action)
+										: item,
+								),
+							}
 							: current,
 				);
 			}
@@ -2818,6 +2839,10 @@ export default function MessengerPage() {
 	const showDetail =
 		!isMobile || (!!selectedConversation && !showConversationList);
 	const showOverlayBackdrop = showInfoPanel || shouldShowSearchDetailPanel;
+
+	// Intercept browser swipe-back gesture on mobile so it returns to the
+	// conversation list instead of navigating away from /messenger
+	useSwipeBackGuard(isMobile && showDetail, handleBackToConversationList);
 	const displayedMessages = useMemo(() => {
 		if (searchedMessages) {
 			return searchedMessages;
@@ -2879,8 +2904,8 @@ export default function MessengerPage() {
 	const shouldShowSearchAllResults = searchAllActive;
 	const isSidebarSearching = Boolean(
 		searchAllKeyword.trim() ||
-			shouldShowSearchAllResults ||
-			searchDetailConversationId,
+		shouldShowSearchAllResults ||
+		searchDetailConversationId,
 	);
 
 	const _renderHighlightedText = (text: string, keyword: string): ReactNode => {
@@ -3053,9 +3078,7 @@ export default function MessengerPage() {
 						}}
 						onExitSidebarSearch={handleExitSidebarSearch}
 						onChangeConversationTab={handleConversationTabChange}
-						onSelectSearchConversationGroup={
-							handleSelectSearchConversationGroup
-						}
+						onSelectSearchConversationGroup={handleSelectSearchConversationGroup}
 						onSelectUser={handleSelectUser}
 						onOpenUserSearch={() => setOpenUserSearch(true)}
 						onOpenCreateGroupDialog={handleOpenCreateGroupDialog}
@@ -3064,9 +3087,7 @@ export default function MessengerPage() {
 						onDelete={handleDelete}
 						onToggleNotifications={handleToggleNotifications}
 						onLeaveConversation={handleLeaveConversation}
-						onToggleSidebarCollapse={() =>
-							setIsSidebarCollapsed((prev) => !prev)
-						}
+						onToggleSidebarCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
 						loading={conversationsQuery.isLoading}
 						hasMoreConversations={hasMoreConversations}
 						loadingMoreConversations={loadingMoreConversations}
@@ -3074,93 +3095,91 @@ export default function MessengerPage() {
 					/>
 				)}
 
-				<MessengerContent
-					isMobile={isMobile}
-					showDetail={showDetail}
-					showOverlayBackdrop={showOverlayBackdrop}
-					showInfoPanel={showInfoPanel}
-					shouldShowSearchDetailPanel={shouldShowSearchDetailPanel}
-					selectedConversation={selectedConversation}
-					selectedConversationId={selectedConversationId}
-					currentUser={currentUser}
-					searchAllKeyword={searchAllKeyword}
-					searchDetailResults={searchDetailResults}
-					searchDetailLoading={searchDetailLoading}
-					displayedMessages={displayedMessages}
-					hasMoreMessages={hasMoreMessages}
-					messagesLoading={messagesQuery.isLoading}
-					messagesError={messagesQuery.error?.message}
-					isLoadingMoreMessages={
-						searchedMessages ? false : isLoadingMoreMessages
-					}
-					unreadBoundaryMessageId={unreadBoundaryMessageId ?? undefined}
-					shouldShowUnreadDivider={shouldShowUnreadDividerForSelected}
-					initialUnreadScrollMessageId={
-						initialUnreadScrollMessageId ?? undefined
-					}
-					replySenderName={replySenderName}
-					editingMessage={editingMessage}
-					replyingMessage={replyingMessage}
-					useDefaultTheme={
-						!selectedConversationTheme.backgroundColor ||
-						isImageBackgroundValue(selectedConversationTheme.background)
-					}
-					chatBackground={toRenderableChatBackground(
-						selectedConversationTheme.background,
-						selectedConversationTheme.backgroundColor,
-					)}
-					chatSurface={selectedConversationTheme.backgroundColor}
-					themePresetId={selectedConversationTheme.presetId}
-					themes={themesQuery.data ?? []}
-					incomingBubbleColor={selectedConversationTheme.incomingBubbleColor}
-					outgoingBubbleColor={selectedConversationTheme.outgoingBubbleColor}
-					incomingTextColor={selectedConversationTheme.incomingTextColor}
-					outgoingTextColor={selectedConversationTheme.outgoingTextColor}
-					onBack={handleBackToConversationList}
-					onToggleInfoPanel={handleToggleInfoPanel}
-					onSearchConversation={handleSearchConversation}
-					onMuteConversation={handleMuteConversation}
-					onRestoreConversation={(id) => {
-						const conv = conversations.find((c) => c.id === id);
-						if (conv) handleRestore(conv);
-					}}
-					onDeleteConversation={handleDelete}
-					onLoadMoreMessages={handleLoadMoreMessages}
-					onDeleteMessage={handleDeleteMessage}
-					onEditMessage={handleEditMessage}
-					onToggleReaction={handleToggleReaction}
-					onRetryMessage={retryMessage}
-					onSpeakMessage={handleSpeakMessage}
-					onReplyMessage={handleReplyMessage}
-					onCancelReply={handleCancelReply}
-					onCancelEdit={handleCancelEdit}
-					onSend={sendMessage}
-					onCloseOverlayPanels={handleCloseOverlayPanels}
-					onCloseInfoPanel={handleCloseInfoPanel}
-					onCloseSearchDetailPanel={handleCloseSearchDetailPanel}
-					onSelectSearchDetailMessage={handleSelectSearchDetailMessage}
-					onRenameConversation={handleSaveConversationName}
-					onUploadGroupAvatar={handleUploadGroupAvatar}
-					onSaveConversationBackground={handleSaveConversationBackground}
-					onChangeQuickReaction={handleChangeQuickReaction}
-					onAddMember={handleAddMember}
-					onLeaveConversation={handleLeaveConversation}
-					onEditMemberNickname={handleEditMemberNickname}
-					onRemoveMember={handleRemoveMember}
-					onStartDirectConversation={handleStartDirectConversation}
-					onCreateGroupWithUser={handleCreateGroupWithUser}
-					onSearchDetailKeywordChange={(value) => setSearchAllKeyword(value)}
-					onLoadMoreSearchDetail={loadMoreConversationSearchDetails}
-					hasMoreSearchDetail={hasMoreSearchDetail}
-					scrollToMessageId={scrollToMessageId}
-					onScrollToMessageHandled={() => setScrollToMessageId(null)}
-					draftText={currentDraft.text}
-					draftImages={currentDraft.images}
-					draftVideos={currentDraft.videos}
-					draftFiles={currentDraft.files}
-					onDraftChange={handleDraftChange}
-					ws={ws}
-				/>
+				{(!isMobile || showDetail) && (
+					<MessengerContent
+						isMobile={isMobile}
+						showDetail={showDetail}
+						showOverlayBackdrop={showOverlayBackdrop}
+						showInfoPanel={showInfoPanel}
+						shouldShowSearchDetailPanel={shouldShowSearchDetailPanel}
+						selectedConversation={selectedConversation}
+						selectedConversationId={selectedConversationId}
+						currentUser={currentUser}
+						searchAllKeyword={searchAllKeyword}
+						searchDetailResults={searchDetailResults}
+						searchDetailLoading={searchDetailLoading}
+						displayedMessages={displayedMessages}
+						hasMoreMessages={hasMoreMessages}
+						messagesLoading={messagesQuery.isLoading}
+						messagesError={messagesQuery.error?.message}
+						isLoadingMoreMessages={searchedMessages ? false : isLoadingMoreMessages}
+						unreadBoundaryMessageId={unreadBoundaryMessageId ?? undefined}
+						shouldShowUnreadDivider={shouldShowUnreadDividerForSelected}
+						initialUnreadScrollMessageId={initialUnreadScrollMessageId ?? undefined}
+						replySenderName={replySenderName}
+						editingMessage={editingMessage}
+						replyingMessage={replyingMessage}
+						useDefaultTheme={
+							!selectedConversationTheme.backgroundColor ||
+							isImageBackgroundValue(selectedConversationTheme.background)
+						}
+						chatBackground={toRenderableChatBackground(
+							selectedConversationTheme.background,
+							selectedConversationTheme.backgroundColor,
+						)}
+						chatSurface={selectedConversationTheme.backgroundColor}
+						themePresetId={selectedConversationTheme.presetId}
+						themes={themesQuery.data ?? []}
+						incomingBubbleColor={selectedConversationTheme.incomingBubbleColor}
+						outgoingBubbleColor={selectedConversationTheme.outgoingBubbleColor}
+						incomingTextColor={selectedConversationTheme.incomingTextColor}
+						outgoingTextColor={selectedConversationTheme.outgoingTextColor}
+						onBack={handleBackToConversationList}
+						onToggleInfoPanel={handleToggleInfoPanel}
+						onSearchConversation={handleSearchConversation}
+						onMuteConversation={handleMuteConversation}
+						onRestoreConversation={(id) => {
+							const conv = conversations.find((c) => c.id === id);
+							if (conv) handleRestore(conv);
+						}}
+						onDeleteConversation={handleDelete}
+						onLoadMoreMessages={handleLoadMoreMessages}
+						onDeleteMessage={handleDeleteMessage}
+						onEditMessage={handleEditMessage}
+						onToggleReaction={handleToggleReaction}
+						onRetryMessage={retryMessage}
+						onSpeakMessage={handleSpeakMessage}
+						onReplyMessage={handleReplyMessage}
+						onCancelReply={handleCancelReply}
+						onCancelEdit={handleCancelEdit}
+						onSend={sendMessage}
+						onCloseOverlayPanels={handleCloseOverlayPanels}
+						onCloseInfoPanel={handleCloseInfoPanel}
+						onCloseSearchDetailPanel={handleCloseSearchDetailPanel}
+						onSelectSearchDetailMessage={handleSelectSearchDetailMessage}
+						onRenameConversation={handleSaveConversationName}
+						onUploadGroupAvatar={handleUploadGroupAvatar}
+						onSaveConversationBackground={handleSaveConversationBackground}
+						onChangeQuickReaction={handleChangeQuickReaction}
+						onAddMember={handleAddMember}
+						onLeaveConversation={handleLeaveConversation}
+						onEditMemberNickname={handleEditMemberNickname}
+						onRemoveMember={handleRemoveMember}
+						onStartDirectConversation={handleStartDirectConversation}
+						onCreateGroupWithUser={handleCreateGroupWithUser}
+						onSearchDetailKeywordChange={(value) => setSearchAllKeyword(value)}
+						onLoadMoreSearchDetail={loadMoreConversationSearchDetails}
+						hasMoreSearchDetail={hasMoreSearchDetail}
+						scrollToMessageId={scrollToMessageId}
+						onScrollToMessageHandled={() => setScrollToMessageId(null)}
+						draftText={currentDraft.text}
+						draftImages={currentDraft.images}
+						draftVideos={currentDraft.videos}
+						draftFiles={currentDraft.files}
+						onDraftChange={handleDraftChange}
+						ws={ws}
+					/>
+				)}
 
 				<input
 					ref={groupAvatarInputRef}
@@ -3170,7 +3189,6 @@ export default function MessengerPage() {
 					onChange={handleGroupAvatarFileSelected}
 				/>
 
-				{/* User search dialog */}
 				<UserSearchDialog
 					open={openUserSearch}
 					onClose={() => setOpenUserSearch(false)}
@@ -3178,14 +3196,12 @@ export default function MessengerPage() {
 					loading={createConversation.isPending}
 				/>
 
-				{/* Add members search dialog */}
 				<UserSearchDialog
 					open={openAddMembersSearch}
 					onClose={() => setOpenAddMembersSearch(false)}
 					onSelect={handleAddMemberUserSearch}
 				/>
 
-				{/* Create group dialog */}
 				<CreateGroupDialog
 					open={openCreateGroupDialog}
 					onClose={() => setOpenCreateGroupDialog(false)}

@@ -10,3 +10,6 @@ SET @add_status_sql = IF(
 PREPARE stmt FROM @add_status_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+UPDATE user_snapshots SET status = 'active' WHERE status IS NULL;
+ALTER TABLE user_snapshots MODIFY COLUMN status ENUM('active', 'inactive') NOT NULL DEFAULT 'active';

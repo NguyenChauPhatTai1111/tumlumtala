@@ -35,6 +35,7 @@ const CONVERSATION_FETCH_LIMIT = 10;
 const MINI_MESSAGE_LIMIT = 30;
 const MAX_FILE_SIZE_MB = 100;
 const SPAM_INTERVAL_MS = 1000;
+const REACTION_SPAM_INTERVAL_MS = 300;
 
 export function getMiniConversationTheme(conversation: Conversation) {
 	const parsed = parseConversationThemeConfig(conversation.background);
@@ -93,8 +94,9 @@ export function useMiniChatWindow({
 	const [confirmAction, setConfirmAction] = useState<"delete" | "leave" | null>(null);
 	const [creatingGroup, setCreatingGroup] = useState(false);
 
-	// Spam detection: track timestamp of last sent message
+	// Spam detection: track timestamp of last sent message and last reaction
 	const lastSentAtRef = useRef<number>(0);
+	const lastReactionAtRef = useRef<number>(0);
 
 	const queryClient = useQueryClient();
 	const { open } = useNotification();
@@ -504,6 +506,16 @@ export function useMiniChatWindow({
 			action: "toggle" | "remove" = "toggle",
 		) => {
 			if (!message.id) return;
+
+			const now = Date.now();
+			if (now - lastReactionAtRef.current < REACTION_SPAM_INTERVAL_MS) {
+				open?.({
+					type: "error",
+					message: "Bạn đang thả cảm xúc quá nhanh. Vui lòng chờ một chút.",
+				});
+				return;
+			}
+			lastReactionAtRef.current = now;
 
 			const key = messengerKeys.messages(
 				String(conversation.id),

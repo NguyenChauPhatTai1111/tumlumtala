@@ -100,11 +100,11 @@ func (h *AuthHandler) Me(c *gin.Context) {
 }
 
 func setRefreshCookie(c *gin.Context, token string) {
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(refreshCookieName, token, int(refreshCookieTTL.Seconds()), "/", "", false, true)
 }
 
 func clearRefreshCookie(c *gin.Context) {
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(refreshCookieName, "", -1, "/", "", false, true)
 }

@@ -1,14 +1,7 @@
 package bootstrap
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -24,82 +17,10 @@ import (
 	persistenceQS "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/queryservice"
 	persistenceRepo "github.com/tumlumtala/messenger-service/internal/infrastructure/persistence/repository"
 	"github.com/tumlumtala/messenger-service/internal/infrastructure/presence"
+	"github.com/tumlumtala/messenger-service/internal/infrastructure/storage"
 	ws "github.com/tumlumtala/messenger-service/internal/infrastructure/websocket"
 	"gorm.io/gorm"
 )
-
-// bunnyCDNUploader implements conversationUC.MessengerAssetUploader via BunnyCDN Storage API.
-type bunnyCDNUploader struct {
-	apiKey      string
-	storageZone string
-	baseURL     string
-	client      *http.Client
-}
-
-type localUploader struct {
-	rootDir string
-	baseURL string
-}
-
-func newLocalUploader(cfg config.Config) *localUploader {
-	rootDir := strings.TrimSpace(cfg.LocalUpload.Dir)
-	if rootDir == "" {
-		return nil
-	}
-	return &localUploader{
-		rootDir: rootDir,
-		baseURL: strings.TrimRight(strings.TrimSpace(cfg.LocalUpload.BaseURL), "/"),
-	}
-}
-
-func (u *localUploader) Upload(_ context.Context, remotePath string, payload []byte, _ string) (string, error) {
-	if u == nil || strings.TrimSpace(u.rootDir) == "" {
-		return "", fmt.Errorf("local upload dir is not configured")
-	}
-	cleanRemotePath := strings.TrimLeft(filepath.Clean(remotePath), string(filepath.Separator))
-	if cleanRemotePath == "." || strings.HasPrefix(cleanRemotePath, "..") {
-		return "", fmt.Errorf("invalid upload path")
-	}
-	targetPath := filepath.Join(u.rootDir, cleanRemotePath)
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(targetPath, payload, 0o644); err != nil {
-		return "", err
-	}
-	if u.baseURL != "" {
-		return u.baseURL + "/" + strings.ReplaceAll(cleanRemotePath, string(filepath.Separator), "/"), nil
-	}
-	return strings.ReplaceAll(cleanRemotePath, string(filepath.Separator), "/"), nil
-}
-
-func newBunnyCDNUploader(cfg config.Config) *bunnyCDNUploader {
-	return &bunnyCDNUploader{
-		apiKey:      cfg.BunnyCDN.APIKey,
-		storageZone: cfg.BunnyCDN.StorageZone,
-		baseURL:     cfg.BunnyCDN.CDNBaseURL,
-		client:      &http.Client{},
-	}
-}
-
-func (b *bunnyCDNUploader) Upload(ctx context.Context, remotePath string, payload []byte, contentType string) (string, error) {
-	url := fmt.Sprintf("https://storage.bunnycdn.com/%s/%s", b.storageZone, remotePath)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(payload))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("AccessKey", b.apiKey)
-	req.Header.Set("Content-Type", contentType)
-	resp, err := b.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _, _ = io.ReadAll(resp.Body); _ = resp.Body.Close() }()
-	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("bunnyCDN upload failed: status %d", resp.StatusCode)
-	}
-	return b.baseURL + "/" + remotePath, nil
-}
 
 func newRedisClient(cfg config.Config) *redis.Client {
 	return redis.NewClient(&redis.Options{
@@ -154,13 +75,13 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	// History use case
 	getMessageHistory := historyUC.NewGetMessageHistoryUseCase(historyRepo)
 
-	// Media upload: BunnyCDN in production, local filesystem in development.
+	// Media upload: local filesystem.
 	var mediaUploadService *conversationUC.MediaUploadService
-	if cfg.BunnyCDN.APIKey != "" && cfg.BunnyCDN.StorageZone != "" {
-		bunny := newBunnyCDNUploader(cfg)
-		mediaUploadService = conversationUC.NewMediaUploadService(bunny)
-	} else if local := newLocalUploader(cfg); local != nil {
-		mediaUploadService = conversationUC.NewMediaUploadService(local)
+	localUploader, err := storage.NewLocalUploader(cfg.LocalUpload.Dir, cfg.LocalUpload.BaseURL)
+	if err == nil {
+		mediaUploadService = conversationUC.NewMediaUploadService(localUploader)
+	} else {
+		fmt.Printf("messenger local uploader disabled: %v\n", err)
 	}
 
 	// WebSocket
@@ -222,9 +143,9 @@ func Register(engine *gin.Engine, db *gorm.DB, cfg config.Config) {
 	routes := httpAdapter.NewMessengerRoutes(handler, wsHandler, pool, hub, db, cfg.JWTSecret)
 
 	v1 := engine.Group("/api/v1")
-	routes.Register(v1)
-	routes.RegisterInfra(engine)
 	if cfg.LocalUpload.Dir != "" && cfg.LocalUpload.BaseURL != "" {
 		engine.Static(cfg.LocalUpload.BaseURL, cfg.LocalUpload.Dir)
 	}
+	routes.Register(v1)
+	routes.RegisterInfra(engine)
 }

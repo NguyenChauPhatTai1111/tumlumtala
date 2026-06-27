@@ -12,6 +12,10 @@ services:
       TRACING_ENABLED: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       APP_VERSION: local
+      LOCAL_UPLOAD_DIR: /app/uploads
+      LOCAL_UPLOAD_BASE_URL: /uploads
+    volumes:
+      - ../uploads:/app/uploads
     networks:
       - tumlumtala-net
     restart: unless-stopped

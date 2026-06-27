@@ -12,11 +12,24 @@ import ArrowBackIosIcon from "@mui/icons-material/ArrowBackIos";
 import CallIcon from "@mui/icons-material/Call";
 import GroupIcon from "@mui/icons-material/Group";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsOffIcon from "@mui/icons-material/NotificationsOff";
 import SearchIcon from "@mui/icons-material/Search";
 import VideocamIcon from "@mui/icons-material/Videocam";
-import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
+import {
+	Avatar,
+	Box,
+	IconButton,
+	ListItemIcon,
+	Menu,
+	MenuItem,
+	Tooltip,
+	Typography,
+	useMediaQuery,
+	useTheme,
+} from "@mui/material";
+import { useState } from "react";
 import { resolveCdnUrl } from "@/utils";
 
 export const MessengerHeader = ({
@@ -36,6 +49,9 @@ export const MessengerHeader = ({
 	onBack,
 	overrideTextColor,
 }: MessengerHeaderProps) => {
+	const muiTheme = useTheme();
+	const isMobile = useMediaQuery(muiTheme.breakpoints.down("md"));
+	const [moreMenuAnchor, setMoreMenuAnchor] = useState<HTMLElement | null>(null);
 	const currentUserId = Number(currentUser?.id ?? 0);
 	const displayName = conversation
 		? getConversationDisplayName(conversation, currentUserId)
@@ -158,71 +174,140 @@ export const MessengerHeader = ({
 			{/* RIGHT */}
 			<Box
 				onClick={(e) => e.stopPropagation()}
-				sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+				sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}
 			>
-				<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi thoại"}>
-					<span>
+				{/* Desktop: show all icons */}
+				{!isMobile && (
+					<>
+						<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi thoại"}>
+							<span>
+								<IconButton
+									size="small"
+									disabled={callDisabled}
+									onClick={onAudioCall}
+									sx={(theme) => ({
+										color: outgoingTextColor || theme.palette.primary.main,
+									})}
+								>
+									<CallIcon />
+								</IconButton>
+							</span>
+						</Tooltip>
+
+						<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi video"}>
+							<span>
+								<IconButton
+									size="small"
+									disabled={callDisabled}
+									onClick={onVideoCall}
+									sx={(theme) => ({
+										color: outgoingTextColor || theme.palette.primary.main,
+									})}
+								>
+									<VideocamIcon />
+								</IconButton>
+							</span>
+						</Tooltip>
+
 						<IconButton
 							size="small"
-							disabled={callDisabled}
-							onClick={onAudioCall}
+							onClick={onMute}
 							sx={(theme) => ({
 								color: outgoingTextColor || theme.palette.primary.main,
 							})}
 						>
-							<CallIcon />
+							{isNotificationEnabled ? <NotificationsIcon /> : <NotificationsOffIcon />}
 						</IconButton>
-					</span>
-				</Tooltip>
 
-				<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi video"}>
-					<span>
 						<IconButton
 							size="small"
-							disabled={callDisabled}
-							onClick={onVideoCall}
+							onClick={onSearch}
 							sx={(theme) => ({
 								color: outgoingTextColor || theme.palette.primary.main,
 							})}
 						>
-							<VideocamIcon />
+							<SearchIcon />
 						</IconButton>
-					</span>
-				</Tooltip>
 
-				<IconButton
-					size="small"
-					onClick={onMute}
-					sx={(theme) => ({
-						color: outgoingTextColor || theme.palette.primary.main,
-					})}
-				>
-					{isNotificationEnabled ? (
-						<NotificationsIcon />
-					) : (
-						<NotificationsOffIcon />
-					)}
-				</IconButton>
+						<IconButton
+							size="small"
+							onClick={onInfo}
+							sx={(theme) => ({
+								color: outgoingTextColor || theme.palette.primary.main,
+							})}
+						>
+							<InfoOutlinedIcon />
+						</IconButton>
+					</>
+				)}
 
-				<IconButton
-					size="small"
-					onClick={onSearch}
-					sx={(theme) => ({
-						color: outgoingTextColor || theme.palette.primary.main,
-					})}
-				>
-					<SearchIcon />
-				</IconButton>
+				{/* Mobile: Mute + Search visible, rest in overflow menu */}
+				{isMobile && (
+					<>
+						<IconButton
+							size="small"
+							onClick={onMute}
+							sx={(theme) => ({
+								color: outgoingTextColor || theme.palette.primary.main,
+							})}
+						>
+							{isNotificationEnabled ? <NotificationsIcon /> : <NotificationsOffIcon />}
+						</IconButton>
 
-				<IconButton
-					size="small"
-					onClick={onInfo}
-					sx={(theme) => ({
-						color: outgoingTextColor || theme.palette.primary.main,
-					})}
-				>
-					<InfoOutlinedIcon />
-				</IconButton>
+						<IconButton
+							size="small"
+							onClick={onSearch}
+							sx={(theme) => ({
+								color: outgoingTextColor || theme.palette.primary.main,
+							})}
+						>
+							<SearchIcon />
+						</IconButton>
+
+						<IconButton
+							size="small"
+							onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
+							sx={(theme) => ({
+								color: outgoingTextColor || theme.palette.primary.main,
+							})}
+						>
+							<MoreVertIcon />
+						</IconButton>
+
+						<Menu
+							anchorEl={moreMenuAnchor}
+							open={Boolean(moreMenuAnchor)}
+							onClose={() => setMoreMenuAnchor(null)}
+							transformOrigin={{ horizontal: "right", vertical: "top" }}
+							anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+						>
+							<MenuItem
+								disabled={callDisabled}
+								onClick={() => {
+									setMoreMenuAnchor(null);
+									onAudioCall?.();
+								}}
+							>
+								<ListItemIcon><CallIcon fontSize="small" /></ListItemIcon>
+								Gọi thoại
+							</MenuItem>
+							<MenuItem
+								disabled={callDisabled}
+								onClick={() => {
+									setMoreMenuAnchor(null);
+									onVideoCall?.();
+								}}
+							>
+								<ListItemIcon><VideocamIcon fontSize="small" /></ListItemIcon>
+								Gọi video
+							</MenuItem>
+							<MenuItem onClick={() => { setMoreMenuAnchor(null); onInfo?.(); }}>
+								<ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
+								Thông tin cuộc trò chuyện
+							</MenuItem>
+						</Menu>
+					</>
+				)}
 			</Box>
 		</Box>
 	);
