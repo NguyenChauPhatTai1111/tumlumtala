@@ -9,9 +9,11 @@ export const useMessengerWebSocketConnection = () => {
 	useEffect(() => {
 		if (!currentUser?.id) return;
 
-		const wsBase = import.meta.env.VITE_WS_URL ||
-			`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/messenger`;
-		const wsUrl = wsBase;
+		const wsPath = import.meta.env.VITE_WS_URL || "/ws/messenger";
+		const wsUrl = wsPath.startsWith("ws")
+			? wsPath
+			: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}${wsPath}`;
+
 		const token = localStorage.getItem("access_token") || "";
 
 		if (!token) {
