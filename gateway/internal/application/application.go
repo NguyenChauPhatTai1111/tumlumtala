@@ -150,9 +150,11 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 	userService := userservice.NewUserService(usergrpc.NewUserClient(grpcRegistry.Clients.User))
 	authHandler := authhttp.NewAuthHandler(authService)
 
-	avatarUploader, err := localstorage.NewUploader(cfg.LocalUploadDir, cfg.LocalUploadBaseURL)
-	if err != nil {
+	var avatarUploader userhttp.AvatarUploader
+	if ul, err := localstorage.NewUploader(cfg.LocalUploadDir, cfg.LocalUploadBaseURL); err != nil {
 		log.Warn().Err(err).Msg("local avatar upload disabled")
+	} else {
+		avatarUploader = ul
 	}
 	userHandler := userhttp.NewUserHandler(userService, avatarUploader)
 	healthHandler := healthhandler.NewHandler()

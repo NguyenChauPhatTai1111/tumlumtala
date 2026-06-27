@@ -1,6 +1,5 @@
 import type { Conversation, Message } from "@/types/messenger";
 import { resolveCdnUrl } from "@/utils/urlUtils";
-import { buildGeneratedAvatar } from "../utils/avatar";
 import {
 	getConversationCallPreview,
 	getMessageCallPreview,
@@ -31,17 +30,14 @@ export function getConversationAvatar(
 	currentUserId?: number | string,
 ) {
 	if (!conversation) return undefined;
-	const title = getConversationTitle(conversation, currentUserId);
 	if (conversation.is_group) {
-		return resolveCdnUrl(conversation.avatar) || buildGeneratedAvatar(title);
+		return resolveCdnUrl(conversation.avatar);
 	}
 
-	return (
-		resolveCdnUrl(
-			conversation.participants.find(
-				(participant) => Number(participant.id) !== Number(currentUserId),
-			)?.avatar,
-		) || buildGeneratedAvatar(title)
+	return resolveCdnUrl(
+		conversation.participants.find(
+			(participant) => Number(participant.id) !== Number(currentUserId),
+		)?.avatar,
 	);
 }
 
@@ -94,7 +90,7 @@ export function getLastMessagePreviewContent(conversation: Conversation) {
 	const callPreview = getConversationCallPreview(conversation);
 	const looksLikeAttachmentPath = Boolean(
 		content?.includes("/messenger/attachments/") ||
-			content?.includes("messenger/attachments/"),
+		content?.includes("messenger/attachments/"),
 	);
 
 	if (callPreview) return callPreview;
@@ -113,7 +109,7 @@ export function getMessagePreviewContent(message: Message) {
 	const callPreview = getMessageCallPreview(message);
 	const looksLikeAttachmentPath = Boolean(
 		content?.includes("/messenger/attachments/") ||
-			content?.includes("messenger/attachments/"),
+		content?.includes("messenger/attachments/"),
 	);
 
 	if (callPreview) return callPreview;

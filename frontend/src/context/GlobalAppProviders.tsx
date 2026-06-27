@@ -1,5 +1,6 @@
 import { MiniMessenger } from "@components/messenger/MiniMessenger";
 import { NotificationPermissionBanner } from "@components/messenger/NotificationPermissionBanner";
+import { BottomPlayer } from "@pages/music/components/BottomPlayer";
 import {
 	ConfirmContext,
 	type ConfirmFn,
@@ -18,6 +19,7 @@ import { SnackbarProvider, useSnackbar } from "notistack";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { MessageToastProvider } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
+import { MessengerPresenceProvider } from "@/context/MessengerPresenceContext";
 import { MessengerWebSocketProvider } from "@/context/MessengerWebSocketContext";
 import { GlobalCallProvider } from "@/features/calls";
 import { setNotifyFn } from "@/utils/snackbar";
@@ -117,11 +119,14 @@ export function GlobalAppProviders({ children }: { children: ReactNode }) {
 					<ConfirmProvider>
 						<MessengerEmojiProvider>
 							<MessengerWebSocketProvider>
-								<GlobalCallProvider>
-									<NotificationPermissionBanner />
-									{children}
-									<MiniMessenger />
-								</GlobalCallProvider>
+								<MessengerPresenceProvider>
+									<GlobalCallProvider>
+										<NotificationPermissionBanner />
+										{children}
+										<BottomPlayer />
+										<MiniMessenger />
+									</GlobalCallProvider>
+								</MessengerPresenceProvider>
 							</MessengerWebSocketProvider>
 						</MessengerEmojiProvider>
 					</ConfirmProvider>

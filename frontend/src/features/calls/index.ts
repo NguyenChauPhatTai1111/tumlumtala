@@ -1,3 +1,4 @@
 export { CallLayer } from "./components/CallLayer";
-export { GlobalCallProvider, useGlobalCall } from "./context/GlobalCallProvider";
+export { useGlobalCall } from "./context/GlobalCallContext";
+export { GlobalCallProvider } from "./context/GlobalCallProvider";
 export { useCall } from "./hooks/useCall";

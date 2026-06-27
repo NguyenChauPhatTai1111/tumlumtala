@@ -321,6 +321,7 @@ export const MessageListBubble = ({
 		isEmojiOnlyMessage ||
 		isImageMessage ||
 		isVideoMessage ||
+		isCallMessage ||
 		isFlagMessage;
 
 	const showActions =
@@ -624,6 +625,7 @@ export const MessageListBubble = ({
 						message={message}
 						messages={messages || []}
 						isCurrentUserSender={isCurrentUserSender}
+						bubbleBackground={bubbleBackground}
 						bubbleTextColor={bubbleTextColor}
 						replyMessage={replyMessage}
 						replyPreviewSenderName={replyPreviewSenderName}

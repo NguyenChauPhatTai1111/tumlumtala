@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 const TITLE_FLASH_INTERVAL_MS = 1000;
 const NOTIFICATION_LABEL = "💬 Tin nhắn mới";
-const DEFAULT_NOTIFICATION_ICON = "/assets/logo/logo.png";
+const DEFAULT_NOTIFICATION_ICON = "/icons/pwa-192x192.png";
 
 export interface NewMessageNotificationOptions {
 	senderName?: string;

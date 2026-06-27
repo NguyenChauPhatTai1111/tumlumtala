@@ -46,7 +46,11 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, input dto.UpdateUserIn
 		if err != nil {
 			return nil, err
 		}
-		user.Email, user.Fullname, user.Avatar, user.Role, user.UpdatedAt = email, fullname, input.Avatar, role, time.Now().UTC()
+		avatar := input.Avatar
+		if avatar == "" {
+			avatar = user.Avatar // preserve existing avatar when not explicitly updated
+		}
+		user.Email, user.Fullname, user.Avatar, user.Role, user.UpdatedAt = email, fullname, avatar, role, time.Now().UTC()
 		if err := observability.Trace(ctx, "PersistUser", func(ctx context.Context) error {
 			return uc.repository.Update(ctx, user)
 		},

@@ -377,6 +377,12 @@ export const MessengerContent = memo(
 		return (
 			<Box
 				ref={swipeBack.ref}
+				onClick={(event) => {
+					if (!showOverlayBackdrop) return;
+					const target = event.target as HTMLElement;
+					if (target.closest('[data-messenger-overlay-panel="true"]')) return;
+					onCloseOverlayPanels();
+				}}
 				sx={{
 					display: "flex",
 					flex: 1,
@@ -396,7 +402,6 @@ export const MessengerContent = memo(
 			>
 				<Fade in={showOverlayBackdrop} timeout={180} mountOnEnter unmountOnExit>
 					<Box
-						onClick={onCloseOverlayPanels}
 						sx={{
 							position: "absolute",
 							inset: 0,
@@ -689,6 +694,8 @@ export const MessengerContent = memo(
 					unmountOnExit
 				>
 					<Box
+						data-messenger-overlay-panel="true"
+						onClick={(event) => event.stopPropagation()}
 						sx={{
 							position: "absolute",
 							right: 0,
@@ -731,6 +738,8 @@ export const MessengerContent = memo(
 					unmountOnExit
 				>
 					<Box
+						data-messenger-overlay-panel="true"
+						onClick={(event) => event.stopPropagation()}
 						sx={{
 							position: "absolute",
 							right: 0,

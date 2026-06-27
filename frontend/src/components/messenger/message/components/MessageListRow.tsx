@@ -29,6 +29,7 @@ export const MessageListRow = memo(
 		conversation,
 		currentUserId,
 		currentUserNumericId,
+		onlineUserIds,
 		messagesById,
 		getSenderProfile,
 		getSeenParticipantsForMessage,
@@ -90,11 +91,12 @@ export const MessageListRow = memo(
 					(p.role === "admin" || p.id === conversation.created_by),
 			);
 		const senderAvatarSrc =
-			resolveCdnUrl(senderProfile.avatar) ||
-			buildGeneratedAvatar(senderProfile.name);
+			resolveCdnUrl(senderProfile.avatar);
 		const senderFallback = (senderProfile.name || "U")
 			.slice(0, 1)
 			.toUpperCase();
+		const isSenderOnline =
+			!isCurrentUserSender && onlineUserIds.has(Number(message.sender_id));
 		const repliedMessage = message.reply_to_message_id
 			? messagesById.get(message.reply_to_message_id)
 			: undefined;
@@ -510,28 +512,53 @@ export const MessageListRow = memo(
 								>
 									{canShowAvatarColumn ? (
 										shouldShowSenderAvatar && message.sender_id ? (
-											<AdminKeyBadge
-												src={senderAvatarSrc}
-												fallback={
-													isPrivateConversation ? undefined : senderFallback
-												}
-												size={32}
-												showBadge={isSenderAdmin}
-												cursor={
-													onAvatarClick && !isCurrentUserSender
-														? "pointer"
-														: "default"
-												}
-												onClick={
-													onAvatarClick && !isCurrentUserSender
-														? (e) =>
-																onAvatarClick(
-																	e.currentTarget as HTMLElement,
-																	message.sender_id,
-																)
-														: undefined
-												}
-											/>
+											<Box
+												sx={{
+													position: "relative",
+													width: 32,
+													height: 32,
+													flexShrink: 0,
+												}}
+											>
+												<AdminKeyBadge
+													src={senderAvatarSrc}
+													fallback={senderFallback}
+													size={32}
+													showBadge={isSenderAdmin}
+													cursor={
+														onAvatarClick && !isCurrentUserSender
+															? "pointer"
+															: "default"
+													}
+													onClick={
+														onAvatarClick && !isCurrentUserSender
+															? (e) =>
+																	onAvatarClick(
+																		e.currentTarget as HTMLElement,
+																		message.sender_id,
+																	)
+															: undefined
+													}
+												/>
+												{isSenderOnline && (
+													<Box
+														aria-label="Đang hoạt động"
+														sx={{
+															position: "absolute",
+															right: -1,
+															top: -1,
+															width: 10,
+															height: 10,
+															borderRadius: "50%",
+															bgcolor: "success.main",
+															border: "2px solid",
+															borderColor:
+																overlayBorderColor ?? "background.paper",
+															pointerEvents: "none",
+														}}
+													/>
+												)}
+											</Box>
 										) : (
 											<Box sx={{ width: 32, height: 32, flexShrink: 0 }} />
 										)

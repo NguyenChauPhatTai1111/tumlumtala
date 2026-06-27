@@ -452,10 +452,10 @@ export const MessengerSidebar = memo(
 										);
 										const conversationAvatar = conversation
 											? resolveCdnUrl(conversation.avatar) ||
-												buildGeneratedAvatar(conversationName)
+											buildGeneratedAvatar(conversationName)
 											: buildGeneratedAvatar(
-													`Conversation #${group.conversationId}`,
-												);
+												`Conversation #${group.conversationId}`,
+											);
 										return (
 											<ListItemButton
 												key={`group-${group.conversationId}`}
@@ -552,8 +552,8 @@ export const MessengerSidebar = memo(
 														>
 															{renderHighlightedText(
 																user.first_name ||
-																	user.username ||
-																	"Người dùng",
+																user.username ||
+																"Người dùng",
 																searchAllKeyword,
 															)}
 														</Typography>
@@ -565,8 +565,8 @@ export const MessengerSidebar = memo(
 								</>
 							) : null}
 							{!searchAllLoading &&
-							searchGroupedResults.length === 0 &&
-							searchAllUserResults.length === 0 ? (
+								searchGroupedResults.length === 0 &&
+								searchAllUserResults.length === 0 ? (
 								<Typography
 									variant="caption"
 									color="text.secondary"

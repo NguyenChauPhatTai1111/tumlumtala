@@ -31,7 +31,7 @@ func NewEventPublisher(brokers []string) *EventPublisher {
 		writer: &kafka.Writer{
 			Addr:                   kafka.TCP(brokers...),
 			Balancer:               &kafka.Hash{},
-			RequiredAcks:           kafka.RequireAll,
+			RequiredAcks:           kafka.RequireOne,
 			Async:                  false,
 			Compression:            kafka.Snappy,
 			MaxAttempts:            5,

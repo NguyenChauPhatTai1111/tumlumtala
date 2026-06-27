@@ -35,6 +35,7 @@ import {
 import { ImageGalleryModal } from "@/components/messenger/dialogs/ImageGalleryModal";
 import { VideoThumb } from "@/components/messenger/message/components/VideoThumb";
 import { buildGeneratedAvatar } from "@/components/messenger/messengerUtils";
+import { useMessengerPresence } from "@/context/MessengerPresenceContext";
 import { useConversationMediaMessages } from "@/hooks/messenger/useConversationMediaMessages";
 import type { IUser } from "@/types";
 import type { Conversation, Message, Participant } from "@/types/messenger";
@@ -104,6 +105,7 @@ export function MessengerInfoPanel({
 	onChangeQuickReaction,
 	onCreateGroupWithUser,
 }: InfoPanelProps) {
+	const onlineUserIds = useMessengerPresence();
 	const [memberMenuAnchorEl, setMemberMenuAnchorEl] =
 		React.useState<HTMLElement | null>(null);
 	const [memberMenuParticipant, setMemberMenuParticipant] =
@@ -562,23 +564,49 @@ export function MessengerInfoPanel({
 							cursor: "pointer",
 						}}
 					>
-						<AdminKeyBadge
-							src={
-								resolveCdnUrl(participant.avatar) ||
-								buildGeneratedAvatar(
-									participant.nickname || participant.fullname,
-								)
-							}
-							fallback={(participant.nickname || participant.fullname || "U")
-								.slice(0, 1)
-								.toUpperCase()}
-							size={32}
-							showBadge={
-								isGroup &&
-								(participant.role === "admin" ||
-									conversation.created_by === participant.id)
-							}
-						/>
+						<Box
+							sx={{
+								position: "relative",
+								width: 32,
+								height: 32,
+								flexShrink: 0,
+							}}
+						>
+							<AdminKeyBadge
+								src={
+									resolveCdnUrl(participant.avatar) ||
+									buildGeneratedAvatar(
+										participant.nickname || participant.fullname,
+									)
+								}
+								fallback={(participant.nickname || participant.fullname || "U")
+									.slice(0, 1)
+									.toUpperCase()}
+								size={32}
+								showBadge={
+									isGroup &&
+									(participant.role === "admin" ||
+										conversation.created_by === participant.id)
+								}
+							/>
+							{onlineUserIds.has(Number(participant.id)) && (
+								<Box
+									aria-label="Đang hoạt động"
+									sx={{
+										position: "absolute",
+										top: -1,
+										left: -1,
+										width: 10,
+										height: 10,
+										borderRadius: "50%",
+										bgcolor: "success.main",
+										border: "2px solid",
+										borderColor: "background.paper",
+										pointerEvents: "none",
+									}}
+								/>
+							)}
+						</Box>
 						<Box sx={{ minWidth: 0 }}>
 							<Typography variant="body2" noWrap>
 								{(() => {

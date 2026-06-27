@@ -36,7 +36,6 @@ import {
 	useNewMessageNotification,
 	useSendMessengerMessage,
 } from "@hooks/messenger";
-import { usePresence } from "@hooks/messenger/usePresence";
 import { getConversation, getConversations } from "@/services/messengerService";
 import { Box, useTheme } from "@mui/material";
 import { MessengerContent } from "@pages/messenger/components/MessengerContent";
@@ -50,6 +49,7 @@ import { useSwipeBackGuard } from "@hooks/ui/useSwipeBackGuard";
 import { useSearchParams } from "react-router-dom";
 import { useShowMessageToast } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
+import { useMessengerPresence } from "@/context/MessengerPresenceContext";
 import { useSharedMessengerWS } from "@/context/MessengerWebSocketContext";
 import { useMobileVisualViewport } from "@/hooks/ui/useMobileVisualViewport";
 import {
@@ -219,7 +219,7 @@ export default function MessengerPage() {
 		selectedConversationId ?? undefined,
 	);
 	const ws = useSharedMessengerWS();
-	const onlineUserIds = usePresence(ws);
+	const onlineUserIds = useMessengerPresence();
 	const queryClient = useQueryClient();
 	const selectedConversationIdRef = useRef<number | null>(null);
 	const mobileViewport = useMobileVisualViewport(isMobile);
@@ -3040,10 +3040,13 @@ export default function MessengerPage() {
 					top: isMobile ? `${mobileViewport?.offsetTop ?? 0}px` : undefined,
 					left: isMobile ? 0 : undefined,
 					right: isMobile ? 0 : undefined,
+					bottom: isMobile
+						? undefined
+						: "var(--persistent-music-player-height, 0px)",
 					height: isMobile
 						? mobileViewport?.height
-							? `${mobileViewport.height}px`
-							: "100dvh"
+							? `calc(${mobileViewport.height}px - var(--persistent-music-player-height, 0px))`
+							: "calc(100dvh - var(--persistent-music-player-height, 0px))"
 						: undefined,
 					overflow: "hidden",
 					overscrollBehavior: "contain",

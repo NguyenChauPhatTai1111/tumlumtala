@@ -199,6 +199,11 @@ const MovieCardBase = ({
 
 	const [imgError, setImgError] = useState(false);
 	const imgFailCountRef = useRef(0);
+
+	useEffect(() => {
+		setImgError(false);
+		imgFailCountRef.current = 0;
+	}, [cardImage]);
 	const [showPosterOverlay, setShowPosterOverlay] = useState(true);
 	const [trailerEnded, setTrailerEnded] = useState(false);
 	const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -449,7 +454,7 @@ const MovieCardBase = ({
 								}
 								const fallback = imageMode === "poster" ? poster : thumb;
 								const placeholder = "/placeholder-poster.svg";
-								if (fallback && img.src !== fallback) {
+								if (fallback && img.src !== fallback && !img.src.endsWith("/placeholder-poster.svg")) {
 									img.onerror = null;
 									img.src = fallback;
 								} else if (!img.src.endsWith("/placeholder-poster.svg")) {

@@ -57,7 +57,7 @@ export function MiniConversationRail({
 			sx={{
 				position: "fixed",
 				right: 24,
-				bottom: 24,
+				bottom: 56,
 				zIndex: (theme) => theme.zIndex.modal - 1,
 				display: "flex",
 				flexDirection: "column",
@@ -272,8 +272,8 @@ export function MiniConversationRail({
 				<IconButton
 					onClick={onOpenNewMessage}
 					sx={{
-						width: 58,
-						height: 58,
+						width: 54,
+						height: 54,
 						bgcolor: "background.paper",
 						boxShadow: "0 14px 34px rgba(0,0,0,0.35)",
 						"&:hover": { bgcolor: "action.hover" },

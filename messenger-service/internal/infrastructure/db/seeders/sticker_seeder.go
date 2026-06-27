@@ -253,27 +253,7 @@ func (s *StickerSeeder) Run(db *gorm.DB) error {
 
 func copyStickerAsset(assetsDir, folder, baseName string) (string, error) {
 	fileName := findStickerAssetName(assetsDir, folder, baseName)
-	sourcePath := filepath.Join(assetsDir, folder, fileName)
-	uploadDir := os.Getenv("LOCAL_UPLOAD_DIR")
-	if uploadDir == "" {
-		cwd, _ := os.Getwd()
-		uploadDir = filepath.Join(cwd, "..", "..", "uploads")
-	}
-	targetDir := filepath.Join(uploadDir, "stickers", folder)
-	targetPath := filepath.Join(targetDir, fileName)
-
-	if raw, err := os.ReadFile(sourcePath); err == nil {
-		if err := os.MkdirAll(targetDir, 0o755); err != nil {
-			return "", err
-		}
-		if err := os.WriteFile(targetPath, raw, 0o644); err != nil {
-			return "", err
-		}
-	} else if !os.IsNotExist(err) {
-		return "", err
-	}
-
-	return fmt.Sprintf("/api/v1/messenger-uploads/stickers/%s/%s", folder, fileName), nil
+	return fmt.Sprintf("/stickers/%s/%s", folder, fileName), nil
 }
 
 func findStickerAssetName(assetsDir, folder, baseName string) string {
@@ -292,7 +272,7 @@ func findStickerAssetName(assetsDir, folder, baseName string) string {
 
 	extension := strings.TrimSpace(os.Getenv("STICKER_FILE_EXTENSION"))
 	if extension == "" {
-		extension = ".png"
+		extension = ".gif"
 	}
 	if !strings.HasPrefix(extension, ".") {
 		extension = "." + extension

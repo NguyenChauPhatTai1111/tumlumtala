@@ -1,4 +1,5 @@
 import { useSearchUsers } from "@hooks/user";
+import { useSearchDebounce } from "@/hooks/table/useTableState";
 import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import {
@@ -40,68 +41,32 @@ export const UserSearchDialog = ({
 	title = "Tìm kiếm người dùng",
 }: UserSearchDialogProps) => {
 	const [searchQuery, setSearchQuery] = useState("");
-	const [searchKeyword, setSearchKeyword] = useState("");
 	const [page, setPage] = useState(1);
 
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	const limit = 20;
+	const debouncedQuery = useSearchDebounce(searchQuery, 400);
+	const searchKeyword = debouncedQuery.trim().length >= 2 ? debouncedQuery.trim() : "";
 
 	const { data, isLoading } = useSearchUsers(searchKeyword, page, limit);
 
 	useEffect(() => {
-		if (!open) {
-			return;
-		}
-
-		const focusTimer = window.setTimeout(() => {
-			inputRef.current?.focus();
-		}, 0);
-
-		return () => window.clearTimeout(focusTimer);
+		if (!open) return;
+		const t = window.setTimeout(() => inputRef.current?.focus(), 0);
+		return () => window.clearTimeout(t);
 	}, [open]);
 
+	// Reset page khi keyword thay đổi
 	useEffect(() => {
-		const keyword = searchQuery.trim();
-
-		if (keyword.length < 2) {
-			setSearchKeyword("");
-			return;
-		}
-
-		const timer = window.setTimeout(() => {
-			setSearchKeyword(keyword);
-			setPage(1);
-		}, 1000);
-
-		return () => window.clearTimeout(timer);
-	}, [searchQuery]);
+		setPage(1);
+	}, [searchKeyword]);
 
 	const handleSelect = (user: User) => {
 		onSelect(user);
 		setSearchQuery("");
-		setSearchKeyword("");
 		setPage(1);
 		onClose();
-	};
-
-	const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		setSearchQuery(e.target.value);
-	};
-
-	const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-		if (e.key !== "Enter") {
-			return;
-		}
-
-		const keyword = searchQuery.trim();
-
-		if (keyword.length < 2) {
-			return;
-		}
-
-		setSearchKeyword(keyword);
-		setPage(1);
 	};
 
 	const handlePageChange = (_: unknown, value: number) => {
@@ -111,7 +76,6 @@ export const UserSearchDialog = ({
 	const users = data?.items ?? [];
 	const totalPages = data?.total_pages ?? 1;
 	const hasSearchInput = searchQuery.trim().length > 0;
-	const hasEnoughChars = searchQuery.trim().length >= 2;
 
 	return (
 		<Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -137,8 +101,7 @@ export const UserSearchDialog = ({
 					inputRef={inputRef}
 					placeholder="Tìm kiếm theo tên, email..."
 					value={searchQuery}
-					onChange={handleSearchChange}
-					onKeyDown={handleSearchKeyDown}
+					onChange={(e) => setSearchQuery(e.target.value)}
 					InputProps={{
 						startAdornment: (
 							<InputAdornment position="start">
@@ -151,7 +114,6 @@ export const UserSearchDialog = ({
 									size="small"
 									onClick={() => {
 										setSearchQuery("");
-										setSearchKeyword("");
 										setPage(1);
 									}}
 								>
@@ -165,10 +127,6 @@ export const UserSearchDialog = ({
 				{!hasSearchInput ? (
 					<Typography color="text.secondary" align="center" sx={{ py: 4 }}>
 						Nhập tên hoặc email để tìm kiếm
-					</Typography>
-				) : !hasEnoughChars ? (
-					<Typography color="text.secondary" align="center" sx={{ py: 2 }}>
-						Tìm kiếm sẽ tự động chạy sau 1 giây khi bạn nhập từ 2 ký tự trở lên
 					</Typography>
 				) : isLoading || loading ? (
 					<Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>

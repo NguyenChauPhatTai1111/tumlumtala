@@ -509,7 +509,7 @@ export function HeroSlider({
 									draggable={false}
 									onError={(e) => {
 										const img = e.currentTarget as HTMLImageElement;
-										if (img.src !== "/placeholder-poster.svg") {
+										if (!img.src.endsWith("/placeholder-poster.svg")) {
 											img.onerror = null;
 											img.src = "/placeholder-poster.svg";
 										}
@@ -858,7 +858,7 @@ export function HeroSlider({
 							draggable={false}
 							onError={(e) => {
 								const img = e.currentTarget as HTMLImageElement;
-								if (img.src !== "/placeholder-poster.svg") {
+								if (!img.src.endsWith("/placeholder-poster.svg")) {
 									img.onerror = null;
 									img.src = "/placeholder-poster.svg";
 								}

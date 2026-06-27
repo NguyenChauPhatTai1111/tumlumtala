@@ -12,7 +12,7 @@ export function usePresence(wsService: MessengerWebSocketService | null) {
 
 		const handlers = {
 			onMessengerSubscribed: (data: { user_id: number; online_user_ids?: number[] }) => {
-				if (data.online_user_ids && data.online_user_ids.length > 0) {
+				if (data.online_user_ids) {
 					setOnlineUserIds(new Set(data.online_user_ids));
 				}
 			},

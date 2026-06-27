@@ -94,6 +94,7 @@ export type MessageListRowProps = {
 	conversationAvatar?: string;
 	currentUserId: string;
 	currentUserNumericId: number;
+	onlineUserIds: Set<number>;
 	messagesById: Map<number, Message>;
 	getSenderProfile: (senderId: string) => SenderProfile;
 	getSeenParticipantsForMessage: (message: Message) => SeenParticipant[];

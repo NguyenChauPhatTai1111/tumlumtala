@@ -11,10 +11,11 @@ export type SeenParticipant = {
 };
 
 export type BubbleContentProps = {
-	message: Message;
-	messages: Message[];
-	isCurrentUserSender: boolean;
-	bubbleTextColor: string;
+    message: Message;
+    messages: Message[];
+    isCurrentUserSender: boolean;
+    bubbleBackground: string;
+    bubbleTextColor: string;
 	replyMessage?: Message;
 	replyPreviewSenderName?: string;
 	replyContainerBackground: string;

@@ -3,6 +3,7 @@ import { MessageListViewport } from "@components/messenger/message/components/Me
 import type { MessageListProps } from "@components/messenger/types/messages";
 import { useMessengerMessageListModel } from "@hooks/messenger";
 import { Box, CircularProgress, Typography } from "@mui/material";
+import { useMessengerPresence } from "@/context/MessengerPresenceContext";
 import { formatTimestamp } from "@/utils";
 
 export const MessageList = ({
@@ -32,6 +33,7 @@ export const MessageList = ({
 	onAvatarClick,
 	ws,
 }: MessageListProps) => {
+	const onlineUserIds = useMessengerPresence();
 	const {
 		messageListRef,
 		messagesEndRef,
@@ -149,6 +151,7 @@ export const MessageList = ({
 				conversationAvatar={conversationAvatar}
 				currentUserId={currentUserId}
 				currentUserNumericId={currentUserNumericId}
+				onlineUserIds={onlineUserIds}
 				messagesById={messagesById}
 				getSenderProfile={getSenderProfile}
 				getSeenParticipantsForMessage={getSeenParticipantsForMessage}

@@ -209,7 +209,7 @@ const CreditCard = ({
 								imageMode === "poster"
 									? "/placeholder-poster.svg"
 									: "/placeholder-backdrop.svg";
-							if (img.src !== ph) {
+							if (!img.src.endsWith(ph)) {
 								img.onerror = null;
 								img.src = ph;
 							}
@@ -361,7 +361,7 @@ const KnownForStrip = ({
 									loading="lazy"
 									onError={(e) => {
 										const img = e.currentTarget as HTMLImageElement;
-										if (img.src !== "/placeholder-poster.svg") {
+										if (!img.src.endsWith("/placeholder-poster.svg")) {
 											img.onerror = null;
 											img.src = "/placeholder-poster.svg";
 										}

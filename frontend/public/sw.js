@@ -1,4 +1,4 @@
-const SW_VERSION = "3";
+const SW_VERSION = "4";
 
 function notificationUrl(data) {
 	const fallback = "/";
@@ -28,8 +28,8 @@ self.addEventListener("message", (event) => {
 	event.waitUntil(
 		self.registration.showNotification(title, {
 			body,
-			icon: icon || "/assets/logo/logo.png",
-			badge: badge || "/assets/logo/logo.png",
+			icon: icon || "/icons/pwa-192x192.png",
+			badge: badge || "/icons/pwa-192x192.png",
 			tag: tag || `msg-${Date.now()}`,
 			data,
 			requireInteraction: Boolean(requireInteraction),

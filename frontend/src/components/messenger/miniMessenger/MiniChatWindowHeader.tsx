@@ -26,6 +26,7 @@ import type { Conversation } from "@/types/messenger";
 interface MiniChatWindowHeaderProps {
 	title: string;
 	avatar: string | undefined;
+	isOnline: boolean;
 	conversation: Conversation;
 	actionsAnchor: HTMLElement | null;
 	onOpenActionsMenu: (event: React.MouseEvent<HTMLElement>) => void;
@@ -39,11 +40,15 @@ interface MiniChatWindowHeaderProps {
 	onDelete: () => void;
 	onLeave: () => void;
 	onOpenCreateGroup: () => void;
+	onAudioCall: () => void;
+	onVideoCall: () => void;
+	callDisabled: boolean;
 }
 
 export function MiniChatWindowHeader({
 	title,
 	avatar,
+	isOnline,
 	conversation,
 	actionsAnchor,
 	onOpenActionsMenu,
@@ -57,6 +62,9 @@ export function MiniChatWindowHeader({
 	onDelete,
 	onLeave,
 	onOpenCreateGroup,
+	onAudioCall,
+	onVideoCall,
+	callDisabled,
 }: MiniChatWindowHeaderProps) {
 	return (
 		<>
@@ -71,9 +79,27 @@ export function MiniChatWindowHeader({
 					borderColor: "divider",
 				}}
 			>
-				<Avatar src={avatar} alt={title} sx={{ width: 36, height: 36 }}>
-					{title.charAt(0).toUpperCase()}
-				</Avatar>
+				<Box sx={{ position: "relative", width: 36, height: 36, flexShrink: 0 }}>
+					<Avatar src={avatar} alt={title} sx={{ width: 36, height: 36 }}>
+						{title.charAt(0).toUpperCase()}
+					</Avatar>
+					{isOnline && (
+						<Box
+							aria-label="Đang hoạt động"
+							sx={{
+								position: "absolute",
+								right: -1,
+								top: -1,
+								width: 11,
+								height: 11,
+								borderRadius: "50%",
+								bgcolor: "success.main",
+								border: "2px solid",
+								borderColor: "background.paper",
+							}}
+						/>
+					)}
+				</Box>
 				<Typography
 					fontWeight={800}
 					noWrap
@@ -88,10 +114,22 @@ export function MiniChatWindowHeader({
 				>
 					<KeyboardArrowDownIcon fontSize="small" />
 				</IconButton>
-				<IconButton size="small" color="primary">
+				<IconButton
+					size="small"
+					color="primary"
+					aria-label="Gọi thoại"
+					disabled={callDisabled}
+					onClick={onAudioCall}
+				>
 					<CallIcon fontSize="small" />
 				</IconButton>
-				<IconButton size="small" color="primary">
+				<IconButton
+					size="small"
+					color="primary"
+					aria-label="Gọi video"
+					disabled={callDisabled}
+					onClick={onVideoCall}
+				>
 					<VideocamIcon fontSize="small" />
 				</IconButton>
 				<IconButton

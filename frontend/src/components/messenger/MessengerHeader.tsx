@@ -30,6 +30,7 @@ import {
 	useTheme,
 } from "@mui/material";
 import { useState } from "react";
+import { useMessengerPresence } from "@/context/MessengerPresenceContext";
 import { resolveCdnUrl } from "@/utils";
 
 export const MessengerHeader = ({
@@ -51,6 +52,7 @@ export const MessengerHeader = ({
 }: MessengerHeaderProps) => {
 	const muiTheme = useTheme();
 	const isMobile = useMediaQuery(muiTheme.breakpoints.down("md"));
+	const onlineUserIds = useMessengerPresence();
 	const [moreMenuAnchor, setMoreMenuAnchor] = useState<HTMLElement | null>(null);
 	const currentUserId = Number(currentUser?.id ?? 0);
 	const displayName = conversation
@@ -61,6 +63,15 @@ export const MessengerHeader = ({
 			? resolveCdnUrl(getConversationAvatar(conversation, currentUserId))
 			: null) || buildGeneratedAvatar(displayName);
 	const participantsCount = conversation?.participants?.length ?? 0;
+	const isPeerOnline =
+		Boolean(conversation && !conversation.is_group) &&
+		Boolean(
+			conversation?.participants?.some(
+				(participant) =>
+					Number(participant.id) !== currentUserId &&
+					onlineUserIds.has(Number(participant.id)),
+			),
+		);
 	const customBorderColor = chatSurface ? "rgba(148,163,184,0.35)" : "divider";
 	const isNotificationEnabled = conversation?.notifications_enabled ?? false;
 
@@ -71,8 +82,6 @@ export const MessengerHeader = ({
 		icon: string;
 		border: string;
 	};
-	let computedLuminance: number | null = null;
-
 	if (overrideTextColor) {
 		headerColorChoices = {
 			title: overrideTextColor,
@@ -81,7 +90,7 @@ export const MessengerHeader = ({
 			border: customBorderColor,
 		};
 	} else if (avg) {
-		computedLuminance =
+		const computedLuminance =
 			(0.2126 * avg.r + 0.7152 * avg.g + 0.0722 * avg.b) / 255;
 		const isLight = computedLuminance > 0.56;
 		headerColorChoices = {
@@ -132,21 +141,44 @@ export const MessengerHeader = ({
 					</IconButton>
 				) : null}
 
-				<Avatar
-					src={avatarSrc}
-					sx={{
-						width: 48,
-						height: 48,
-						border: !useDefaultTheme ? "1px solid" : undefined,
-						borderColor: !useDefaultTheme
-							? headerColorChoices.border
-							: undefined,
-					}}
-				>
-					{conversation?.is_group && !avatarSrc ? (
-						<GroupIcon fontSize="medium" />
-					) : null}
-				</Avatar>
+				<Box sx={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
+					<Avatar
+						src={avatarSrc}
+						sx={{
+							width: 48,
+							height: 48,
+							border: !useDefaultTheme ? "1px solid" : undefined,
+							borderColor: !useDefaultTheme
+								? headerColorChoices.border
+								: undefined,
+						}}
+					>
+						{conversation?.is_group && !avatarSrc ? (
+							<GroupIcon fontSize="medium" />
+						) : (
+							displayName.charAt(0).toUpperCase()
+						)}
+					</Avatar>
+					{isPeerOnline && (
+						<Box
+							aria-label="Đang hoạt động"
+							sx={{
+								position: "absolute",
+								top: -1,
+								right: -1,
+								width: 12,
+								height: 12,
+								borderRadius: "50%",
+								bgcolor: "success.main",
+								border: "2px solid",
+								borderColor: useDefaultTheme
+									? "background.paper"
+									: headerColorChoices.border,
+								pointerEvents: "none",
+							}}
+						/>
+					)}
+				</Box>
 
 				<Box sx={{ minWidth: 0 }}>
 					<Typography
@@ -241,28 +273,38 @@ export const MessengerHeader = ({
 					</>
 				)}
 
-				{/* Mobile: Mute + Search visible, rest in overflow menu */}
+				{/* Mobile: Audio/Video call visible, Search + Notification + Info in overflow menu */}
 				{isMobile && (
 					<>
-						<IconButton
-							size="small"
-							onClick={onMute}
-							sx={(theme) => ({
-								color: outgoingTextColor || theme.palette.primary.main,
-							})}
-						>
-							{isNotificationEnabled ? <NotificationsIcon /> : <NotificationsOffIcon />}
-						</IconButton>
+						<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi thoại"}>
+							<span>
+								<IconButton
+									size="small"
+									disabled={callDisabled}
+									onClick={onAudioCall}
+									sx={(theme) => ({
+										color: outgoingTextColor || theme.palette.primary.main,
+									})}
+								>
+									<CallIcon />
+								</IconButton>
+							</span>
+						</Tooltip>
 
-						<IconButton
-							size="small"
-							onClick={onSearch}
-							sx={(theme) => ({
-								color: outgoingTextColor || theme.palette.primary.main,
-							})}
-						>
-							<SearchIcon />
-						</IconButton>
+						<Tooltip title={callDisabled ? (callDisabledReason ?? "Chỉ hỗ trợ cuộc trò chuyện 1-1") : "Gọi video"}>
+							<span>
+								<IconButton
+									size="small"
+									disabled={callDisabled}
+									onClick={onVideoCall}
+									sx={(theme) => ({
+										color: outgoingTextColor || theme.palette.primary.main,
+									})}
+								>
+									<VideocamIcon />
+								</IconButton>
+							</span>
+						</Tooltip>
 
 						<IconButton
 							size="small"
@@ -281,25 +323,17 @@ export const MessengerHeader = ({
 							transformOrigin={{ horizontal: "right", vertical: "top" }}
 							anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
 						>
-							<MenuItem
-								disabled={callDisabled}
-								onClick={() => {
-									setMoreMenuAnchor(null);
-									onAudioCall?.();
-								}}
-							>
-								<ListItemIcon><CallIcon fontSize="small" /></ListItemIcon>
-								Gọi thoại
+							<MenuItem onClick={() => { setMoreMenuAnchor(null); onSearch?.(); }}>
+								<ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>
+								Tìm kiếm
 							</MenuItem>
-							<MenuItem
-								disabled={callDisabled}
-								onClick={() => {
-									setMoreMenuAnchor(null);
-									onVideoCall?.();
-								}}
-							>
-								<ListItemIcon><VideocamIcon fontSize="small" /></ListItemIcon>
-								Gọi video
+							<MenuItem onClick={() => { setMoreMenuAnchor(null); onMute?.(); }}>
+								<ListItemIcon>
+									{isNotificationEnabled
+										? <NotificationsIcon fontSize="small" />
+										: <NotificationsOffIcon fontSize="small" />}
+								</ListItemIcon>
+								{isNotificationEnabled ? "Tắt thông báo" : "Bật thông báo"}
 							</MenuItem>
 							<MenuItem onClick={() => { setMoreMenuAnchor(null); onInfo?.(); }}>
 								<ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>

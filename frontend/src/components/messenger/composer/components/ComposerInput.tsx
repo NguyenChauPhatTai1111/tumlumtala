@@ -122,6 +122,9 @@ export const ComposerInput = ({
 						disableUnderline: true,
 						inputRef,
 					}}
+					inputProps={{
+						"data-messenger-composer-input": "true",
+					}}
 					sx={(theme) => ({
 						"& .MuiInputBase-input": {
 							color: outgoingTextColor || theme.palette.text.primary,

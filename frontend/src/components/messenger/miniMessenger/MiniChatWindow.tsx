@@ -14,6 +14,8 @@ import {
 	TextField,
 } from "@mui/material";
 import MessengerCustomizeDialog from "@pages/messenger/dialogs/MessengerCustomizeDialog";
+import { useMessengerPresence } from "@/context/MessengerPresenceContext";
+import { useGlobalCall } from "@/features/calls";
 import type { Conversation } from "@/types/messenger";
 import { MiniChatWindowHeader } from "./MiniChatWindowHeader";
 import { useMiniChatWindow } from "./hooks/useMiniChatWindow";
@@ -38,6 +40,15 @@ export function MiniChatWindow({
 }: MiniChatWindowProps) {
 	const title = getConversationTitle(conversation, currentUserId);
 	const avatar = getConversationAvatar(conversation, currentUserId);
+	const onlineUserIds = useMessengerPresence();
+	const { startConversationCall } = useGlobalCall();
+	const isOnline =
+		!conversation.is_group &&
+		conversation.participants.some(
+			(participant) =>
+				Number(participant.id) !== Number(currentUserId) &&
+				onlineUserIds.has(Number(participant.id)),
+		);
 
 	const {
 		loadingOlderMessages,
@@ -117,6 +128,7 @@ export function MiniChatWindow({
 			<MiniChatWindowHeader
 				title={title}
 				avatar={avatar}
+				isOnline={isOnline}
 				conversation={conversation}
 				actionsAnchor={actionsAnchor}
 				onOpenActionsMenu={(event) => setActionsAnchor(event.currentTarget)}
@@ -137,6 +149,9 @@ export function MiniChatWindow({
 				onDelete={handleDeleteConversation}
 				onLeave={handleLeaveConversation}
 				onOpenCreateGroup={() => setCreateGroupOpen(true)}
+				onAudioCall={() => startConversationCall(conversation, "audio")}
+				onVideoCall={() => startConversationCall(conversation, "video")}
+				callDisabled={conversation.is_group}
 			/>
 
 			<MessageList

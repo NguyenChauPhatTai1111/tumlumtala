@@ -27,14 +27,29 @@ import {
 	Stack,
 	Tooltip,
 	Typography,
+	useMediaQuery,
+	useTheme,
 } from "@mui/material";
 import type { YouTubePlayer } from "@pages/music/types/youtube";
 import { loadYouTubeIframeApi } from "@pages/music/types/youtube";
 import { formatDisplayName, formatDuration } from "@pages/music/utils";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	type MouseEvent as ReactMouseEvent,
+	useRef,
+	useState,
+} from "react";
+import { useLocation } from "react-router-dom";
 import { usePlayerStore } from "@store/playerStore";
 
 export const BottomPlayer = () => {
+	const location = useLocation();
+	const theme = useTheme();
+	const isCompactViewport = useMediaQuery(theme.breakpoints.down("md"));
+	const isMobileViewport = useMediaQuery(theme.breakpoints.down("sm"));
+	const playerPaperRef = useRef<HTMLDivElement | null>(null);
 	const audioRef = useRef<HTMLAudioElement | null>(null);
 	const youtubeFrameRef = useRef<HTMLDivElement | null>(null);
 	const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -65,6 +80,10 @@ export const BottomPlayer = () => {
 	);
 	const [youtubeFullscreen, setYoutubeFullscreen] = useState(false);
 	const [youtubeControlsVisible, setYoutubeControlsVisible] = useState(false);
+	const [expandedOutsideMusic, setExpandedOutsideMusic] = useState(false);
+	const [musicCollapsed, setMusicCollapsed] = useState(false);
+	const [expandedCompactMusic, setExpandedCompactMusic] = useState(false);
+	const [composerInputFocused, setComposerInputFocused] = useState(false);
 
 	const {
 		currentItem,
@@ -82,13 +101,129 @@ export const BottomPlayer = () => {
 
 	const youtubeVideoId =
 		currentItem?.type === "video" ? currentItem.videoId : undefined;
+	const isMusicRoute = location.pathname.startsWith("/music");
 	const videoCollapsed =
-		currentItem?.type === "video" && collapsedVideoId === currentItem.id;
+		currentItem?.type === "video" &&
+		(!isMusicRoute || collapsedVideoId === currentItem.id);
 	const youtubeActionsVisible =
 		videoCollapsed ||
 		youtubeControlsVisible ||
 		Boolean(speedMenuAnchor) ||
 		(currentItem?.type === "video" && !isPlaying);
+	const shouldShowPlayer = Boolean(currentItem) || isMusicRoute;
+	const isMessengerRoute = location.pathname.startsWith("/messenger");
+	const hideForComposer =
+		isCompactViewport && isMessengerRoute && composerInputFocused;
+	const compactCurrentTime =
+		currentItem?.type === "video" ? youtubeCurrentTime : audioCurrentTime;
+	const compactDuration =
+		currentItem?.type === "video"
+			? youtubeDuration || currentItem?.duration || 0
+			: audioDuration || currentItem?.duration || 0;
+	const compactMuted =
+		currentItem?.type === "video" ? youtubeMuted || volume === 0 : volume === 0;
+	const compactPlayer = isMusicRoute
+		? isCompactViewport
+			? !expandedCompactMusic
+			: musicCollapsed
+		: !expandedOutsideMusic;
+	const collapseWholePlayerFromVideo = !isMusicRoute || isCompactViewport;
+
+	const expandPlayer = () => {
+		if (!isMusicRoute) {
+			setExpandedOutsideMusic(true);
+			return;
+		}
+		if (isCompactViewport) {
+			setExpandedCompactMusic(true);
+			return;
+		}
+		setMusicCollapsed(false);
+	};
+
+	const collapsePlayer = () => {
+		if (!isMusicRoute) {
+			setExpandedOutsideMusic(false);
+			return;
+		}
+		if (isCompactViewport) {
+			setExpandedCompactMusic(false);
+			return;
+		}
+		setMusicCollapsed(true);
+	};
+
+	const handlePlayerSurfaceClick = (
+		event: ReactMouseEvent<HTMLElement>,
+	) => {
+		const target = event.target as HTMLElement;
+		if (
+			target.closest(
+				"button, .MuiSlider-root, [data-player-interactive='true']",
+			)
+		) {
+			return;
+		}
+		if (compactPlayer) {
+			expandPlayer();
+		} else {
+			collapsePlayer();
+		}
+	};
+
+	useEffect(() => {
+		let focusCheckFrame: number | null = null;
+		const isComposerInput = (target: EventTarget | null) =>
+			target instanceof HTMLElement &&
+			target.matches('[data-messenger-composer-input="true"]');
+
+		const handleFocusIn = (event: FocusEvent) => {
+			if (isCompactViewport && isMessengerRoute && isComposerInput(event.target)) {
+				setComposerInputFocused(true);
+			}
+		};
+		const handleFocusOut = () => {
+			if (focusCheckFrame) window.cancelAnimationFrame(focusCheckFrame);
+			focusCheckFrame = window.requestAnimationFrame(() => {
+				setComposerInputFocused(isComposerInput(document.activeElement));
+				focusCheckFrame = null;
+			});
+		};
+
+		document.addEventListener("focusin", handleFocusIn);
+		document.addEventListener("focusout", handleFocusOut);
+		return () => {
+			document.removeEventListener("focusin", handleFocusIn);
+			document.removeEventListener("focusout", handleFocusOut);
+			if (focusCheckFrame) window.cancelAnimationFrame(focusCheckFrame);
+		};
+	}, [isCompactViewport, isMessengerRoute]);
+
+	useLayoutEffect(() => {
+		const playerElement = playerPaperRef.current;
+		const root = document.documentElement;
+
+		if (!playerElement || !shouldShowPlayer || hideForComposer) {
+			root.style.setProperty("--persistent-music-player-height", "0px");
+			return;
+		}
+
+		const updatePlayerHeight = () => {
+			root.style.setProperty(
+				"--persistent-music-player-height",
+				`${playerElement.getBoundingClientRect().height}px`,
+			);
+		};
+		updatePlayerHeight();
+
+		const resizeObserver = new ResizeObserver(updatePlayerHeight);
+		resizeObserver.observe(playerElement);
+
+		return () => {
+			resizeObserver.disconnect();
+			root.style.setProperty("--persistent-music-player-height", "0px");
+		};
+	}, [hideForComposer, shouldShowPlayer]);
 
 	useEffect(() => {
 		youtubeStateRef.current = { isPlaying, next, pause, repeat, resume };
@@ -304,7 +439,7 @@ export const BottomPlayer = () => {
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (!currentItem) return;
+			if (!currentItem || !isMusicRoute) return;
 			const tag = (event.target as HTMLElement).tagName;
 			if (
 				tag === "INPUT" ||
@@ -349,7 +484,12 @@ export const BottomPlayer = () => {
 		};
 		document.addEventListener("keydown", handleKeyDown);
 		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [currentItem, handleAudioSeekBy, showYoutubeControlsTemporarily]);
+	}, [
+		currentItem,
+		handleAudioSeekBy,
+		isMusicRoute,
+		showYoutubeControlsTemporarily,
+	]);
 
 	const handleEnded = () => {
 		const audio = audioRef.current;
@@ -409,6 +549,14 @@ export const BottomPlayer = () => {
 		}
 	};
 
+	const handleCompactToggleMute = () => {
+		if (currentItem?.type === "video") {
+			handleYoutubeToggleMute();
+			return;
+		}
+		setVolume((currentVolume) => (currentVolume === 0 ? 1 : 0));
+	};
+
 	const handleYoutubeFullscreen = () => {
 		const frame = youtubeFrameRef.current;
 		if (!frame) return;
@@ -442,19 +590,47 @@ export const BottomPlayer = () => {
 		}, 4000);
 	};
 
+	if (!shouldShowPlayer) return null;
+
 	return (
 		<Paper
+			ref={playerPaperRef}
 			elevation={8}
+			onClick={handlePlayerSurfaceClick}
 			sx={{
-				position: "sticky",
+				position: "fixed",
+				left: 0,
+				right: 0,
 				bottom: 0,
-				zIndex: 5,
-				p: 1.25,
-				pt: currentItem?.type === "video" ? 1.75 : 1.25,
+				zIndex: (theme) => theme.zIndex.drawer + 1,
+				p: compactPlayer ? 0.75 : 1.25,
+				pt: compactPlayer
+					? 0.75
+					: currentItem?.type === "video"
+						? 1.75
+						: 1.25,
 				borderRadius: 0,
 				borderTop: 1,
 				borderColor: "divider",
 				overflow: "hidden",
+				cursor: "pointer",
+				opacity: hideForComposer ? 0 : 1,
+				pointerEvents: hideForComposer ? "none" : "auto",
+				transform: hideForComposer
+					? "translateY(calc(100% + 8px))"
+					: "translateY(0)",
+				transition:
+					"padding 200ms cubic-bezier(0.4, 0, 0.2, 1), opacity 180ms ease, transform 220ms cubic-bezier(0.4, 0, 0.2, 1)",
+				"@keyframes playerModeEnter": {
+					from: {
+						opacity: 0,
+						transform: "translateY(6px) scale(0.99)",
+					},
+					to: {
+						opacity: 1,
+						transform: "translateY(0) scale(1)",
+					},
+				},
 			}}
 		>
 			{currentItem?.type === "video" && currentItem.thumbnail && (
@@ -490,11 +666,12 @@ export const BottomPlayer = () => {
 				</>
 			)}
 			<Box sx={{ position: "relative", zIndex: 1 }}>
-				{youtubeVideoId && (
-					<Box sx={{ mb: 1 }}>
+					{youtubeVideoId && (
+						<Box sx={{ mb: compactPlayer ? 0 : 1 }}>
 						<Box sx={{ position: "relative" }}>
 							<Box
 								ref={youtubeFrameRef}
+								data-player-interactive="true"
 								onMouseEnter={handleYoutubePointerEnter}
 								onMouseLeave={handleYoutubePointerLeave}
 								sx={{
@@ -704,18 +881,35 @@ export const BottomPlayer = () => {
 							<Stack
 								direction="row"
 								spacing={0.5}
-								sx={{ position: "absolute", top: 0, right: 0 }}
+								sx={{
+									position: "absolute",
+									top: 0,
+									right: 0,
+									display: compactPlayer ? "none" : "flex",
+								}}
 							>
-								<Tooltip title={videoCollapsed ? "Mở rộng" : "Thu gọn"}>
+								<Tooltip
+									title={
+										collapseWholePlayerFromVideo
+											? "Thu gọn trình phát"
+											: videoCollapsed
+												? "Mở rộng"
+												: "Thu gọn"
+									}
+								>
 									<IconButton
 										size="small"
-										onClick={() =>
+										onClick={() => {
+											if (collapseWholePlayerFromVideo) {
+												collapsePlayer();
+												return;
+											}
 											setCollapsedVideoId((currentId) =>
 												currentId === currentItem?.id
 													? null
 													: (currentItem?.id ?? null),
-											)
-										}
+											);
+										}}
 										sx={{
 											transition: "transform 0.2s ease",
 											"&:hover": {
@@ -730,7 +924,7 @@ export const BottomPlayer = () => {
 											},
 										}}
 									>
-										{videoCollapsed ? (
+										{videoCollapsed && !collapseWholePlayerFromVideo ? (
 											<KeyboardArrowUpIcon fontSize="small" />
 										) : (
 											<KeyboardArrowDownIcon fontSize="small" />
@@ -784,8 +978,330 @@ export const BottomPlayer = () => {
 						setAudioCurrentTime(audio.currentTime || 0);
 						setAudioDuration(audio.duration || 0);
 					}}
-				/>
-				<Stack direction="row" spacing={1.5} alignItems="center">
+					/>
+					{compactPlayer ? (
+						<Stack
+							key="compact-player"
+							direction="row"
+							spacing={1}
+							alignItems="center"
+							sx={{
+								cursor: "pointer",
+								animation:
+									"playerModeEnter 200ms cubic-bezier(0.4, 0, 0.2, 1)",
+							}}
+						>
+							<Avatar
+								variant="rounded"
+								src={currentItem?.thumbnail}
+								sx={{ width: 40, height: 40, borderRadius: 1, flexShrink: 0 }}
+							/>
+							<Box sx={{ minWidth: 0, flex: 1 }}>
+								<Typography noWrap sx={{ fontWeight: 800, fontSize: 14 }}>
+									{formatDisplayName(currentItem?.title) ||
+										"Chọn bài hát hoặc video"}
+								</Typography>
+								<Typography
+									noWrap
+									color="text.secondary"
+									sx={{ fontSize: 12 }}
+								>
+									{formatDisplayName(currentItem?.artist) ||
+										"Playlist cho MP3 và YouTube"}
+								</Typography>
+							</Box>
+							<Stack
+								direction="row"
+								spacing={0}
+								alignItems="center"
+								onClick={(event) => event.stopPropagation()}
+								sx={{ flexShrink: 0 }}
+							>
+								<Tooltip title="Trước">
+									<IconButton size="small" onClick={previous}>
+										<SkipPreviousIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+								<Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
+									<IconButton
+										size="small"
+										color="primary"
+										onClick={isPlaying ? pause : resume}
+										disabled={!currentItem}
+									>
+										{isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+									</IconButton>
+								</Tooltip>
+								<Tooltip title="Tiếp">
+									<IconButton size="small" onClick={next}>
+										<SkipNextIcon />
+									</IconButton>
+								</Tooltip>
+								<Tooltip title="Mở rộng">
+									<IconButton size="small" onClick={expandPlayer}>
+										<KeyboardArrowUpIcon />
+									</IconButton>
+								</Tooltip>
+								<Tooltip title="Đóng">
+									<IconButton
+										size="small"
+										onClick={() => {
+											pause();
+											clearQueue();
+										}}
+									>
+										<CloseIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+							</Stack>
+						</Stack>
+					) : isCompactViewport ? (
+						<Box
+							key="expanded-compact-player"
+							sx={{
+								display: "grid",
+								position: "relative",
+								gridTemplateColumns: "64px minmax(0, 1fr)",
+								gridTemplateRows: "20px 20px 28px",
+								columnGap: 1,
+								rowGap: 0.25,
+								alignItems: "center",
+								animation:
+									"playerModeEnter 200ms cubic-bezier(0.4, 0, 0.2, 1)",
+							}}
+						>
+							<Avatar
+								variant="rounded"
+								src={currentItem?.thumbnail}
+								sx={{
+									gridColumn: 1,
+									gridRow: "1 / 4",
+									width: 64,
+									height: 64,
+									borderRadius: 1,
+								}}
+							/>
+							<Typography
+								noWrap
+								sx={{
+									gridColumn: 2,
+									gridRow: 1,
+									minWidth: 0,
+									fontWeight: 800,
+									fontSize: 13,
+									pr: 7,
+								}}
+							>
+								{formatDisplayName(currentItem?.title) ||
+									"Chọn bài hát hoặc video"}
+								{currentItem?.artist
+									? ` • ${formatDisplayName(currentItem.artist)}`
+									: ""}
+							</Typography>
+							<Box
+								sx={{
+									gridColumn: 2,
+									gridRow: 2,
+									minWidth: 0,
+									display: "flex",
+									alignItems: "center",
+									gap: 0.75,
+								}}
+							>
+								<Slider
+									size="small"
+									min={0}
+									max={compactDuration || 1}
+									value={Math.min(compactCurrentTime, compactDuration || 1)}
+									disabled={!currentItem}
+									onChange={(_, value) => {
+										const nextTime = Array.isArray(value) ? value[0] : value;
+										if (currentItem?.type === "video") {
+											handleYoutubeSeek(nextTime);
+										} else {
+											handleAudioSeek(nextTime);
+										}
+									}}
+									sx={{
+										flex: 1,
+										minWidth: 0,
+										height: 3,
+										py: 0.25,
+										"& .MuiSlider-thumb": { width: 9, height: 9 },
+										"& .MuiSlider-rail": { opacity: 0.3 },
+									}}
+								/>
+								<Typography
+									sx={{
+										flexShrink: 0,
+										fontSize: 10,
+										fontVariantNumeric: "tabular-nums",
+										color: "text.secondary",
+									}}
+								>
+									{formatDuration(compactCurrentTime)} /{" "}
+									{formatDuration(compactDuration)}
+								</Typography>
+							</Box>
+							<Stack
+								direction="row"
+								spacing={0}
+								alignItems="center"
+								sx={{
+									gridColumn: 2,
+									gridRow: 3,
+									minWidth: 0,
+									"& .MuiIconButton-root": {
+										flexShrink: 0,
+										p: 0.4,
+									},
+								}}
+							>
+								<Tooltip title="Trộn bài">
+									<IconButton
+										size="small"
+										color={shuffle ? "primary" : "default"}
+										onClick={toggleShuffle}
+									>
+										<ShuffleIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+								<Tooltip title={`Lặp: ${capitalize(repeat)}`}>
+									<IconButton
+										size="small"
+										color={repeat !== "off" ? "primary" : "default"}
+										onClick={toggleRepeat}
+									>
+										<RepeatIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+								<Tooltip
+									title={compactMuted ? "Bật âm" : "Tắt âm"}
+								>
+									<IconButton size="small" onClick={handleCompactToggleMute}>
+										{compactMuted ? (
+											<VolumeOffIcon fontSize="small" />
+										) : (
+											<VolumeUpIcon fontSize="small" />
+										)}
+									</IconButton>
+								</Tooltip>
+								<Box sx={{ flex: 1 }} />
+								<Stack
+									direction="row"
+									spacing={0}
+									alignItems="center"
+									sx={{ flexShrink: 0 }}
+								>
+									<Tooltip title="Trước">
+										<IconButton size="small" onClick={previous}>
+											<SkipPreviousIcon fontSize="small" />
+										</IconButton>
+									</Tooltip>
+									{!isMobileViewport && (
+										<Tooltip
+											title={
+												currentItem?.type === "video"
+													? "- 10 giây"
+													: "- 5 giây"
+											}
+										>
+											<IconButton
+												size="small"
+												onClick={() =>
+													currentItem?.type === "video"
+														? handleYoutubeSeekBy(-10)
+														: handleAudioSeekBy(-5)
+												}
+											>
+												{currentItem?.type === "video" ? (
+													<Replay10Icon fontSize="small" />
+												) : (
+													<Replay5Icon fontSize="small" />
+												)}
+											</IconButton>
+										</Tooltip>
+									)}
+									<Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
+										<IconButton
+											size="small"
+											color="primary"
+											onClick={isPlaying ? pause : resume}
+											disabled={!currentItem}
+										>
+											{isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+										</IconButton>
+									</Tooltip>
+									{!isMobileViewport && (
+										<Tooltip
+											title={
+												currentItem?.type === "video"
+													? "+ 10 giây"
+													: "+ 5 giây"
+											}
+										>
+											<IconButton
+												size="small"
+												onClick={() =>
+													currentItem?.type === "video"
+														? handleYoutubeSeekBy(10)
+														: handleAudioSeekBy(5)
+												}
+											>
+												{currentItem?.type === "video" ? (
+													<Forward10Icon fontSize="small" />
+												) : (
+													<Forward5Icon fontSize="small" />
+												)}
+											</IconButton>
+										</Tooltip>
+									)}
+									<Tooltip title="Tiếp">
+										<IconButton size="small" onClick={next}>
+											<SkipNextIcon fontSize="small" />
+										</IconButton>
+									</Tooltip>
+								</Stack>
+							</Stack>
+							<Stack
+								direction="row"
+								spacing={0}
+								sx={{
+									position: "absolute",
+									top: -4,
+									right: -4,
+									"& .MuiIconButton-root": { p: 0.4 },
+								}}
+							>
+								<Tooltip title="Thu gọn">
+									<IconButton size="small" onClick={collapsePlayer}>
+										<KeyboardArrowDownIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+								<Tooltip title="Đóng">
+									<IconButton
+										size="small"
+										onClick={() => {
+											pause();
+											clearQueue();
+										}}
+									>
+										<CloseIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+							</Stack>
+						</Box>
+				) : (
+						<Stack
+							key="expanded-desktop-player"
+							direction="row"
+							spacing={1.5}
+							alignItems="center"
+							sx={{
+								animation:
+									"playerModeEnter 200ms cubic-bezier(0.4, 0, 0.2, 1)",
+							}}
+						>
 					<Avatar
 						variant="rounded"
 						src={currentItem?.thumbnail}
@@ -943,7 +1459,7 @@ export const BottomPlayer = () => {
 							</Tooltip>
 						</Box>
 					</Stack>
-					<Stack
+						<Stack
 						direction="row"
 						spacing={1}
 						alignItems="center"
@@ -962,9 +1478,33 @@ export const BottomPlayer = () => {
 								setVolume(Array.isArray(value) ? value[0] : value)
 							}
 							aria-label="Volume"
-						/>
+							/>
+						</Stack>
+						{currentItem?.type !== "video" && (
+							<Stack direction="row" spacing={0}>
+								<Tooltip title="Thu gọn">
+									<IconButton
+										size="small"
+										onClick={collapsePlayer}
+									>
+										<KeyboardArrowDownIcon />
+									</IconButton>
+								</Tooltip>
+								<Tooltip title="Đóng">
+									<IconButton
+										size="small"
+										onClick={() => {
+											pause();
+											clearQueue();
+										}}
+									>
+										<CloseIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+							</Stack>
+						)}
 					</Stack>
-				</Stack>
+				)}
 			</Box>
 		</Paper>
 	);

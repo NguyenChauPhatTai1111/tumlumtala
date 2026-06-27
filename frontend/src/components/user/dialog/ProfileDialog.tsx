@@ -35,7 +35,6 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
   // avatar state
   const [previewURL, setPreviewURL] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -97,21 +96,23 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
     setError(null);
 
     try {
+      const nameChanged = fullname.trim() !== (user?.fullname ?? "");
+      const emailChanged = email.trim() !== (user?.email ?? "");
+
+      if (!pendingFile && !nameChanged && !emailChanged) {
+        setSuccess(true);
+        return;
+      }
+
       let updated = user!;
 
-      // 1. Upload avatar nếu có file mới
       if (pendingFile) {
-        setUploadingAvatar(true);
         updated = await uploadAvatar(pendingFile);
-        setUploadingAvatar(false);
         currentUserCache.set(updated);
         setPendingFile(null);
         setPreviewURL(updated.avatar ?? null);
       }
 
-      // 2. Cập nhật profile nếu tên/email thay đổi
-      const nameChanged = fullname.trim() !== (user?.fullname ?? "");
-      const emailChanged = email.trim() !== (user?.email ?? "");
       if (nameChanged || emailChanged) {
         updated = await updateMe({
           fullname: fullname.trim() || undefined,
@@ -122,7 +123,6 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
 
       setSuccess(true);
     } catch (err: unknown) {
-      setUploadingAvatar(false);
       const msg = err instanceof Error ? err.message : "Cập nhật thất bại";
       setError(msg);
     } finally {
@@ -137,7 +137,7 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
     .toUpperCase()
     .slice(0, 2);
 
-  const isBusy = saving || uploadingAvatar;
+  const isBusy = saving;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -159,8 +159,8 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
               {!previewURL && initials}
             </Avatar>
 
-            {/* overlay khi đang upload */}
-            {uploadingAvatar && (
+            {/* overlay khi đang lưu */}
+            {saving && (
               <Box sx={{
                 position: "absolute", inset: 0, borderRadius: "50%",
                 bgcolor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
@@ -170,7 +170,7 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
             )}
 
             {/* nút chọn ảnh */}
-            {!uploadingAvatar && (
+            {!saving && (
               <Tooltip title="Chọn ảnh">
                 <IconButton
                   size="small"
@@ -209,7 +209,7 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
               {previewURL && (
                 <Button
                   size="small"
-                  variant="text"
+                  variant="outlined"
                   color="error"
                   startIcon={<DeleteOutlineIcon sx={{ fontSize: 14 }} />}
                   onClick={handleRemoveAvatar}
@@ -278,7 +278,7 @@ export const ProfileDialog = ({ open, onClose }: ProfileDialogProps) => {
                 disabled={isBusy}
                 startIcon={isBusy ? <CircularProgress size={14} color="inherit" /> : null}
               >
-                {uploadingAvatar ? "Đang tải ảnh..." : saving ? "Đang lưu..." : "Lưu thay đổi"}
+                {saving ? "Đang lưu..." : "Lưu thay đổi"}
               </Button>
             </Box>
           </Stack>

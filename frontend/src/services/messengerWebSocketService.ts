@@ -114,6 +114,10 @@ export class MessengerWebSocketService {
 	private messageBatchBuffer: string[] = [];
 	private messageBatchTimer: ReturnType<typeof setTimeout> | null = null;
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	private lastMessengerSubscription: {
+		user_id: number;
+		online_user_ids?: number[];
+	} | null = null;
 
 	constructor(url: string, token: string, currentUserId: string) {
 		this.url = url;
@@ -197,9 +201,18 @@ export class MessengerWebSocketService {
 
 			switch (message.type) {
 				// New WS-first data events
-				case "messenger.subscribed":
-					this.emit("onMessengerSubscribed", message.payload);
+				case "messenger.subscribed": {
+					const payload = message.payload as {
+						user_id: number;
+						online_user_ids?: number[];
+					};
+					this.lastMessengerSubscription = {
+						...payload,
+						online_user_ids: [...(payload.online_user_ids ?? [])],
+					};
+					this.emit("onMessengerSubscribed", payload);
 					break;
+				}
 				case "conversations.list.result":
 					this.emit("onConversationsListResult", message.payload);
 					break;
@@ -341,9 +354,28 @@ export class MessengerWebSocketService {
 				case "room.joined":
 					this.emit("onJoinedRoom", message.payload);
 					break;
-				case "presence.updated":
-					this.emit("onPresenceUpdated", message.payload);
+				case "presence.updated": {
+					const payload = message.payload as {
+						user_id: number;
+						status: "online" | "offline";
+					};
+					if (this.lastMessengerSubscription) {
+						const onlineUserIds = new Set(
+							this.lastMessengerSubscription.online_user_ids ?? [],
+						);
+						if (payload.status === "online") {
+							onlineUserIds.add(payload.user_id);
+						} else {
+							onlineUserIds.delete(payload.user_id);
+						}
+						this.lastMessengerSubscription = {
+							...this.lastMessengerSubscription,
+							online_user_ids: [...onlineUserIds],
+						};
+					}
+					this.emit("onPresenceUpdated", payload);
 					break;
+				}
 				case "error": {
 					const errorPayload = message.payload as Record<string, unknown>;
 					const errorMessage =
@@ -535,6 +567,14 @@ export class MessengerWebSocketService {
 
 	addHandlers(handlers: Partial<WebSocketHandlers>) {
 		this.subscribers.add(handlers);
+		if (handlers.onMessengerSubscribed && this.lastMessengerSubscription) {
+			const subscription = this.lastMessengerSubscription;
+			queueMicrotask(() => {
+				if (this.subscribers.has(handlers)) {
+					handlers.onMessengerSubscribed?.(subscription);
+				}
+			});
+		}
 	}
 
 	removeHandlers(handlers: Partial<WebSocketHandlers>) {

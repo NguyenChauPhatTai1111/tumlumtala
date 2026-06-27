@@ -36,6 +36,7 @@ type MessageListViewportProps = {
 	conversationAvatar?: string;
 	currentUserId: string;
 	currentUserNumericId: number;
+	onlineUserIds: Set<number>;
 	messagesById: Map<number, Message>;
 	getSenderProfile: (senderId: string) => SenderProfile;
 	getSeenParticipantsForMessage: (message: Message) => SeenParticipant[];
@@ -96,6 +97,7 @@ export const MessageListViewport = ({
 	conversationAvatar,
 	currentUserId,
 	currentUserNumericId,
+	onlineUserIds,
 	messagesById,
 	getSenderProfile,
 	getSeenParticipantsForMessage,
@@ -235,6 +237,7 @@ export const MessageListViewport = ({
 							conversationAvatar={conversationAvatar}
 							currentUserId={currentUserId}
 							currentUserNumericId={currentUserNumericId}
+							onlineUserIds={onlineUserIds}
 							messagesById={messagesById}
 							getSenderProfile={getSenderProfile}
 							getSeenParticipantsForMessage={getSeenParticipantsForMessage}

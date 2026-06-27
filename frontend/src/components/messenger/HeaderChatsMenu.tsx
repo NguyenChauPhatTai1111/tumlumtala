@@ -36,10 +36,10 @@ import { useNotification } from "@hooks/common/useNotification";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMessengerPresence } from "@/context/MessengerPresenceContext";
 import type { Conversation } from "@/types/messenger";
 import { formatTimestampRealtime } from "@/utils";
 import { resolveCdnUrl } from "@/utils/urlUtils";
-import { buildGeneratedAvatar } from "./utils/avatar";
 import { hydrateConversationParticipantAvatars } from "./utils/avatarHydration";
 import { getConversationCallPreview } from "./utils/callMessage";
 import {
@@ -80,11 +80,8 @@ function getConversationAvatar(
 	conversation: Conversation,
 	currentUserId?: number | string,
 ) {
-	const title = getConversationTitle(conversation, currentUserId);
-	return (
-		resolveCdnUrl(
-			getBaseConversationAvatar(conversation, Number(currentUserId ?? 0)),
-		) || buildGeneratedAvatar(title)
+	return resolveCdnUrl(
+		getBaseConversationAvatar(conversation, Number(currentUserId ?? 0)),
 	);
 }
 
@@ -152,6 +149,7 @@ function readOpenConversationIds(): number[] {
 }
 
 export function HeaderChatsMenu() {
+	const onlineUserIds = useMessengerPresence();
 	const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 	const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
 	const [menuConversation, setMenuConversation] = useState<Conversation | null>(
@@ -568,7 +566,13 @@ export function HeaderChatsMenu() {
 							const preview = getPreview(conversation, currentUserId);
 							const avatar = getConversationAvatar(conversation, currentUserId);
 							const unread = Number(conversation.unread_count || 0) > 0;
-							const isOpen = openConversationIds.includes(conversation.id);
+							const isOnline =
+								!conversation.is_group &&
+								conversation.participants.some(
+									(participant) =>
+										Number(participant.id) !== Number(currentUserId) &&
+										onlineUserIds.has(Number(participant.id)),
+								);
 							const conversationTime = formatTimestampRealtime(
 								conversation.last_message_at ?? "",
 								now,
@@ -609,9 +613,34 @@ export function HeaderChatsMenu() {
 										},
 									}}
 								>
-									<Avatar src={avatar} sx={{ width: 58, height: 58 }}>
-										{title.charAt(0).toUpperCase()}
-									</Avatar>
+									<Box
+										sx={{
+											position: "relative",
+											width: 58,
+											height: 58,
+											flexShrink: 0,
+										}}
+									>
+										<Avatar src={avatar} sx={{ width: 58, height: 58 }}>
+											{title.charAt(0).toUpperCase()}
+										</Avatar>
+										{isOnline && (
+											<Box
+												aria-label="Đang hoạt động"
+												sx={{
+													position: "absolute",
+													top: 1,
+													right: 1,
+													width: 13,
+													height: 13,
+													borderRadius: "50%",
+													bgcolor: "success.main",
+													border: "2px solid",
+													borderColor: "#242526",
+												}}
+											/>
+										)}
+									</Box>
 									<Box sx={{ flex: 1, minWidth: 0 }}>
 										<Box
 											sx={{
@@ -659,7 +688,7 @@ export function HeaderChatsMenu() {
 											{preview}
 										</Typography>
 									</Box>
-									{(unread || isOpen) && (
+									{unread && (
 										<Box
 											sx={{
 												position: "absolute",
@@ -669,7 +698,7 @@ export function HeaderChatsMenu() {
 												width: 12,
 												height: 12,
 												borderRadius: "50%",
-												bgcolor: isOpen ? "#22c55e" : "#f97316",
+												bgcolor: "#f97316",
 											}}
 										/>
 									)}

@@ -520,7 +520,7 @@ export const MovieHeroSection = ({
 									aria-hidden
 									onError={(e) => {
 										const img = e.currentTarget as HTMLImageElement;
-										if (img.src !== "/placeholder-poster.svg") {
+										if (!img.src.endsWith("/placeholder-poster.svg")) {
 											img.onerror = null;
 											img.src = "/placeholder-poster.svg";
 										}
@@ -544,7 +544,7 @@ export const MovieHeroSection = ({
 									alt={movie.name}
 									onError={(e) => {
 										const img = e.currentTarget as HTMLImageElement;
-										if (img.src !== "/placeholder-poster.svg") {
+										if (!img.src.endsWith("/placeholder-poster.svg")) {
 											img.onerror = null;
 											img.src = "/placeholder-poster.svg";
 										}

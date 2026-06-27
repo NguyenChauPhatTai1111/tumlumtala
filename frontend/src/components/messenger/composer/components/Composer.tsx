@@ -13,6 +13,7 @@ import type {
 import { getEmojiText } from "@components/messenger/composer/utils/emoji";
 import type { MessengerComposerProps } from "@components/messenger/types/composer";
 import { useRecentItems } from "@hooks/messenger";
+import { addRecentItem } from "@/services/recentItemService";
 import { Box, Typography } from "@mui/material";
 import {
 	type DragEvent,
@@ -228,9 +229,7 @@ export const MessengerComposer = ({
 		onDraftChange?.({ text: "", images: [], videos: [], files: [] });
 	}, [onDraftChange]);
 
-	const { data: recentItems, loadData: loadRecentItems } = useRecentItems(
-		Number(conversationId),
-	);
+	const { data: recentItems, loadData: loadRecentItems } = useRecentItems();
 	const {
 		emojiItems,
 		emojiTypeMap,
@@ -319,6 +318,7 @@ export const MessengerComposer = ({
 		if (!emojiText) return;
 		clearTypingState();
 		handleCloseEmojiPicker();
+		addRecentItem("emoji", Number(item.id), item.name || item.code || "");
 		await onSend(emojiText, "emoji", Number(item.id));
 	};
 
@@ -328,6 +328,7 @@ export const MessengerComposer = ({
 		if (!imgUrl) return;
 		clearTypingState();
 		handleCloseEmojiPicker();
+		addRecentItem("sticker", Number(sticker.id), sticker.name || "");
 		await onSend(imgUrl, "sticker", Number(sticker.id));
 	};
 

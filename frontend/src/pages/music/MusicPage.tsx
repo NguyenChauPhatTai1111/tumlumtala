@@ -29,7 +29,6 @@ import { saveMusicSearchKeyword } from "@services/musicBackendService";
 import { toAudioMediaItem, toVideoMediaItem } from "@services/musicService";
 import { usePlayerStore } from "@store/playerStore";
 import { ArtistsPanel } from "./components/ArtistsPanel";
-import { BottomPlayer } from "./components/BottomPlayer";
 import { EmptyState } from "./components/EmptyState";
 import { IntersectionSentinel } from "./components/IntersectionSentinel";
 import { MediaRow } from "./components/MediaRow";
@@ -742,7 +741,6 @@ export default function MusicPage() {
 				onLoadMore={() => void playlistTracksQuery.fetchNextPage()}
 				onClose={() => setSelectedPlaylist(null)}
 			/>
-			<BottomPlayer />
 		</Box>
 	);
 }

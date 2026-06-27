@@ -63,11 +63,32 @@ export class WebRTCClient {
 		return track.enabled;
 	}
 
-	toggleCamera() {
+	toggleCamera(): boolean {
 		const track = this.localStream?.getVideoTracks()[0];
 		if (!track) return false;
-		track.enabled = !track.enabled;
-		return track.enabled;
+		if (track.enabled) {
+			track.stop();
+			this.localStream?.removeTrack(track);
+			const sender = this.pc?.getSenders().find((s) => s.track?.kind === "video");
+			if (sender) sender.replaceTrack(null).catch(() => {});
+			return false;
+		}
+		return true;
+	}
+
+	async enableCamera(): Promise<MediaStream | null> {
+		if (!this.localStream) return null;
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+			const newTrack = stream.getVideoTracks()[0];
+			this.localStream.addTrack(newTrack);
+			const sender = this.pc?.getSenders().find((s) => s.track === null || s.track?.kind === "video");
+			if (sender) await sender.replaceTrack(newTrack);
+			else this.pc?.addTrack(newTrack, this.localStream);
+		} catch {
+			// permission denied or no camera
+		}
+		return this.localStream;
 	}
 
 	async switchCamera() {

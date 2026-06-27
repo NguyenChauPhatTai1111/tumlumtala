@@ -15,6 +15,10 @@ func NewMoviesRoutes(proxy *MoviesProxy) *MoviesRoutes {
 // enforces its own JWT check on the authenticated sub-routes.
 func (r *MoviesRoutes) RegisterPublic(router *gin.RouterGroup) {
 	router.Any("/movie/*path", r.proxy.ServeHTTP)
+	// Media proxy — decode XOR token and forward to external CDN
+	router.GET("/f/:token", r.ServeImage)
+	router.GET("/e/:token", r.ServeEmbed)
+	router.GET("/m/:token", r.ServeM3u8)
 }
 
 // Register is a no-op: all movie routes are handled in RegisterPublic so that
