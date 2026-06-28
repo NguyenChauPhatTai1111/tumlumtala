@@ -63,14 +63,19 @@ export function MovieTopBar({
 	return (
 		<Box
 			sx={{
+				position: "fixed",
+				top: 0,
+				left: 0,
+				right: 0,
 				flexShrink: 0,
 				zIndex: 100,
 				backgroundColor: alpha(
 					theme.palette.background.default,
-					scrolled ? 0.75 : 0,
+					scrolled ? 0.85 : 0.45,
 				),
-				backdropFilter: scrolled ? "blur(16px)" : "none",
-				transition: "background-color 0.3s ease, backdrop-filter 0.3s ease",
+				backdropFilter: "blur(4px)",
+				WebkitBackdropFilter: "blur(4px)",
+				transition: "background-color 0.3s ease",
 				borderBottom: scrolled
 					? `1px solid ${alpha(theme.palette.divider, 0.15)}`
 					: "1px solid transparent",

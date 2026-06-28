@@ -74,7 +74,7 @@ const MovieCardBase = ({
 	const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
 	const thumb = resolveThumb(movie.thumb_url); // ảnh ngang 16:9
 	const poster = resolveThumb(movie.poster_url); // ảnh đứng 2:3
-	// poster mode = card 16/9 rộng → dùng ảnh ngang thumb_url
+	// poster mode = card 16/9 ngang → dùng ảnh ngang thumb_url
 	// thumb mode  = card 2/3 đứng  → dùng ảnh đứng poster_url
 	const cardImage = imageMode === "poster" ? thumb || poster : poster || thumb;
 	const cardAspectRatio = imageMode === "poster" ? "16/9" : "2/3";
