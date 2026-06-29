@@ -31,5 +31,9 @@ func RegisterRoutes(r *gin.Engine, h *Handler, jwtSecret string) {
 		music.GET("/library", h.ListLibrary)
 		music.POST("/library", h.AddLibraryItem)
 		music.DELETE("/library/:item_id", h.RemoveLibraryItem)
+
+		music.POST("/events", h.TrackListeningEvent)
+		music.GET("/events", h.ListListeningEvents)
+		music.GET("/dna", h.GetUserDNA)
 	}
 }

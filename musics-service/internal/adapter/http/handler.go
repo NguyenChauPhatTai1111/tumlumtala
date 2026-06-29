@@ -9,6 +9,7 @@ import (
 
 	"github.com/tumlumtala/musics-service/internal/common/httpctx"
 	"github.com/tumlumtala/musics-service/internal/common/responses"
+	eventdto "github.com/tumlumtala/musics-service/internal/module/application/dto/event"
 	librarydto "github.com/tumlumtala/musics-service/internal/module/application/dto/library"
 	mediadto "github.com/tumlumtala/musics-service/internal/module/application/dto/media"
 	playlistdto "github.com/tumlumtala/musics-service/internal/module/application/dto/playlist"
@@ -16,26 +17,30 @@ import (
 	historyquery "github.com/tumlumtala/musics-service/internal/module/application/query/history"
 	libraryquery "github.com/tumlumtala/musics-service/internal/module/application/query/library"
 	likedquery "github.com/tumlumtala/musics-service/internal/module/application/query/liked"
+	listeningquery "github.com/tumlumtala/musics-service/internal/module/application/query/listening"
 	playlistquery "github.com/tumlumtala/musics-service/internal/module/application/query/playlist"
 	searchquery "github.com/tumlumtala/musics-service/internal/module/application/query/search"
 	historyuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/history"
 	libraryuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/library"
 	likeduc "github.com/tumlumtala/musics-service/internal/module/application/usecase/liked"
+	listeninguc "github.com/tumlumtala/musics-service/internal/module/application/usecase/listening"
 	playlistuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/playlist"
 	searchuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/search"
 )
 
 type Handler struct {
-	likedQuery      *likedquery.QueryService
-	likedUseCase    *likeduc.UseCase
-	historyQuery    *historyquery.QueryService
-	historyUseCase  *historyuc.UseCase
-	searchQuery     *searchquery.QueryService
-	searchUseCase   *searchuc.UseCase
-	playlistQuery   *playlistquery.QueryService
-	playlistUseCase *playlistuc.UseCase
-	libraryQuery    *libraryquery.QueryService
-	libraryUseCase  *libraryuc.UseCase
+	likedQuery       *likedquery.QueryService
+	likedUseCase     *likeduc.UseCase
+	historyQuery     *historyquery.QueryService
+	historyUseCase   *historyuc.UseCase
+	searchQuery      *searchquery.QueryService
+	searchUseCase    *searchuc.UseCase
+	playlistQuery    *playlistquery.QueryService
+	playlistUseCase  *playlistuc.UseCase
+	libraryQuery     *libraryquery.QueryService
+	libraryUseCase   *libraryuc.UseCase
+	listeningQuery   *listeningquery.QueryService
+	listeningUseCase *listeninguc.UseCase
 }
 
 func NewHandler(
@@ -49,18 +54,22 @@ func NewHandler(
 	playlistUseCase *playlistuc.UseCase,
 	libraryQuery *libraryquery.QueryService,
 	libraryUseCase *libraryuc.UseCase,
+	listeningQuery *listeningquery.QueryService,
+	listeningUseCase *listeninguc.UseCase,
 ) *Handler {
 	return &Handler{
-		likedQuery:      likedQuery,
-		likedUseCase:    likedUseCase,
-		historyQuery:    historyQuery,
-		historyUseCase:  historyUseCase,
-		searchQuery:     searchQuery,
-		searchUseCase:   searchUseCase,
-		playlistQuery:   playlistQuery,
-		playlistUseCase: playlistUseCase,
-		libraryQuery:    libraryQuery,
-		libraryUseCase:  libraryUseCase,
+		likedQuery:       likedQuery,
+		likedUseCase:     likedUseCase,
+		historyQuery:     historyQuery,
+		historyUseCase:   historyUseCase,
+		searchQuery:      searchQuery,
+		searchUseCase:    searchUseCase,
+		playlistQuery:    playlistQuery,
+		playlistUseCase:  playlistUseCase,
+		libraryQuery:     libraryQuery,
+		libraryUseCase:   libraryUseCase,
+		listeningQuery:   listeningQuery,
+		listeningUseCase: listeningUseCase,
 	}
 }
 
@@ -306,4 +315,59 @@ func (h *Handler) DeletePlaylist(c *gin.Context) {
 		return
 	}
 	responses.ResponseSuccess(c, http.StatusOK, "đã xóa playlist", responses.ResponseData{Data: gin.H{"id": playlistID}})
+}
+
+// ─── Listening Events ─────────────────────────────────────────────────────────
+
+func (h *Handler) TrackListeningEvent(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	var req eventdto.AddListeningEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		responses.ResponseError(c, responses.ErrBadRequest(err.Error()))
+		return
+	}
+	result, err := h.listeningUseCase.Track(c.Request.Context(), userUUID, req)
+	if err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusCreated, "đã ghi nhận sự kiện", responses.ResponseData{Data: result})
+}
+
+func (h *Handler) ListListeningEvents(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	limit := 100
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	events, err := h.listeningQuery.RecentEvents(c.Request.Context(), userUUID, limit)
+	if err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusOK, "lấy lịch sử nghe thành công", responses.ResponseData{Data: events})
+}
+
+func (h *Handler) GetUserDNA(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	dna, err := h.listeningQuery.DNA(c.Request.Context(), userUUID)
+	if err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusOK, "lấy listening DNA thành công", responses.ResponseData{Data: dna})
 }

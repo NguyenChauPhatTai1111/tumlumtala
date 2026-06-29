@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/tumlumtala/musics-service/internal/module/domain/entity/event"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/history"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/library"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/liked"
@@ -27,4 +28,8 @@ type MusicRepository interface {
 	ListLibraryItems(ctx context.Context, userUUID string) ([]library.Item, error)
 	AddLibraryItem(ctx context.Context, item library.Item) (*library.Item, error)
 	RemoveLibraryItem(ctx context.Context, userUUID string, itemID uint64) error
+	AddListeningEvent(ctx context.Context, e event.ListeningEvent) (*event.ListeningEvent, error)
+	ListListeningEvents(ctx context.Context, userUUID string, limit int) ([]event.ListeningEvent, error)
+	GetUserDNA(ctx context.Context, userUUID string) ([]event.UserDNA, error)
+	UpsertUserDNA(ctx context.Context, dna event.UserDNA) error
 }

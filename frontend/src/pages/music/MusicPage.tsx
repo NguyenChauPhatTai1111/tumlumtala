@@ -5,6 +5,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import MenuIcon from "@mui/icons-material/Menu";
 import PersonIcon from "@mui/icons-material/Person";
 import ExploreIcon from "@mui/icons-material/Explore";
@@ -41,7 +42,9 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { saveMusicSearchKeyword } from "@services/musicBackendService";
 import {
     getAudiusProfileImage,
+    getPlaylist,
     getPlaylistArtwork,
+    getUser,
     toAudioMediaItem,
     toVideoMediaItem,
 } from "@services/musicService";
@@ -50,13 +53,13 @@ import { ArtistsPanel } from "./components/ArtistsPanel";
 import { IntersectionSentinel } from "./components/IntersectionSentinel";
 import { LeaderboardView } from "./components/LeaderboardView";
 import { LibraryView } from "./components/LibraryView";
+import { ListeningStatsView } from "./components/ListeningStatsView";
 import { MediaRow } from "./components/MediaRow";
 import { PlaylistGrid } from "./components/PlaylistGrid";
 import { UserProfileView } from "./components/UserProfileView";
 import { PlaylistTracksDialog } from "./components/PlaylistTracksDialog";
-import { TrackInfoButton } from "./components/TrackInfoDialog";
-import { AddToPlaylistButton } from "./components/AddToPlaylistButton";
 import { LibraryToggleButton } from "./components/LibraryToggleButton";
+import { TrackOptionsButton } from "./components/TrackOptionsButton";
 import { useDebouncedValue } from "./hooks/useDebouncedValue";
 import {
     useAddToPlaylistMutation,
@@ -91,7 +94,18 @@ import type {
 } from "./types";
 import { formatDisplayName, formatDuration } from "./utils";
 
-type MusicView = "home" | "search" | "artists" | "playlists" | "library" | "liked" | "recent" | "my-playlists" | "leaderboard" | "profile";
+type MusicView =
+    | "home"
+    | "search"
+    | "artists"
+    | "playlists"
+    | "library"
+    | "liked"
+    | "recent"
+    | "my-playlists"
+    | "leaderboard"
+    | "profile"
+    | "stats";
 
 const SP_GREEN = "#f97316";
 const SIDEBAR_W = 280;
@@ -294,19 +308,7 @@ function TrackCard({
                             backdropFilter: "blur(8px)",
                         }}
                     >
-                        <TrackInfoButton item={item} alwaysVisible />
-                    </Box>
-                    <Box
-                        sx={{
-                            position: "absolute",
-                            top: 7,
-                            left: 7,
-                            borderRadius: "50%",
-                            bgcolor: "rgba(12,12,12,0.72)",
-                            backdropFilter: "blur(8px)",
-                        }}
-                    >
-                        <AddToPlaylistButton item={item} alwaysVisible />
+                        <TrackOptionsButton item={item} alwaysVisible />
                     </Box>
                 </Box>
                 <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "white", mb: 0.25 }}>
@@ -433,7 +435,7 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
                         sx={{
                             position: "absolute",
                             top: 7,
-                           	left: 7,
+                            left: 7,
                             bgcolor: "rgba(12,12,12,0.7)",
                             borderRadius: "50%",
                         }}
@@ -577,7 +579,10 @@ function QueuePanelContent({
                             <IconButton
                                 size="small"
                                 onClick={onClear}
-                                sx={{ color: "rgba(255,255,255,0.4)", "&:hover": { color: "#ef4444" } }}
+                                sx={{
+                                    color: "rgba(255,255,255,0.4)",
+                                    "&:hover": { color: "#ef4444" },
+                                }}
                             >
                                 <DeleteOutlineIcon fontSize="small" />
                             </IconButton>
@@ -605,15 +610,15 @@ function QueuePanelContent({
             >
                 {queue.length === 0 ? (
                     <Box sx={{ p: 3, textAlign: "center" }}>
-                        <QueueMusicIcon sx={{ fontSize: 40, color: "rgba(255,255,255,0.15)", mb: 1 }} />
+                        <QueueMusicIcon
+                            sx={{ fontSize: 40, color: "rgba(255,255,255,0.15)", mb: 1 }}
+                        />
                         <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
                             Queue trống. Phát một bài để bắt đầu.
                         </Typography>
                     </Box>
                 ) : (
-                    queue.map((item) => (
-                        <QueueItem key={item.id} item={item} queue={queue} />
-                    ))
+                    queue.map((item) => <QueueItem key={item.id} item={item} queue={queue} />)
                 )}
             </Box>
         </Box>
@@ -769,7 +774,7 @@ function SidebarInner({
                         {playlists.map((playlist) => (
                             <Box
                                 key={playlist.id}
-                                onClick={() => onNavigate("library")}
+                                onClick={() => onNavigate("my-playlists")}
                                 sx={{
                                     px: 1.5,
                                     py: 0.75,
@@ -807,6 +812,7 @@ export default function MusicPage() {
     const [playlistName, setPlaylistName] = useState("");
     const [selectedArtist, setSelectedArtist] = useState<AudiusUser | null>(null);
     const [selectedPlaylist, setSelectedPlaylist] = useState<AudiusPlaylist | null>(null);
+    const [openLibraryPlaylistId, setOpenLibraryPlaylistId] = useState<number | undefined>();
     const [trendingGenre, setTrendingGenre] = useState<TrendingGenre>("All");
     const [trendingTime, setTrendingTime] = useState<TrendingTimeFilter>("week");
     const [searchTab, setSearchTab] = useState(0);
@@ -825,8 +831,15 @@ export default function MusicPage() {
     const lastSavedKeywordRef = useRef<string | null>(null);
     const queryClient = useQueryClient();
 
-    const { queue, currentItem, recentItems, likedItems, clearQueue, hydrateLibrary, appendToQueue } =
-        usePlayerStore();
+    const {
+        queue,
+        currentItem,
+        recentItems,
+        likedItems,
+        clearQueue,
+        hydrateLibrary,
+        appendToQueue,
+    } = usePlayerStore();
     const hasYouTubeKey = Boolean(import.meta.env.VITE_YOUTUBE_API_KEY);
 
     // Queries
@@ -861,6 +874,33 @@ export default function MusicPage() {
 
     const createPlaylistMutation = useCreatePlaylistMutation(() => setPlaylistName(""));
     const addToPlaylistMutation = useAddToPlaylistMutation();
+
+    useEffect(() => {
+        const handleEntityNavigation = (event: Event) => {
+            const { type, id } = (
+                event as CustomEvent<{ type?: "artist" | "album" | "playlist"; id?: string }>
+            ).detail;
+            if (!id) return;
+
+            if (type === "artist") {
+                void getUser(id).then((artist) => {
+                    if (!artist) return;
+                    setSelectedArtist(artist);
+                    setView("artists");
+                });
+                return;
+            }
+
+            if (type === "album" || type === "playlist") {
+                void getPlaylist(id).then((playlist) => {
+                    if (playlist) setSelectedPlaylist(playlist);
+                });
+            }
+        };
+
+        window.addEventListener("music:navigate-entity", handleEntityNavigation);
+        return () => window.removeEventListener("music:navigate-entity", handleEntityNavigation);
+    }, []);
 
     useEffect(() => {
         hydrateLibrary(backendLikedQuery.data ?? [], backendRecentQuery.data ?? []);
@@ -920,6 +960,7 @@ export default function MusicPage() {
         { id: "playlists" as MusicView, label: "Playlists", icon: <PlaylistPlayIcon /> },
         { id: "library" as MusicView, label: "Thư viện", icon: <LibraryMusicIcon /> },
         { id: "leaderboard" as MusicView, label: "Xếp hạng", icon: <EmojiEventsIcon /> },
+        { id: "stats" as MusicView, label: "Thống kê", icon: <GraphicEqIcon /> },
         { id: "profile" as MusicView, label: "Hồ sơ", icon: <PersonIcon /> },
     ];
 
@@ -999,6 +1040,7 @@ export default function MusicPage() {
                     playlists={backendPlaylistsQuery.data ?? []}
                     spGreen={SP_GREEN}
                     onNavigate={(v) => {
+                        setOpenLibraryPlaylistId(undefined);
                         setView(v);
                         setSidebarOpen(false);
                     }}
@@ -1023,7 +1065,10 @@ export default function MusicPage() {
                     libraryItems={libraryItems}
                     playlists={backendPlaylistsQuery.data ?? []}
                     spGreen={SP_GREEN}
-                    onNavigate={setView}
+                    onNavigate={(v) => {
+                        setOpenLibraryPlaylistId(undefined);
+                        setView(v);
+                    }}
                 />
             </Box>
 
@@ -1341,24 +1386,37 @@ export default function MusicPage() {
                                 {/* Search history chips */}
                                 {(backendSearchHistoryQuery.data?.length ?? 0) > 0 && (
                                     <Box sx={{ mb: 4 }}>
-                                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}>
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 800,
+                                                fontSize: 20,
+                                                color: "white",
+                                                mb: 2,
+                                            }}
+                                        >
                                             Tìm kiếm gần đây
                                         </Typography>
                                         <Stack direction="row" flexWrap="wrap" gap={1} useFlexGap>
-                                            {(backendSearchHistoryQuery.data ?? []).slice(0, 12).map((row) => (
-                                                <Chip
-                                                    key={row.id}
-                                                    label={row.keyword}
-                                                    icon={<SearchIcon />}
-                                                    onClick={() => setKeyword(row.keyword)}
-                                                    sx={{
-                                                        bgcolor: "rgba(255,255,255,0.1)",
-                                                        color: "rgba(255,255,255,0.8)",
-                                                        "& .MuiChip-icon": { color: "rgba(255,255,255,0.5)" },
-                                                        "&:hover": { bgcolor: "rgba(255,255,255,0.18)" },
-                                                    }}
-                                                />
-                                            ))}
+                                            {(backendSearchHistoryQuery.data ?? [])
+                                                .slice(0, 12)
+                                                .map((row) => (
+                                                    <Chip
+                                                        key={row.id}
+                                                        label={row.keyword}
+                                                        icon={<SearchIcon />}
+                                                        onClick={() => setKeyword(row.keyword)}
+                                                        sx={{
+                                                            bgcolor: "rgba(255,255,255,0.1)",
+                                                            color: "rgba(255,255,255,0.8)",
+                                                            "& .MuiChip-icon": {
+                                                                color: "rgba(255,255,255,0.5)",
+                                                            },
+                                                            "&:hover": {
+                                                                bgcolor: "rgba(255,255,255,0.18)",
+                                                            },
+                                                        }}
+                                                    />
+                                                ))}
                                         </Stack>
                                     </Box>
                                 )}
@@ -1366,17 +1424,31 @@ export default function MusicPage() {
                                 {/* Recently played */}
                                 {recentItems.length > 0 && (
                                     <Box>
-                                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}>
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 800,
+                                                fontSize: 20,
+                                                color: "white",
+                                                mb: 2,
+                                            }}
+                                        >
                                             Nghe gần đây
                                         </Typography>
                                         {recentItems.slice(0, 20).map((item, i) => (
-                                            <MediaRow key={item.id} item={item} queue={recentItems} index={i + 1} />
+                                            <MediaRow
+                                                key={item.id}
+                                                item={item}
+                                                queue={recentItems}
+                                                index={i + 1}
+                                            />
                                         ))}
                                     </Box>
                                 )}
 
                                 {!backendSearchHistoryQuery.data?.length && !recentItems.length && (
-                                    <Typography sx={{ color: "rgba(255,255,255,0.4)", fontSize: 14, mt: 2 }}>
+                                    <Typography
+                                        sx={{ color: "rgba(255,255,255,0.4)", fontSize: 14, mt: 2 }}
+                                    >
                                         Nhập từ khóa để tìm bài hát, nghệ sĩ hoặc playlist.
                                     </Typography>
                                 )}
@@ -1682,7 +1754,9 @@ export default function MusicPage() {
                         }}
                     >
                         {!selectedArtist && (
-                            <Typography sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}>
+                            <Typography
+                                sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}
+                            >
                                 {hasSearchKeyword ? "Kết quả tìm kiếm" : "Nghệ sĩ phổ biến hôm nay"}
                             </Typography>
                         )}
@@ -1737,7 +1811,7 @@ export default function MusicPage() {
                             pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
-                        <LibraryView />
+                        <LibraryView initialPlaylistId={openLibraryPlaylistId} />
                     </Box>
                 )}
 
@@ -1897,10 +1971,15 @@ export default function MusicPage() {
                                 onClick={() => createPlaylistMutation.mutate(playlistName.trim())}
                                 disabled={!playlistName.trim() || createPlaylistMutation.isPending}
                                 sx={{
+                                    minHeight: 40,
+                                    px: 3,
                                     bgcolor: SP_GREEN,
                                     color: "black",
                                     fontWeight: 700,
                                     whiteSpace: "nowrap",
+                                    "& .MuiButton-startIcon": {
+                                        mr: 1,
+                                    },
                                     "&:hover": { bgcolor: "#fb923c" },
                                     "&:disabled": {
                                         bgcolor: "rgba(255,255,255,0.1)",
@@ -1925,6 +2004,10 @@ export default function MusicPage() {
                                 {(backendPlaylistsQuery.data ?? []).map((playlist) => (
                                     <Box
                                         key={playlist.id}
+                                        onClick={() => {
+                                            setOpenLibraryPlaylistId(playlist.id);
+                                            setView("library");
+                                        }}
                                         sx={{
                                             bgcolor: "#181818",
                                             borderRadius: 1.5,
@@ -2017,6 +2100,22 @@ export default function MusicPage() {
                         }}
                     >
                         <LeaderboardView />
+                    </Box>
+                )}
+
+                {/* ── STATS ────────────────────────────────────────────────── */}
+                {view === "stats" && (
+                    <Box
+                        ref={mainScrollRef}
+                        sx={{
+                            flex: 1,
+                            minHeight: 0,
+                            overflow: "auto",
+                            p: { xs: 2, md: 3 },
+                            pb: "var(--persistent-music-player-height, 90px)",
+                        }}
+                    >
+                        <ListeningStatsView />
                     </Box>
                 )}
 

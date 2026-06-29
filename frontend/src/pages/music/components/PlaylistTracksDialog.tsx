@@ -252,7 +252,7 @@ export const PlaylistTracksDialog = ({
                         sx={{
                             display: { xs: "none", md: "grid" },
                             gridTemplateColumns:
-                                "16px 48px minmax(0,1fr) minmax(140px,.6fr) 28px 28px 30px 40px 40px 42px",
+                                "16px 48px minmax(0,1fr) minmax(140px,.6fr) 32px 42px 34px",
                             gap: 1.5,
                             alignItems: "center",
                             px: 2,
@@ -269,11 +269,8 @@ export const PlaylistTracksDialog = ({
                         <Typography variant="caption">Tiêu đề</Typography>
                         <Typography variant="caption">Album</Typography>
                         <Box />
-                        <Box />
-                        <Box />
-                        <Box />
-                        <Box />
                         <AccessTimeIcon sx={{ fontSize: 16, justifySelf: "end" }} />
+                        <Box />
                     </Box>
 
                     {loading && !queue.length ? (

@@ -9,11 +9,11 @@ import { usePlayerStore } from "@store/playerStore";
 
 const SP_GREEN = "#f97316";
 
-function medal(rank: number) {
-    if (rank === 1) return "🥇";
-    if (rank === 2) return "🥈";
-    if (rank === 3) return "🥉";
-    return `${rank}`;
+function rankColor(rank: number) {
+    if (rank === 1) return "#f59e0b";
+    if (rank === 2) return "#94a3b8";
+    if (rank === 3) return "#cd7c3f";
+    return "rgba(255,255,255,0.4)";
 }
 
 interface TrackStat {
@@ -106,9 +106,9 @@ export function LeaderboardView() {
                             "& .MuiTabs-indicator": { bgcolor: SP_GREEN, height: 2 },
                         }}
                     >
-                        <Tab label="🎵 Top Bài Hát" />
-                        <Tab label="🎤 Top Nghệ Sĩ" />
-                        <Tab label="🎸 Top Thể Loại" />
+                        <Tab label="Top Bài Hát" />
+                        <Tab label="Top Nghệ Sĩ" />
+                        <Tab label="Top Thể Loại" />
                     </Tabs>
 
                     {/* Top Tracks */}
@@ -125,8 +125,8 @@ export function LeaderboardView() {
                                         transition: "background-color 0.15s",
                                     }}
                                 >
-                                    <Typography sx={{ width: 28, textAlign: "center", fontSize: i < 3 ? 18 : 13, color: i < 3 ? "white" : "rgba(255,255,255,0.4)", flexShrink: 0 }}>
-                                        {medal(i + 1)}
+                                    <Typography sx={{ width: 28, textAlign: "center", fontSize: 13, fontWeight: 700, color: rankColor(i + 1), flexShrink: 0 }}>
+                                        {i + 1}
                                     </Typography>
                                     <Avatar variant="rounded" src={item.thumbnail} sx={{ width: 40, height: 40, borderRadius: 0.5, flexShrink: 0 }} />
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -160,8 +160,8 @@ export function LeaderboardView() {
                                         px: 1.5, py: 1, borderRadius: 1,
                                     }}
                                 >
-                                    <Typography sx={{ width: 28, textAlign: "center", fontSize: i < 3 ? 18 : 13, color: i < 3 ? "white" : "rgba(255,255,255,0.4)", flexShrink: 0 }}>
-                                        {medal(i + 1)}
+                                    <Typography sx={{ width: 28, textAlign: "center", fontSize: 13, fontWeight: 700, color: rankColor(i + 1), flexShrink: 0 }}>
+                                        {i + 1}
                                     </Typography>
                                     <Avatar src={thumbnail} sx={{ width: 40, height: 40, flexShrink: 0 }} />
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -189,8 +189,8 @@ export function LeaderboardView() {
                                     const pct = Math.round((count / total) * 100);
                                     return (
                                         <Box key={genre} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1 }}>
-                                            <Typography sx={{ width: 28, textAlign: "center", fontSize: i < 3 ? 18 : 13, color: i < 3 ? "white" : "rgba(255,255,255,0.4)", flexShrink: 0 }}>
-                                                {medal(i + 1)}
+                                            <Typography sx={{ width: 28, textAlign: "center", fontSize: 13, fontWeight: 700, color: rankColor(i + 1), flexShrink: 0 }}>
+                                                {i + 1}
                                             </Typography>
                                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                                 <Typography sx={{ fontSize: 14, fontWeight: 600, color: "white", mb: 0.5 }}>

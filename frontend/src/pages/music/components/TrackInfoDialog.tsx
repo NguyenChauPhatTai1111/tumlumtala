@@ -64,7 +64,7 @@ export function TrackInfoButton({
     );
 }
 
-function TrackInfoDialog({
+export function TrackInfoDialog({
     item,
     open,
     onClose,
@@ -107,6 +107,15 @@ function TrackInfoDialog({
         .map((tag) => tag.trim())
         .filter(Boolean)
         .slice(0, 8);
+    const navigateToEntity = (type: "artist" | "album" | "playlist", id?: string) => {
+        if (!id) return;
+        onClose();
+        window.dispatchEvent(
+            new CustomEvent("music:navigate-entity", {
+                detail: { type, id },
+            }),
+        );
+    };
 
     return (
         <Dialog
@@ -165,7 +174,37 @@ function TrackInfoDialog({
                         </Box>
 
                         <InfoSection icon={<PersonOutlineIcon />} title="Nghệ sĩ">
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                            <Box
+                                component="button"
+                                type="button"
+                                onClick={() =>
+                                    navigateToEntity("artist", track?.user?.id ?? item.artistId)
+                                }
+                                disabled={!track?.user?.id && !item.artistId}
+                                sx={{
+                                    width: "100%",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1.25,
+                                    p: 0,
+                                    color: "inherit",
+                                    font: "inherit",
+                                    textAlign: "left",
+                                    border: 0,
+                                    bgcolor: "transparent",
+                                    cursor:
+                                        track?.user?.id || item.artistId ? "pointer" : "default",
+                                    borderRadius: 1,
+                                    transition: "background-color 160ms ease",
+                                    "&:hover:not(:disabled)": {
+                                        bgcolor: "rgba(255,255,255,0.055)",
+                                    },
+                                    "&:focus-visible": {
+                                        outline: "2px solid rgba(249,115,22,0.75)",
+                                        outlineOffset: 4,
+                                    },
+                                }}
+                            >
                                 <Avatar
                                     src={
                                         track?.user ? getAudiusProfileImage(track.user) : undefined
@@ -211,6 +250,16 @@ function TrackInfoDialog({
                                         "Album"
                                     }
                                     label="Album"
+                                    onClick={() =>
+                                        navigateToEntity(
+                                            "album",
+                                            String(
+                                                album?.id ??
+                                                    track?.album_backlink?.playlist_id ??
+                                                    "",
+                                            ),
+                                        )
+                                    }
                                 />
                             ) : (
                                 <EmptyMetadata label="Bài hát này không thuộc album nào." />
@@ -228,6 +277,9 @@ function TrackInfoDialog({
                                             image={getPlaylistArtwork(playlist)}
                                             name={playlist.playlist_name}
                                             label={`${playlist.track_count ?? 0} bài`}
+                                            onClick={() =>
+                                                navigateToEntity("playlist", String(playlist.id))
+                                            }
                                         />
                                     ))}
                                 </Stack>
@@ -271,9 +323,48 @@ function InfoSection({
     );
 }
 
-function CollectionRow({ image, name, label }: { image: string; name: string; label: string }) {
+function CollectionRow({
+    image,
+    name,
+    label,
+    onClick,
+}: {
+    image: string;
+    name: string;
+    label: string;
+    onClick?: () => void;
+}) {
     return (
-        <Box sx={{ display: "flex", gap: 1.25, alignItems: "center" }}>
+        <Box
+            component={onClick ? "button" : "div"}
+            type={onClick ? "button" : undefined}
+            onClick={onClick}
+            sx={{
+                width: "100%",
+                display: "flex",
+                gap: 1.25,
+                alignItems: "center",
+                p: 0,
+                color: "inherit",
+                font: "inherit",
+                textAlign: "left",
+                border: 0,
+                bgcolor: "transparent",
+                cursor: onClick ? "pointer" : "default",
+                borderRadius: 1,
+                transition: "background-color 160ms ease, transform 160ms ease",
+                "&:hover": onClick
+                    ? {
+                          bgcolor: "rgba(255,255,255,0.065)",
+                          transform: "translateX(3px)",
+                      }
+                    : undefined,
+                "&:focus-visible": {
+                    outline: "2px solid rgba(249,115,22,0.75)",
+                    outlineOffset: 3,
+                },
+            }}
+        >
             <Avatar variant="rounded" src={image} sx={{ width: 44, height: 44, borderRadius: 1 }} />
             <Box sx={{ minWidth: 0 }}>
                 <Typography noWrap fontWeight={650}>

@@ -91,6 +91,7 @@ export const BottomPlayer = () => {
     const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
     const youtubeControlsHideTimerRef = useRef<number | null>(null);
     const volumeRef = useRef(1);
+    const reportProgressRef = useRef(usePlayerStore.getState().reportProgress);
     const youtubeStateRef = useRef({
         isPlaying: false,
         next: () => {},
@@ -204,6 +205,10 @@ export const BottomPlayer = () => {
     }, [isPlaying, next, pause, repeat, resume]);
 
     useEffect(() => {
+        reportProgressRef.current = usePlayerStore.getState().reportProgress;
+    });
+
+    useEffect(() => {
         volumeRef.current = volume;
     }, [volume]);
 
@@ -292,10 +297,12 @@ export const BottomPlayer = () => {
             });
             progressTimer = window.setInterval(() => {
                 if (!youtubePlayerRef.current) return;
-                setYoutubeCurrentTime(youtubePlayerRef.current.getCurrentTime() || 0);
+                const ct = youtubePlayerRef.current.getCurrentTime() || 0;
+                setYoutubeCurrentTime(ct);
                 setYoutubeDuration(youtubePlayerRef.current.getDuration() || 0);
                 setYoutubeMuted(youtubePlayerRef.current.isMuted());
                 setYoutubePlaybackRate(youtubePlayerRef.current.getPlaybackRate() || 1);
+                reportProgressRef.current(ct);
             }, 500);
         });
 
@@ -741,6 +748,7 @@ export const BottomPlayer = () => {
                     const audio = e.currentTarget;
                     setAudioCurrentTime(audio.currentTime || 0);
                     setAudioDuration(audio.duration || 0);
+                    reportProgress(audio.currentTime || 0);
                 }}
             />
 

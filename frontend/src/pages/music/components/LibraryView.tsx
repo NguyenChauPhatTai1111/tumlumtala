@@ -20,7 +20,7 @@ import type {
     MusicLibraryItemType,
     MusicPlaylistRow,
 } from "@services/musicBackendService";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { MediaRow } from "./MediaRow";
 
 type SelectedItem =
@@ -28,13 +28,20 @@ type SelectedItem =
     | { kind: "created"; item: MusicPlaylistRow }
     | null;
 
-export function LibraryView() {
+export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number }) {
     const [filter, setFilter] = useState<"all" | MusicLibraryItemType>("all");
     const [selected, setSelected] = useState<SelectedItem>(null);
     const libraryQuery = useMusicLibraryQuery();
     const playlistsQuery = useBackendPlaylistsQuery();
     const removeMutation = useRemoveLibraryItemMutation();
     const deletePlaylistMutation = useDeleteMusicPlaylistMutation();
+
+    useEffect(() => {
+        if (!initialPlaylistId || !playlistsQuery.data) return;
+        const playlist = playlistsQuery.data.find((p) => p.id === initialPlaylistId);
+        if (playlist) setSelected({ kind: "created", item: playlist });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialPlaylistId, playlistsQuery.data]);
 
     const remoteTracksQuery = useQuery({
         queryKey: [

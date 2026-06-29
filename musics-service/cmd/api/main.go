@@ -19,11 +19,13 @@ import (
 	historyquery "github.com/tumlumtala/musics-service/internal/module/application/query/history"
 	libraryquery "github.com/tumlumtala/musics-service/internal/module/application/query/library"
 	likedquery "github.com/tumlumtala/musics-service/internal/module/application/query/liked"
+	listeningquery "github.com/tumlumtala/musics-service/internal/module/application/query/listening"
 	playlistquery "github.com/tumlumtala/musics-service/internal/module/application/query/playlist"
 	searchquery "github.com/tumlumtala/musics-service/internal/module/application/query/search"
 	historyuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/history"
 	libraryuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/library"
 	likeduc "github.com/tumlumtala/musics-service/internal/module/application/usecase/liked"
+	listeninguc "github.com/tumlumtala/musics-service/internal/module/application/usecase/listening"
 	playlistuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/playlist"
 	searchuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/search"
 	"github.com/tumlumtala/musics-service/internal/module/infrastructure/persistence/repository"
@@ -64,6 +66,8 @@ func main() {
 		playlistuc.NewUseCase(repo),
 		libraryquery.NewQueryService(repo),
 		libraryuc.NewUseCase(repo),
+		listeningquery.NewQueryService(repo),
+		listeninguc.NewUseCase(repo),
 	)
 
 	r := gin.New()

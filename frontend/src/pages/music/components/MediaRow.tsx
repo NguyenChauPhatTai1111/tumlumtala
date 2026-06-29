@@ -1,20 +1,16 @@
-import FavoriteIcon from "@mui/icons-material/Favorite";
-import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import RadioIcon from "@mui/icons-material/Radio";
 import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
 import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
 import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
 import type { MediaItem } from "@pages/music/types";
-import { TrackInfoButton } from "./TrackInfoDialog";
-import { AddToPlaylistButton } from "./AddToPlaylistButton";
-import { LibraryToggleButton } from "./LibraryToggleButton";
 import { formatCompactNumber, formatDisplayName, formatDuration } from "@pages/music/utils";
-import { getTrackRadio, toAudioMediaItem } from "@services/musicService";
 import { usePlayerStore } from "@store/playerStore";
 import { formatRelativeTimeAgo } from "@utils/dateTime";
-import { useCallback, useState } from "react";
+import { useState } from "react";
+import { TrackOptionsButton } from "./TrackOptionsButton";
 
 const SPOTIFY_GREEN = "#f97316";
 
@@ -29,12 +25,11 @@ export const MediaRow = ({
     index?: number;
     showCollectionColumn?: boolean;
 }) => {
-    const { currentItem, isPlaying, play, pause, resume, likedItems, replaceQueue } =
-        usePlayerStore();
+    const { currentItem, isPlaying, play, pause, resume, likedItems } = usePlayerStore();
     const active = currentItem?.id === item.id;
     const liked = likedItems.some((entry) => entry.id === item.id);
+    const likeMutation = useLikeMusicMutation(item, liked);
     const [hovered, setHovered] = useState(false);
-    const [radioLoading, setRadioLoading] = useState(false);
     const publishedDate = formatRelativeTimeAgo(item.publishedAt);
 
     const handlePlay = () => {
@@ -49,23 +44,6 @@ export const MediaRow = ({
         play(item, queue);
     };
 
-    const handleStartRadio = useCallback(
-        async (e: React.MouseEvent) => {
-            e.stopPropagation();
-            if (item.type !== "audio" || !item.sourceId) return;
-            setRadioLoading(true);
-            try {
-                const tracks = await getTrackRadio(item.sourceId, 30);
-                if (tracks.length) replaceQueue(tracks.map(toAudioMediaItem), 0);
-            } finally {
-                setRadioLoading(false);
-            }
-        },
-        [item, replaceQueue],
-    );
-
-    const likeMutation = useLikeMusicMutation(item, liked);
-
     return (
         <Box
             onMouseEnter={() => setHovered(true)}
@@ -75,10 +53,10 @@ export const MediaRow = ({
                 display: "grid",
                 gridTemplateColumns: showCollectionColumn
                     ? {
-                          xs: "16px 48px minmax(0, 1fr) 28px 42px",
-                          md: "16px 48px minmax(0, 1fr) minmax(140px, .6fr) 28px 28px 30px 40px 40px 42px",
+                          xs: "16px 48px minmax(0, 1fr) 32px 42px 34px",
+                          md: "16px 48px minmax(0, 1fr) minmax(140px, .6fr) 32px 42px 34px",
                       }
-                    : "16px 48px minmax(0, 1fr) 28px 28px 30px auto auto auto",
+                    : "16px 48px minmax(0, 1fr) 32px 42px 34px",
                 gap: 1.5,
                 alignItems: "center",
                 px: 2,
@@ -199,85 +177,39 @@ export const MediaRow = ({
                 </Typography>
             )}
 
-            <Box sx={{ width: 28 }}>
-                <TrackInfoButton item={item} alwaysVisible={hovered} />
-            </Box>
-            <Box
-                sx={{
-                    width: 28,
-                    display: showCollectionColumn ? { xs: "none", md: "block" } : "block",
-                }}
-            >
-                <AddToPlaylistButton item={item} alwaysVisible={hovered} />
-            </Box>
-            <Box
-                sx={{
-                    width: 30,
-                    display: showCollectionColumn ? { xs: "none", md: "block" } : "block",
-                }}
-            >
-                {item.type === "audio" && (
-                    <LibraryToggleButton
-                        compact
-                        label="Lưu radio vào thư viện"
-                        item={{
-                            item_type: "radio",
-                            source_id: item.sourceId,
-                            title: `${item.title} Radio`,
-                            subtitle: `Radio từ ${item.artist}`,
-                            thumbnail: item.thumbnail,
-                            metadata: { seed_track: item },
-                        }}
-                    />
-                )}
-            </Box>
-
-            {/* Start Radio — audio only, show on hover */}
-            {item.type === "audio" && (
-                <Tooltip title="Bắt đầu Radio">
-                    <IconButton
-                        size="small"
-                        onClick={handleStartRadio}
-                        disabled={radioLoading}
-                        sx={{
-                            display: showCollectionColumn
-                                ? { xs: "none", md: "inline-flex" }
-                                : undefined,
-                            color: "rgba(255,255,255,0)",
-                            "&:hover": { color: SPOTIFY_GREEN },
-                            transition: "color 0.15s ease",
-                            ...(hovered && { color: "rgba(255,255,255,0.4)" }),
-                        }}
-                    >
-                        <RadioIcon sx={{ fontSize: 16 }} />
-                    </IconButton>
-                </Tooltip>
-            )}
-            {item.type === "video" && <Box />}
-
-            {/* Like button */}
-            <Tooltip title={liked ? "Bỏ thích" : "Thích"}>
+            <Tooltip title={liked ? "Xóa khỏi Bài hát đã thích" : "Thêm vào Bài hát đã thích"}>
                 <IconButton
                     size="small"
-                    onClick={(e) => {
-                        e.stopPropagation();
+                    aria-label={liked ? "Xóa khỏi Bài hát đã thích" : "Thêm vào Bài hát đã thích"}
+                    onClick={(event) => {
+                        event.stopPropagation();
                         likeMutation.mutate();
                     }}
                     disabled={likeMutation.isPending}
                     sx={{
-                        display: showCollectionColumn
-                            ? { xs: "none", md: "inline-flex" }
-                            : undefined,
-                        color: liked ? SPOTIFY_GREEN : "rgba(255,255,255,0)",
-                        "&:hover": { color: liked ? "#fb923c" : "rgba(255,255,255,0.7)" },
-                        transition: "color 0.15s ease",
-                        ...(hovered && !liked && { color: "rgba(255,255,255,0.4)" }),
+                        width: 32,
+                        height: 32,
+                        color: liked
+                            ? SPOTIFY_GREEN
+                            : hovered
+                              ? "rgba(255,255,255,0.68)"
+                              : "rgba(255,255,255,0.38)",
+                        transition: "color 160ms ease, transform 160ms ease",
+                        "&:hover": {
+                            color: liked ? "#fb923c" : "#fff",
+                            transform: "scale(1.06)",
+                        },
+                        "&:active": { transform: "scale(0.96)" },
+                        "&.Mui-focusVisible": {
+                            outline: "2px solid rgba(249,115,22,0.75)",
+                            outlineOffset: 1,
+                        },
                     }}
                 >
                     {liked ? (
-                        <FavoriteIcon sx={{ fontSize: 16 }} />
+                        <CheckCircleIcon sx={{ fontSize: 18 }} />
                     ) : (
-                        <FavoriteBorderIcon sx={{ fontSize: 16 }} />
+                        <AddCircleOutlineIcon sx={{ fontSize: 18 }} />
                     )}
                 </IconButton>
             </Tooltip>
@@ -294,6 +226,10 @@ export const MediaRow = ({
             >
                 {item.duration ? formatDuration(item.duration) : ""}
             </Typography>
+
+            <Box sx={{ width: 34 }}>
+                <TrackOptionsButton item={item} alwaysVisible={hovered} />
+            </Box>
         </Box>
     );
 };

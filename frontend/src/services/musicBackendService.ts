@@ -172,3 +172,59 @@ function safeParseMetadata(value: string): Record<string, unknown> {
         return {};
     }
 }
+
+// ─── Listening Events ─────────────────────────────────────────────────────────
+
+export type ListeningEventType = "play" | "skip" | "complete" | "like" | "unlike" | "repeat";
+
+export interface TrackListeningEventPayload {
+    media_item: {
+        source_id: string;
+        type: "audio" | "video";
+        title: string;
+        artist: string;
+        thumbnail: string;
+        stream_url?: string;
+        video_id?: string;
+        duration?: number;
+        view_count?: number;
+    };
+    event_type: ListeningEventType;
+    listen_duration: number;
+    track_duration: number;
+    genre?: string;
+}
+
+export interface UserDNAEntry {
+    id: number;
+    genre: string;
+    play_count: number;
+    completion_sum: number;
+    skip_count: number;
+    last_played_at?: string;
+}
+
+export const trackListeningEvent = async (payload: TrackListeningEventPayload): Promise<void> => {
+    try {
+        await apiClient.post(`${PREFIX}/events`, payload);
+    } catch {
+        // silently fail — tracking must never block playback
+    }
+};
+
+export const getUserDNA = async (): Promise<UserDNAEntry[]> => {
+    const res = await apiClient.get<{ data: UserDNAEntry[] }>(`${PREFIX}/dna`);
+    return unwrap(res.data) ?? [];
+};
+
+export const mediaItemToEventPayload = (item: MediaItem): TrackListeningEventPayload["media_item"] => ({
+    source_id: item.sourceId,
+    type: item.type,
+    title: item.title,
+    artist: item.artist,
+    thumbnail: item.thumbnail,
+    stream_url: item.streamUrl,
+    video_id: item.videoId,
+    duration: item.duration,
+    view_count: item.viewCount,
+});

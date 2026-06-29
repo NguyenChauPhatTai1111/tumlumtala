@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/tumlumtala/musics-service/internal/module/domain/entity/event"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/history"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/library"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/liked"
@@ -314,4 +315,46 @@ func (r *Repository) RemoveLibraryItem(ctx context.Context, userUUID string, ite
 	return r.db.WithContext(ctx).
 		Where("id = ? AND user_uuid = ?", itemID, userUUID).
 		Delete(&library.Item{}).Error
+}
+
+func (r *Repository) AddListeningEvent(ctx context.Context, e event.ListeningEvent) (*event.ListeningEvent, error) {
+	e.OccurredAt = time.Now()
+	if err := r.db.WithContext(ctx).Create(&e).Error; err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
+func (r *Repository) ListListeningEvents(ctx context.Context, userUUID string, limit int) ([]event.ListeningEvent, error) {
+	var events []event.ListeningEvent
+	err := r.db.WithContext(ctx).
+		Where("user_uuid = ?", userUUID).
+		Order("occurred_at DESC").
+		Limit(limit).
+		Find(&events).Error
+	return events, err
+}
+
+func (r *Repository) GetUserDNA(ctx context.Context, userUUID string) ([]event.UserDNA, error) {
+	var dna []event.UserDNA
+	err := r.db.WithContext(ctx).
+		Where("user_uuid = ?", userUUID).
+		Order("play_count DESC").
+		Find(&dna).Error
+	return dna, err
+}
+
+func (r *Repository) UpsertUserDNA(ctx context.Context, dna event.UserDNA) error {
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "user_uuid"}, {Name: "genre"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"play_count":     gorm.Expr("play_count + ?", dna.PlayCount),
+				"completion_sum": gorm.Expr("completion_sum + ?", dna.CompletionSum),
+				"skip_count":     gorm.Expr("skip_count + ?", dna.SkipCount),
+				"last_played_at": dna.LastPlayedAt,
+				"updated_at":     time.Now(),
+			}),
+		}).
+		Create(&dna).Error
 }
