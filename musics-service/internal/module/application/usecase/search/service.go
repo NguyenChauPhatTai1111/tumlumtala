@@ -19,3 +19,11 @@ func NewUseCase(repo musicrepo.MusicRepository) *UseCase {
 func (u *UseCase) Add(ctx context.Context, userUUID, keyword string) (*search.SearchHistory, error) {
 	return u.repo.AddSearchHistory(ctx, userUUID, strings.TrimSpace(keyword))
 }
+
+func (u *UseCase) Delete(ctx context.Context, userUUID string, id uint64) error {
+	return u.repo.DeleteSearchHistory(ctx, userUUID, id)
+}
+
+func (u *UseCase) Clear(ctx context.Context, userUUID string) error {
+	return u.repo.ClearSearchHistory(ctx, userUUID)
+}

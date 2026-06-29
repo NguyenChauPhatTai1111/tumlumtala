@@ -106,7 +106,7 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
         return (
             <Box>
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-                    <IconButton onClick={() => setSelected(null)} sx={{ color: "#fff" }}>
+                    <IconButton onClick={() => setSelected(null)} sx={{ color: "text.primary" }}>
                         <ArrowBackIcon />
                     </IconButton>
                     <Avatar
@@ -128,7 +128,7 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
                                     : selected.item.title,
                             )}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)" }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary" }}>
                             {queue.length} bài
                         </Typography>
                     </Box>
@@ -142,7 +142,7 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
                         <MediaRow key={item.id} item={item} queue={queue} index={index + 1} />
                     ))
                 ) : (
-                    <Typography sx={{ py: 8, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>
+                    <Typography sx={{ py: 8, textAlign: "center", color: "text.disabled" }}>
                         Item này chưa có bài hát.
                     </Typography>
                 )}
@@ -168,7 +168,7 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
                     <Typography variant="h5" fontWeight={900}>
                         Thư viện
                     </Typography>
-                    <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.45)" }}>
+                    <Typography variant="body2" sx={{ color: "text.secondary" }}>
                         Mọi nội dung bạn đã tự thêm
                     </Typography>
                 </Box>
@@ -187,8 +187,8 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
                             label={label}
                             onClick={() => setFilter(value)}
                             sx={{
-                                color: filter === value ? "#111" : "#fff",
-                                bgcolor: filter === value ? "#f97316" : "rgba(255,255,255,0.08)",
+                                color: filter === value ? "background.default" : "text.primary",
+                                bgcolor: filter === value ? "#f97316" : "action.selected",
                                 fontWeight: 700,
                             }}
                         />
@@ -249,7 +249,7 @@ function LibraryRow({
                 p: 1,
                 borderRadius: 1.5,
                 cursor: "pointer",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.07)" },
+                "&:hover": { bgcolor: "action.hover" },
                 "&:hover .delete-library": { opacity: 1 },
             }}
         >
@@ -264,7 +264,7 @@ function LibraryRow({
                 <Typography noWrap fontWeight={700}>
                     {formatDisplayName(title)}
                 </Typography>
-                <Typography noWrap variant="caption" sx={{ color: "rgba(255,255,255,0.46)" }}>
+                <Typography noWrap variant="caption" sx={{ color: "text.secondary" }}>
                     {subtitle}
                 </Typography>
             </Box>
@@ -277,7 +277,7 @@ function LibraryRow({
                 }}
                 sx={{
                     opacity: { xs: 1, md: 0 },
-                    color: "rgba(255,255,255,0.5)",
+                    color: "text.secondary",
                     "&:hover": { color: "#ef4444" },
                 }}
             >

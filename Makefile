@@ -1,6 +1,6 @@
 -include .env
 
-SERVICES := auth-service authorization-service users-service gateway messenger-service
+SERVICES := auth-service authorization-service users-service gateway messenger-service musics-service
 
 # Service port registry. Every new service must reserve one unique TCP port
 # here before being added to the orchestration targets.
@@ -89,16 +89,16 @@ dev: validate-ports start
 	@echo "✅ All services up. Streaming logs (Ctrl+C to stop logs and all services)..."
 	@trap 'exit 0' INT TERM; bash scripts/logs.sh; wait
 
-down: down-frontend down-auth down-authz down-user down-messenger down-infra down-gateway
+down: down-frontend down-auth down-authz down-user down-messenger down-musics down-infra down-gateway
 	@echo "✅ All services stopped"
 
 down-frontend:
 	@bash scripts/kill-frontend.sh
 
-up: network up-infra up-user up-auth up-authz up-messenger up-gateway
+up: network up-infra up-user up-auth up-authz up-messenger up-musics up-gateway
 	@echo "✅ All services up"
 
-build: network up-infra build-user build-auth build-authz build-messenger build-gateway
+build: network up-infra build-user build-auth build-authz build-messenger build-musics build-gateway
 	@echo "✅ All services built and up"
 
 start: validate-ports down up

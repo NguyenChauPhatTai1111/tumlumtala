@@ -67,8 +67,8 @@ export const PlaylistTracksDialog = ({
                         m: { xs: 0, sm: 2 },
                         borderRadius: { xs: 0, sm: 3 },
                         overflow: "hidden",
-                        color: "#fff",
-                        bgcolor: "#111",
+                        color: "text.primary",
+                        bgcolor: "background.default",
                         backgroundImage:
                             "linear-gradient(180deg, rgba(249,115,22,0.09), transparent 46%)",
                     },
@@ -116,7 +116,7 @@ export const PlaylistTracksDialog = ({
                             zIndex: 2,
                             top: 16,
                             right: 16,
-                            color: "#fff",
+                            color: "text.primary",
                             bgcolor: "rgba(0,0,0,0.42)",
                             backdropFilter: "blur(10px)",
                             "&:hover": { bgcolor: "rgba(0,0,0,0.65)" },
@@ -153,7 +153,7 @@ export const PlaylistTracksDialog = ({
                                 sx={{
                                     fontSize: 12,
                                     fontWeight: 750,
-                                    color: "rgba(255,255,255,0.76)",
+                                    color: "text.secondary",
                                     mb: 0.75,
                                 }}
                             >
@@ -180,7 +180,7 @@ export const PlaylistTracksDialog = ({
                                         mt: 1.25,
                                         maxWidth: 680,
                                         fontSize: 13,
-                                        color: "rgba(255,255,255,0.62)",
+                                        color: "text.secondary",
                                         display: "-webkit-box",
                                         WebkitLineClamp: 2,
                                         WebkitBoxOrient: "vertical",
@@ -191,9 +191,9 @@ export const PlaylistTracksDialog = ({
                                 </Typography>
                             )}
                             <Typography
-                                sx={{ mt: 1.25, fontSize: 13, color: "rgba(255,255,255,0.72)" }}
+                                sx={{ mt: 1.25, fontSize: 13, color: "text.secondary" }}
                             >
-                                <Box component="span" sx={{ color: "#fff", fontWeight: 750 }}>
+                                <Box component="span" sx={{ color: "text.primary", fontWeight: 750 }}>
                                     {formatDisplayName(playlist?.user.name)}
                                 </Box>
                                 {" · "}
@@ -209,7 +209,7 @@ export const PlaylistTracksDialog = ({
                         minHeight: "50%",
                         px: { xs: 1, sm: 2.5, md: 4 },
                         pb: 5,
-                        background: "linear-gradient(180deg, rgba(54,31,20,0.56) 0%, #111 170px)",
+                        background: (theme: import("@mui/material").Theme) => `linear-gradient(180deg, rgba(54,31,20,0.56) 0%, ${theme.palette.background.default} 170px)`,
                     }}
                 >
                     <Stack direction="row" alignItems="center" spacing={1.25} sx={{ py: 2.5 }}>
@@ -220,17 +220,17 @@ export const PlaylistTracksDialog = ({
                             sx={{
                                 width: 54,
                                 height: 54,
-                                color: "#111",
+                                color: "background.default",
                                 bgcolor: ACCENT,
                                 "&:hover": { bgcolor: "#fb923c", transform: "scale(1.04)" },
-                                "&:disabled": { bgcolor: "rgba(255,255,255,0.12)" },
+                                "&:disabled": { bgcolor: "action.selected" },
                                 transition: "transform 180ms ease",
                             }}
                         >
                             <PlayArrowIcon sx={{ fontSize: 30 }} />
                         </IconButton>
                         <Tooltip title="Tuỳ chọn khác">
-                            <IconButton sx={{ color: "rgba(255,255,255,0.62)" }}>
+                            <IconButton sx={{ color: "text.secondary" }}>
                                 <MoreHorizIcon />
                             </IconButton>
                         </Tooltip>
@@ -258,8 +258,9 @@ export const PlaylistTracksDialog = ({
                             px: 2,
                             pb: 1,
                             mb: 0.5,
-                            borderBottom: "1px solid rgba(255,255,255,0.1)",
-                            color: "rgba(255,255,255,0.42)",
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                            color: "text.disabled",
                         }}
                     >
                         <Typography variant="caption" textAlign="center">
@@ -276,7 +277,7 @@ export const PlaylistTracksDialog = ({
                     {loading && !queue.length ? (
                         <LinearProgress
                             sx={{
-                                bgcolor: "rgba(255,255,255,0.08)",
+                                bgcolor: "action.selected",
                                 "& .MuiLinearProgress-bar": { bgcolor: ACCENT },
                             }}
                         />
@@ -302,7 +303,7 @@ export const PlaylistTracksDialog = ({
                                 <Typography
                                     variant="body2"
                                     textAlign="center"
-                                    sx={{ py: 2, color: "rgba(255,255,255,0.4)" }}
+                                    sx={{ py: 2, color: "text.disabled" }}
                                 >
                                     Bạn đã xem hết toàn bộ kết quả
                                 </Typography>

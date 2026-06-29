@@ -37,14 +37,14 @@ function computeProfile(recentItems: MediaItem[]) {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
     return (
-        <Box sx={{ flex: 1, minWidth: 0, bgcolor: "rgba(255,255,255,0.05)", borderRadius: 2, p: 2, display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Box sx={{ flex: 1, minWidth: 0, bgcolor: "action.hover", borderRadius: 2, p: 2, display: "flex", flexDirection: "column", gap: 0.5 }}>
             <Box sx={{ color: SP_GREEN, display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
                 {icon}
-                <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "rgba(255,255,255,0.5)" }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "text.secondary" }}>
                     {label}
                 </Typography>
             </Box>
-            <Typography sx={{ fontSize: 18, fontWeight: 800, color: "white" }}>
+            <Typography sx={{ fontSize: 18, fontWeight: 800, color: "text.primary" }}>
                 {value}
             </Typography>
         </Box>
@@ -65,15 +65,15 @@ export function UserProfileView() {
         <Box>
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
                 <PersonIcon sx={{ color: SP_GREEN, fontSize: 28 }} />
-                <Typography sx={{ fontWeight: 800, fontSize: 22, color: "white" }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 22, color: "text.primary" }}>
                     Hồ sơ âm nhạc của bạn
                 </Typography>
             </Stack>
 
             {empty ? (
                 <Box sx={{ py: 8, textAlign: "center" }}>
-                    <PersonIcon sx={{ fontSize: 56, color: "rgba(255,255,255,0.1)", mb: 2 }} />
-                    <Typography sx={{ color: "rgba(255,255,255,0.4)", fontSize: 15 }}>
+                    <PersonIcon sx={{ fontSize: 56, color: "text.disabled", mb: 2 }} />
+                    <Typography sx={{ color: "text.disabled", fontSize: 15 }}>
                         Nghe nhạc để khám phá hồ sơ âm nhạc của bạn.
                     </Typography>
                 </Box>
@@ -101,7 +101,7 @@ export function UserProfileView() {
                     {/* Top genres */}
                     {topGenres.length > 0 && (
                         <Box sx={{ mb: 3 }}>
-                            <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "rgba(255,255,255,0.4)", mb: 1.5 }}>
+                            <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "text.disabled", mb: 1.5 }}>
                                 Thể loại bạn nghe nhiều
                             </Typography>
                             <Stack direction="row" flexWrap="wrap" gap={1} useFlexGap>
@@ -111,8 +111,8 @@ export function UserProfileView() {
                                         label={g}
                                         size="small"
                                         sx={{
-                                            bgcolor: i === 0 ? SP_GREEN : "rgba(255,255,255,0.1)",
-                                            color: i === 0 ? "black" : "rgba(255,255,255,0.8)",
+                                            bgcolor: i === 0 ? SP_GREEN : "action.selected",
+                                            color: i === 0 ? "black" : "text.primary",
                                             fontWeight: i === 0 ? 700 : 500,
                                             fontSize: 12,
                                         }}
@@ -125,7 +125,7 @@ export function UserProfileView() {
                     {/* Top artists */}
                     {topArtists.length > 0 && (
                         <Box sx={{ mb: 3 }}>
-                            <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "rgba(255,255,255,0.4)", mb: 1.5 }}>
+                            <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "text.disabled", mb: 1.5 }}>
                                 Nghệ sĩ bạn nghe nhiều nhất
                             </Typography>
                             <Stack direction="column" spacing={0.5}>
@@ -133,11 +133,11 @@ export function UserProfileView() {
                                     const thumb = recentItems.find((r) => r.artist === name)?.thumbnail;
                                     return (
                                         <Box key={name} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1, py: 0.75 }}>
-                                            <Typography sx={{ width: 20, fontSize: 13, color: "rgba(255,255,255,0.4)", fontWeight: 700 }}>
+                                            <Typography sx={{ width: 20, fontSize: 13, color: "text.disabled", fontWeight: 700 }}>
                                                 {i + 1}
                                             </Typography>
                                             <Avatar src={thumb} sx={{ width: 36, height: 36 }} />
-                                            <Typography sx={{ fontSize: 14, fontWeight: 600, color: "white" }}>
+                                            <Typography sx={{ fontSize: 14, fontWeight: 600, color: "text.primary" }}>
                                                 {formatDisplayName(name)}
                                             </Typography>
                                             {i === 0 && (
@@ -150,11 +150,11 @@ export function UserProfileView() {
                         </Box>
                     )}
 
-                    <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 3 }} />
+                    <Divider sx={{ mb: 3 }} />
 
                     {/* Recently played sample */}
                     <Box>
-                        <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "rgba(255,255,255,0.4)", mb: 1.5 }}>
+                        <Typography sx={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "text.disabled", mb: 1.5 }}>
                             Nghe gần đây
                         </Typography>
                         <Stack spacing={0.5}>
@@ -162,14 +162,14 @@ export function UserProfileView() {
                                 <Box
                                     key={item.id}
                                     onClick={() => play(item, recentItems)}
-                                    sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1, py: 0.75, borderRadius: 1, cursor: "pointer", "&:hover": { bgcolor: "rgba(255,255,255,0.06)" } }}
+                                    sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1, py: 0.75, borderRadius: 1, cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}
                                 >
                                     <Avatar variant="rounded" src={item.thumbnail} sx={{ width: 40, height: 40, borderRadius: 0.5, flexShrink: 0 }} />
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: "white" }}>
+                                        <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: "text.primary" }}>
                                             {formatDisplayName(item.title)}
                                         </Typography>
-                                        <Typography noWrap sx={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
+                                        <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                                             {formatDisplayName(item.artist)}
                                             {item.duration ? ` · ${formatDuration(item.duration)}` : ""}
                                         </Typography>

@@ -1,4 +1,5 @@
 import AddIcon from "@mui/icons-material/Add";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import {
     Box,
@@ -23,9 +24,11 @@ import { useState } from "react";
 export function AddToPlaylistButton({
     item,
     alwaysVisible = false,
+    iconVariant = "playlist",
 }: {
     item: MediaItem;
     alwaysVisible?: boolean;
+    iconVariant?: "playlist" | "circle";
 }) {
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const [name, setName] = useState("");
@@ -58,11 +61,15 @@ export function AddToPlaylistButton({
                         setAnchorEl(event.currentTarget);
                     }}
                     sx={{
-                        color: alwaysVisible ? "rgba(255,255,255,0.52)" : "rgba(255,255,255,0)",
+                        color: alwaysVisible ? "text.secondary" : "transparent",
                         "&:hover": { color: "#f97316" },
                     }}
                 >
-                    <PlaylistAddIcon sx={{ fontSize: 18 }} />
+                    {iconVariant === "circle" ? (
+                        <AddCircleOutlineIcon sx={{ fontSize: 19 }} />
+                    ) : (
+                        <PlaylistAddIcon sx={{ fontSize: 18 }} />
+                    )}
                 </IconButton>
             </Tooltip>
             <Menu
@@ -75,9 +82,10 @@ export function AddToPlaylistButton({
                         sx: {
                             width: 280,
                             maxHeight: 380,
-                            color: "#fff",
-                            bgcolor: "#202020",
-                            border: "1px solid rgba(255,255,255,0.1)",
+                            color: "text.primary",
+                            bgcolor: "background.paper",
+                            border: "1px solid",
+                            borderColor: "divider",
                         },
                     },
                 }}
@@ -95,13 +103,13 @@ export function AddToPlaylistButton({
                             <Typography noWrap sx={{ fontSize: 13 }}>
                                 {formatDisplayName(playlist.name)}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.45)" }}>
+                            <Typography variant="caption" sx={{ color: "text.secondary" }}>
                                 {playlist.tracks?.length ?? 0} bài
                             </Typography>
                         </Box>
                     </MenuItem>
                 ))}
-                <Divider sx={{ borderColor: "rgba(255,255,255,0.1)", my: 1 }} />
+                <Divider sx={{ my: 1 }} />
                 <Box sx={{ px: 1.5, pb: 1.25 }}>
                     <TextField
                         value={name}
@@ -116,8 +124,8 @@ export function AddToPlaylistButton({
                         autoFocus={!playlistsQuery.data?.length}
                         sx={{
                             "& .MuiOutlinedInput-root": {
-                                color: "#fff",
-                                bgcolor: "rgba(255,255,255,0.06)",
+                                color: "text.primary",
+                                bgcolor: "action.hover",
                             },
                         }}
                     />
@@ -128,7 +136,7 @@ export function AddToPlaylistButton({
                         disabled={!name.trim() || createMutation.isPending}
                         sx={{
                             mt: 1,
-                            color: "#111",
+                            color: "background.default",
                             bgcolor: "#f97316",
                             fontWeight: 750,
                             textTransform: "none",

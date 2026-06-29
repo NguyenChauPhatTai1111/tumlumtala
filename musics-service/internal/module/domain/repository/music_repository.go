@@ -21,6 +21,8 @@ type MusicRepository interface {
 	ListRecent(ctx context.Context, userUUID string) ([]history.RecentTrack, error)
 	AddSearchHistory(ctx context.Context, userUUID, keyword string) (*search.SearchHistory, error)
 	ListSearchHistory(ctx context.Context, userUUID string) ([]search.SearchHistory, error)
+	DeleteSearchHistory(ctx context.Context, userUUID string, id uint64) error
+	ClearSearchHistory(ctx context.Context, userUUID string) error
 	CreatePlaylist(ctx context.Context, p playlist.Playlist) (*playlist.Playlist, error)
 	ListPlaylists(ctx context.Context, userUUID string) ([]playlist.Playlist, error)
 	DeletePlaylist(ctx context.Context, userUUID string, playlistID uint64) error

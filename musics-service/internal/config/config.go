@@ -12,6 +12,13 @@ type Config struct {
 	DB           DatabaseConfig
 	JWTSecret    string
 	KafkaBrokers []string
+	MusicAI      MusicAIConfig
+}
+
+type MusicAIConfig struct {
+	Endpoint string
+	APIKey   string
+	Model    string
 }
 
 type DatabaseConfig struct {
@@ -33,6 +40,11 @@ func Load() (*Config, error) {
 		CORSOrigin:   getEnv("CORS_ORIGIN", "http://localhost:3000"),
 		JWTSecret:    os.Getenv("JWT_SECRET"),
 		KafkaBrokers: strings.Split(getEnv("KAFKA_BROKERS", "tumlumtala-kafka:9092"), ","),
+		MusicAI: MusicAIConfig{
+			Endpoint: strings.TrimRight(os.Getenv("MUSIC_AI_ENDPOINT"), "/"),
+			APIKey:   os.Getenv("MUSIC_AI_API_KEY"),
+			Model:    getEnv("MUSIC_AI_MODEL", "music-intent"),
+		},
 		DB: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "3306"),

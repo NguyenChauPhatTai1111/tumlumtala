@@ -13,7 +13,7 @@ function rankColor(rank: number) {
     if (rank === 1) return "#f59e0b";
     if (rank === 2) return "#94a3b8";
     if (rank === 3) return "#cd7c3f";
-    return "rgba(255,255,255,0.4)";
+    return "text.disabled";
 }
 
 interface TrackStat {
@@ -81,15 +81,15 @@ export function LeaderboardView() {
         <Box>
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
                 <EmojiEventsIcon sx={{ color: SP_GREEN, fontSize: 28 }} />
-                <Typography sx={{ fontWeight: 800, fontSize: 22, color: "white" }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 22, color: "text.primary" }}>
                     Bảng xếp hạng của bạn
                 </Typography>
             </Stack>
 
             {empty ? (
                 <Box sx={{ py: 8, textAlign: "center" }}>
-                    <EmojiEventsIcon sx={{ fontSize: 56, color: "rgba(255,255,255,0.1)", mb: 2 }} />
-                    <Typography sx={{ color: "rgba(255,255,255,0.4)", fontSize: 15 }}>
+                    <EmojiEventsIcon sx={{ fontSize: 56, color: "text.disabled", mb: 2 }} />
+                    <Typography sx={{ color: "text.disabled", fontSize: 15 }}>
                         Nghe nhạc để xây dựng bảng xếp hạng của bạn.
                     </Typography>
                 </Box>
@@ -101,8 +101,8 @@ export function LeaderboardView() {
                         sx={{
                             mb: 3,
                             minHeight: 36,
-                            "& .MuiTab-root": { color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: 600, minHeight: 36, textTransform: "none", px: 2 },
-                            "& .Mui-selected": { color: "white" },
+                            "& .MuiTab-root": { color: "text.secondary", fontSize: 13, fontWeight: 600, minHeight: 36, textTransform: "none", px: 2 },
+                            "& .Mui-selected": { color: "text.primary" },
                             "& .MuiTabs-indicator": { bgcolor: SP_GREEN, height: 2 },
                         }}
                     >
@@ -121,7 +121,7 @@ export function LeaderboardView() {
                                     sx={{
                                         display: "flex", alignItems: "center", gap: 1.5,
                                         px: 1.5, py: 1, borderRadius: 1, cursor: "pointer",
-                                        "&:hover": { bgcolor: "rgba(255,255,255,0.06)" },
+                                        "&:hover": { bgcolor: "action.hover" },
                                         transition: "background-color 0.15s",
                                     }}
                                 >
@@ -130,10 +130,10 @@ export function LeaderboardView() {
                                     </Typography>
                                     <Avatar variant="rounded" src={item.thumbnail} sx={{ width: 40, height: 40, borderRadius: 0.5, flexShrink: 0 }} />
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: "white" }}>
+                                        <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: "text.primary" }}>
                                             {formatDisplayName(item.title)}
                                         </Typography>
-                                        <Typography noWrap sx={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
+                                        <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                                             {formatDisplayName(item.artist)}
                                             {item.duration ? ` · ${formatDuration(item.duration)}` : ""}
                                         </Typography>
@@ -165,7 +165,7 @@ export function LeaderboardView() {
                                     </Typography>
                                     <Avatar src={thumbnail} sx={{ width: 40, height: 40, flexShrink: 0 }} />
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: "white" }}>
+                                        <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: "text.primary" }}>
                                             {formatDisplayName(name)}
                                         </Typography>
                                     </Box>
@@ -193,14 +193,14 @@ export function LeaderboardView() {
                                                 {i + 1}
                                             </Typography>
                                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                <Typography sx={{ fontSize: 14, fontWeight: 600, color: "white", mb: 0.5 }}>
+                                                <Typography sx={{ fontSize: 14, fontWeight: 600, color: "text.primary", mb: 0.5 }}>
                                                     {genre}
                                                 </Typography>
-                                                <Box sx={{ height: 6, borderRadius: 3, bgcolor: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
+                                                <Box sx={{ height: 6, borderRadius: 3, bgcolor: "action.selected", overflow: "hidden" }}>
                                                     <Box sx={{ height: "100%", width: `${pct}%`, bgcolor: SP_GREEN, borderRadius: 3 }} />
                                                 </Box>
                                             </Box>
-                                            <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.5)", flexShrink: 0, minWidth: 40, textAlign: "right" }}>
+                                            <Typography sx={{ fontSize: 12, color: "text.secondary", flexShrink: 0, minWidth: 40, textAlign: "right" }}>
                                                 {pct}%
                                             </Typography>
                                         </Box>
@@ -208,7 +208,7 @@ export function LeaderboardView() {
                                 })}
                             </Box>
                         ) : (
-                            <Typography sx={{ color: "rgba(255,255,255,0.4)", fontSize: 14, textAlign: "center", py: 6 }}>
+                            <Typography sx={{ color: "text.disabled", fontSize: 14, textAlign: "center", py: 6 }}>
                                 Chưa đủ dữ liệu thể loại. Nghe thêm nhạc từ Audius để xây dựng.
                             </Typography>
                         )

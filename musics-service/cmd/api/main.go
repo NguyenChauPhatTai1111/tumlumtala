@@ -23,6 +23,7 @@ import (
 	playlistquery "github.com/tumlumtala/musics-service/internal/module/application/query/playlist"
 	searchquery "github.com/tumlumtala/musics-service/internal/module/application/query/search"
 	historyuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/history"
+	intelligenceuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/intelligence"
 	libraryuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/library"
 	likeduc "github.com/tumlumtala/musics-service/internal/module/application/usecase/liked"
 	listeninguc "github.com/tumlumtala/musics-service/internal/module/application/usecase/listening"
@@ -54,6 +55,10 @@ func main() {
 	go userSnapshotConsumer.Run(ctx)
 
 	repo := repository.NewRepository(db)
+	intelligenceService := intelligenceuc.NewService(
+		repo,
+		intelligenceuc.NewCompatiblePlanner(cfg.MusicAI.Endpoint, cfg.MusicAI.APIKey, cfg.MusicAI.Model),
+	)
 
 	handler := httphandler.NewHandler(
 		likedquery.NewQueryService(repo),
@@ -68,6 +73,7 @@ func main() {
 		libraryuc.NewUseCase(repo),
 		listeningquery.NewQueryService(repo),
 		listeninguc.NewUseCase(repo),
+		intelligenceService,
 	)
 
 	r := gin.New()

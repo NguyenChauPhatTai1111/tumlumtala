@@ -21,6 +21,7 @@ import (
 	playlistquery "github.com/tumlumtala/musics-service/internal/module/application/query/playlist"
 	searchquery "github.com/tumlumtala/musics-service/internal/module/application/query/search"
 	historyuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/history"
+	intelligenceuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/intelligence"
 	libraryuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/library"
 	likeduc "github.com/tumlumtala/musics-service/internal/module/application/usecase/liked"
 	listeninguc "github.com/tumlumtala/musics-service/internal/module/application/usecase/listening"
@@ -41,6 +42,7 @@ type Handler struct {
 	libraryUseCase   *libraryuc.UseCase
 	listeningQuery   *listeningquery.QueryService
 	listeningUseCase *listeninguc.UseCase
+	intelligence     *intelligenceuc.Service
 }
 
 func NewHandler(
@@ -56,6 +58,7 @@ func NewHandler(
 	libraryUseCase *libraryuc.UseCase,
 	listeningQuery *listeningquery.QueryService,
 	listeningUseCase *listeninguc.UseCase,
+	intelligence *intelligenceuc.Service,
 ) *Handler {
 	return &Handler{
 		likedQuery:       likedQuery,
@@ -70,6 +73,7 @@ func NewHandler(
 		libraryUseCase:   libraryUseCase,
 		listeningQuery:   listeningQuery,
 		listeningUseCase: listeningUseCase,
+		intelligence:     intelligence,
 	}
 }
 
@@ -240,6 +244,38 @@ func (h *Handler) AddSearchHistory(c *gin.Context) {
 		return
 	}
 	responses.ResponseSuccess(c, http.StatusCreated, "đã lưu lịch sử tìm kiếm", responses.ResponseData{Data: item})
+}
+
+func (h *Handler) DeleteSearchHistory(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		responses.ResponseError(c, responses.ErrBadRequest("id không hợp lệ"))
+		return
+	}
+	if err := h.searchUseCase.Delete(c.Request.Context(), userUUID, id); err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusOK, "đã xóa lịch sử tìm kiếm", responses.ResponseData{Data: gin.H{"id": id}})
+}
+
+func (h *Handler) ClearSearchHistory(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	if err := h.searchUseCase.Clear(c.Request.Context(), userUUID); err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusOK, "đã xóa toàn bộ lịch sử tìm kiếm", responses.ResponseData{Data: nil})
 }
 
 func (h *Handler) ListPlaylists(c *gin.Context) {

@@ -1,6 +1,6 @@
 import LibraryAddIcon from "@mui/icons-material/LibraryAdd";
 import LibraryAddCheckIcon from "@mui/icons-material/LibraryAddCheck";
-import { IconButton, Tooltip } from "@mui/material";
+import { alpha, IconButton, Tooltip, useTheme } from "@mui/material";
 import {
     useAddLibraryItemMutation,
     useMusicLibraryQuery,
@@ -17,6 +17,7 @@ export function LibraryToggleButton({
     label?: string;
     compact?: boolean;
 }) {
+    const theme = useTheme();
     const libraryQuery = useMusicLibraryQuery();
     const addMutation = useAddLibraryItemMutation();
     const removeMutation = useRemoveLibraryItemMutation();
@@ -26,7 +27,27 @@ export function LibraryToggleButton({
     const pending = addMutation.isPending || removeMutation.isPending;
 
     return (
-        <Tooltip title={saved ? "Xóa khỏi thư viện" : (label ?? "Thêm vào thư viện")}>
+        <Tooltip
+            title={saved ? "Xóa khỏi thư viện" : (label ?? "Thêm vào thư viện")}
+            slotProps={{
+                tooltip: {
+                    sx: {
+                        bgcolor:
+                            theme.palette.mode === "light"
+                                ? alpha(theme.palette.primary.main, 0.92)
+                                : "grey.900",
+                        color:
+                            theme.palette.mode === "light"
+                                ? theme.palette.primary.contrastText
+                                : "common.white",
+                        boxShadow:
+                            theme.palette.mode === "light"
+                                ? `0 10px 24px ${alpha(theme.palette.primary.main, 0.18)}`
+                                : undefined,
+                    },
+                },
+            }}
+        >
             <IconButton
                 disabled={pending}
                 onClick={(event) => {
@@ -40,11 +61,11 @@ export function LibraryToggleButton({
                 sx={{
                     width: compact ? 30 : undefined,
                     height: compact ? 30 : undefined,
-                    color: saved ? "#f97316" : "rgba(255,255,255,0.62)",
+                    color: saved ? "#f97316" : "text.secondary",
                     border: compact ? "none" : "1px solid",
-                    borderColor: saved ? "rgba(249,115,22,0.45)" : "rgba(255,255,255,0.24)",
+                    borderColor: saved ? "rgba(249,115,22,0.45)" : "divider",
                     "&:hover": {
-                        color: saved ? "#fb923c" : "#fff",
+                        color: saved ? "#fb923c" : "text.primary",
                         borderColor: "currentColor",
                     },
                 }}

@@ -1,6 +1,10 @@
 import AddIcon from "@mui/icons-material/Add";
 import AlbumIcon from "@mui/icons-material/Album";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import LyricsOutlinedIcon from "@mui/icons-material/LyricsOutlined";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -20,6 +24,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
 import {
+    alpha,
     Avatar,
     Box,
     Button,
@@ -49,7 +54,9 @@ import {
     toVideoMediaItem,
 } from "@services/musicService";
 import { usePlayerStore } from "@store/playerStore";
+import { useThemeMode } from "@store/themeStore";
 import { ArtistsPanel } from "./components/ArtistsPanel";
+import { AIStudioView } from "./components/AIStudioView";
 import { IntersectionSentinel } from "./components/IntersectionSentinel";
 import { LeaderboardView } from "./components/LeaderboardView";
 import { LibraryView } from "./components/LibraryView";
@@ -60,7 +67,9 @@ import { UserProfileView } from "./components/UserProfileView";
 import { PlaylistTracksDialog } from "./components/PlaylistTracksDialog";
 import { LibraryToggleButton } from "./components/LibraryToggleButton";
 import { TrackOptionsButton } from "./components/TrackOptionsButton";
+import { LyricsPanelContent, TrackInfoDialog } from "./components/TrackInfoDialog";
 import { useDebouncedValue } from "./hooks/useDebouncedValue";
+import { useSmartQueueAutofill } from "./hooks/useSmartQueueAutofill";
 import {
     useAddToPlaylistMutation,
     useArtistAlbumsQuery,
@@ -72,7 +81,10 @@ import {
     useBackendPlaylistsQuery,
     useBackendRecentQuery,
     useBackendSearchHistoryQuery,
+    useClearSearchHistoryMutation,
     useCreatePlaylistMutation,
+    useDeleteSearchHistoryMutation,
+    useLyricsQuery,
     usePlaylistsQuery,
     usePlaylistTracksQuery,
     useTracksQuery,
@@ -96,6 +108,7 @@ import { formatDisplayName, formatDuration } from "./utils";
 
 type MusicView =
     | "home"
+    | "ai"
     | "search"
     | "artists"
     | "playlists"
@@ -108,8 +121,168 @@ type MusicView =
     | "stats";
 
 const SP_GREEN = "#f97316";
+const MUSIC_CARD_SURFACE_SX = {
+    bgcolor: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? alpha(theme.palette.primary.main, 0.04)
+            : theme.palette.background.paper,
+    border: "1px solid",
+    borderColor: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? alpha(theme.palette.primary.main, 0.12)
+            : "transparent",
+    boxShadow: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? `0 10px 24px ${alpha(theme.palette.primary.main, 0.05)}`
+            : "none",
+};
+
+const MUSIC_CARD_HOVER_SX = {
+    bgcolor: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? alpha(theme.palette.primary.main, 0.075)
+            : theme.palette.action.selected,
+};
+const MUSIC_CONTROL_OVERLAY_SX = {
+    borderRadius: "50%",
+    bgcolor: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? alpha(theme.palette.background.default, 0.92)
+            : "rgba(12,12,12,0.72)",
+    border: "1px solid",
+    borderColor: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? alpha(theme.palette.primary.main, 0.14)
+            : "transparent",
+    boxShadow: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? `0 10px 24px ${alpha(theme.palette.primary.main, 0.12)}`
+            : "none",
+    backdropFilter: "blur(10px)",
+};
+const MUSIC_MENU_BACKGROUND_SX = {
+    position: "relative",
+    isolation: "isolate",
+    background: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.045)} 0%, ${theme.palette.background.default} 52%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`
+            : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.065)} 0%, ${theme.palette.background.default} 48%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+    backgroundSize: "220% 220%",
+    animation: "musicMenuGradientShift 32s ease-in-out infinite",
+    "@keyframes musicMenuGradientShift": {
+        "0%": { backgroundPosition: "0% 50%" },
+        "50%": { backgroundPosition: "100% 50%" },
+        "100%": { backgroundPosition: "0% 50%" },
+    },
+    "&::before": {
+        content: '""',
+        position: "absolute",
+        inset: "-18%",
+        background: (theme: import("@mui/material").Theme) =>
+            `linear-gradient(105deg, transparent 30%, ${alpha(
+                theme.palette.common.white,
+                theme.palette.mode === "light" ? 0.14 : 0.045,
+            )} 48%, transparent 66%)`,
+        filter: "blur(24px)",
+        opacity: 0.42,
+        transform: "translateX(-165%) skewX(-18deg)",
+        transformOrigin: "center",
+        animation: "musicMenuSheen 9s ease-in-out infinite",
+        pointerEvents: "none",
+        zIndex: 0,
+    },
+    "&::after": {
+        content: '""',
+        position: "absolute",
+        inset: 0,
+        background: (theme: import("@mui/material").Theme) =>
+            `radial-gradient(circle at 18% 16%, ${alpha(
+                theme.palette.primary.main,
+                theme.palette.mode === "light" ? 0.06 : 0.045,
+            )} 0%, transparent 28%)`,
+        pointerEvents: "none",
+        zIndex: 0,
+    },
+    "@keyframes musicMenuSheen": {
+        "0%": {
+            opacity: 0,
+            transform: "translateX(-165%) skewX(-18deg)",
+        },
+        "16%": {
+            opacity: 0.45,
+        },
+        "42%": {
+            opacity: 0,
+            transform: "translateX(165%) skewX(-18deg)",
+        },
+        "100%": {
+            opacity: 0,
+            transform: "translateX(165%) skewX(-18deg)",
+        },
+    },
+    "& > *": {
+        position: "relative",
+        zIndex: 1,
+    },
+};
+const MUSIC_CHROME_SURFACE_SX = {
+    position: "relative",
+    isolation: "isolate",
+    overflow: "hidden",
+    "&::before": {
+        content: '""',
+        position: "absolute",
+        inset: "-28%",
+        background: (theme: import("@mui/material").Theme) =>
+            `linear-gradient(110deg, transparent 32%, ${alpha(
+                theme.palette.common.white,
+                theme.palette.mode === "light" ? 0.07 : 0.035,
+            )} 49%, transparent 67%)`,
+        filter: "blur(22px)",
+        opacity: 0.34,
+        transform: "translateX(-170%) skewX(-18deg)",
+        animation: "musicChromeSheen 14s ease-in-out infinite",
+        pointerEvents: "none",
+        zIndex: 0,
+    },
+    "&::after": {
+        content: '""',
+        position: "absolute",
+        inset: 0,
+        background: (theme: import("@mui/material").Theme) =>
+            `radial-gradient(circle at 14% 12%, ${alpha(
+                theme.palette.primary.main,
+                theme.palette.mode === "light" ? 0.05 : 0.035,
+            )} 0%, transparent 28%)`,
+        pointerEvents: "none",
+        zIndex: 0,
+    },
+    "@keyframes musicChromeSheen": {
+        "0%": {
+            opacity: 0,
+            transform: "translateX(-170%) skewX(-18deg)",
+        },
+        "18%": {
+            opacity: 0.34,
+        },
+        "48%": {
+            opacity: 0,
+            transform: "translateX(170%) skewX(-18deg)",
+        },
+        "100%": {
+            opacity: 0,
+            transform: "translateX(170%) skewX(-18deg)",
+        },
+    },
+    "& > *": {
+        position: "relative",
+        zIndex: 1,
+    },
+};
 const SIDEBAR_W = 280;
+const SIDEBAR_COLLAPSED_W = 96;
 const QUEUE_W = 320;
+const LYRICS_W = 450;
 
 // ─── Horizontal scroll row ───────────────────────────────────────────────────
 function HScrollSection({
@@ -136,21 +309,21 @@ function HScrollSection({
                     mb: 1.5,
                 }}
             >
-                <Typography sx={{ fontWeight: 800, fontSize: 20, color: "white" }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary" }}>
                     {title}
                 </Typography>
                 <Stack direction="row" spacing={0.25}>
                     <IconButton
                         size="small"
                         onClick={() => scroll("left")}
-                        sx={{ color: "rgba(255,255,255,0.5)", "&:hover": { color: "white" } }}
+                        sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
                     >
                         <ChevronLeftIcon />
                     </IconButton>
                     <IconButton
                         size="small"
                         onClick={() => scroll("right")}
-                        sx={{ color: "rgba(255,255,255,0.5)", "&:hover": { color: "white" } }}
+                        sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
                     >
                         <ChevronRightIcon />
                     </IconButton>
@@ -166,11 +339,11 @@ function HScrollSection({
                                     borderRadius: 1,
                                     aspectRatio: "1",
                                     mb: 1,
-                                    bgcolor: "rgba(255,255,255,0.08)",
+                                    bgcolor: "action.selected",
                                 }}
                             />
-                            <Skeleton sx={{ bgcolor: "rgba(255,255,255,0.08)" }} width="80%" />
-                            <Skeleton sx={{ bgcolor: "rgba(255,255,255,0.06)" }} width="60%" />
+                            <Skeleton sx={{ bgcolor: "action.selected" }} width="80%" />
+                            <Skeleton sx={{ bgcolor: "action.hover" }} width="60%" />
                         </Box>
                     ))}
                 </Stack>
@@ -208,6 +381,7 @@ function TrackCard({
     const queueItems = useMemo(() => queue.map(toAudioMediaItem), [queue]);
     const active = currentItem?.id === item.id;
     const [hovered, setHovered] = useState(false);
+    const [infoOpen, setInfoOpen] = useState(false);
 
     const handlePlay = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -222,111 +396,154 @@ function TrackCard({
         play(item, queueItems);
     };
 
+    const openInfo = () => {
+        setInfoOpen(true);
+    };
+
     return (
-        <Box
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-            sx={{
-                flexShrink: 0,
-                width: 160,
-                cursor: "pointer",
-                "&:hover .card-bg": { bgcolor: "#282828" },
-                ".card-bg": { transition: "background-color 0.2s" },
-            }}
-        >
-            <Box className="card-bg" sx={{ borderRadius: 1.5, p: 1.5, bgcolor: "#181818" }}>
-                <Box sx={{ position: "relative", mb: 1.5 }}>
-                    <Avatar
-                        variant="rounded"
-                        src={item.thumbnail}
-                        sx={{
-                            width: "100%",
-                            height: "auto",
-                            aspectRatio: "1",
-                            borderRadius: 1,
-                            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                        }}
-                    />
-                    <IconButton
-                        onClick={handlePlay}
-                        sx={{
-                            position: "absolute",
-                            bottom: 8,
-                            right: 8,
-                            bgcolor: SP_GREEN,
-                            color: "black",
-                            width: 38,
-                            height: 38,
-                            opacity: hovered || active ? 1 : 0,
-                            transform: hovered || active ? "translateY(0)" : "translateY(8px)",
-                            transition: "opacity 0.2s, transform 0.2s",
-                            "&:hover": {
-                                bgcolor: "#fb923c",
-                                transform: "scale(1.06) translateY(0)",
-                            },
-                            boxShadow: "0 8px 16px rgba(0,0,0,0.5)",
-                        }}
-                    >
-                        {active && isPlaying ? (
-                            <Box
+        <>
+            <Box
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
+                sx={{
+                    flexShrink: 0,
+                    width: 160,
+                    "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
+                    ".card-bg": { transition: "background-color 0.2s, border-color 0.2s" },
+                }}
+            >
+                <Box className="card-bg" sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}>
+                    <Box sx={{ position: "relative", mb: 1.5 }}>
+                        <Box
+                            component="button"
+                            type="button"
+                            onClick={openInfo}
+                            sx={{
+                                display: "block",
+                                width: "100%",
+                                p: 0,
+                                border: 0,
+                                bgcolor: "transparent",
+                                cursor: "pointer",
+                                borderRadius: 1,
+                            }}
+                        >
+                            <Avatar
+                                variant="rounded"
+                                src={item.thumbnail}
                                 sx={{
-                                    width: 14,
-                                    height: 14,
-                                    display: "flex",
-                                    gap: "2px",
-                                    alignItems: "flex-end",
+                                    width: "100%",
+                                    height: "auto",
+                                    aspectRatio: "1",
+                                    borderRadius: 1,
+                                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
                                 }}
-                            >
-                                {[1, 2, 3].map((i) => (
-                                    <Box
-                                        key={i}
-                                        sx={{
-                                            width: 3,
-                                            bgcolor: "black",
-                                            borderRadius: 0.5,
-                                            animation: `eq ${0.6 + i * 0.15}s ease-in-out infinite`,
-                                            "@keyframes eq": {
-                                                "0%,100%": { height: "40%" },
-                                                "50%": { height: "100%" },
-                                            },
-                                            animationDelay: `${i * 0.1}s`,
-                                        }}
-                                    />
-                                ))}
-                            </Box>
-                        ) : (
-                            <PlayArrowIcon sx={{ fontSize: 20 }} />
-                        )}
-                    </IconButton>
-                    <Box
+                            />
+                        </Box>
+                        <IconButton
+                            onClick={handlePlay}
+                            sx={{
+                                position: "absolute",
+                                bottom: 8,
+                                right: 8,
+                                bgcolor: SP_GREEN,
+                                color: "black",
+                                width: 38,
+                                height: 38,
+                                opacity: hovered || active ? 1 : 0,
+                                transform: hovered || active ? "translateY(0)" : "translateY(8px)",
+                                transition: "opacity 0.2s, transform 0.2s",
+                                "&:hover": {
+                                    bgcolor: "#fb923c",
+                                    transform: "scale(1.06) translateY(0)",
+                                },
+                                boxShadow: "0 8px 16px rgba(0,0,0,0.5)",
+                            }}
+                        >
+                            {active && isPlaying ? (
+                                <Box
+                                    sx={{
+                                        width: 14,
+                                        height: 14,
+                                        display: "flex",
+                                        gap: "2px",
+                                        alignItems: "flex-end",
+                                    }}
+                                >
+                                    {[1, 2, 3].map((i) => (
+                                        <Box
+                                            key={i}
+                                            sx={{
+                                                width: 3,
+                                                bgcolor: "black",
+                                                borderRadius: 0.5,
+                                                animation: `eq ${0.6 + i * 0.15}s ease-in-out infinite`,
+                                                "@keyframes eq": {
+                                                    "0%,100%": { height: "40%" },
+                                                    "50%": { height: "100%" },
+                                                },
+                                                animationDelay: `${i * 0.1}s`,
+                                            }}
+                                        />
+                                    ))}
+                                </Box>
+                            ) : (
+                                <PlayArrowIcon sx={{ fontSize: 20 }} />
+                            )}
+                        </IconButton>
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                top: 7,
+                                right: 7,
+                                ...MUSIC_CONTROL_OVERLAY_SX,
+                            }}
+                        >
+                            <TrackOptionsButton item={item} alwaysVisible />
+                        </Box>
+                    </Box>
+                    <Typography
+                        component="button"
+                        type="button"
+                        onClick={openInfo}
+                        noWrap
                         sx={{
-                            position: "absolute",
-                            top: 7,
-                            right: 7,
-                            borderRadius: "50%",
-                            bgcolor: "rgba(12,12,12,0.72)",
-                            backdropFilter: "blur(8px)",
+                            display: "block",
+                            width: "100%",
+                            p: 0,
+                            border: 0,
+                            bgcolor: "transparent",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "text.primary",
+                            mb: 0.25,
+                            "&:hover": { color: "primary.main" },
                         }}
                     >
-                        <TrackOptionsButton item={item} alwaysVisible />
-                    </Box>
-                </Box>
-                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "white", mb: 0.25 }}>
-                    {formatDisplayName(track.title)}
-                </Typography>
-                <Typography noWrap sx={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                    {formatDisplayName(track.user.name)}
-                </Typography>
-                {recommendationReason && (
-                    <Typography
-                        noWrap
-                        sx={{ mt: 0.5, fontSize: 10.5, fontWeight: 650, color: "#fdba74" }}
-                    >
-                        {recommendationReason}
+                        {formatDisplayName(track.title)}
                     </Typography>
-                )}
+                    <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                        {formatDisplayName(track.user.name)}
+                    </Typography>
+                    {recommendationReason && (
+                        <Typography
+                            noWrap
+                            sx={{ mt: 0.5, fontSize: 10.5, fontWeight: 650, color: "#fdba74" }}
+                        >
+                            {recommendationReason}
+                        </Typography>
+                    )}
+                </Box>
             </Box>
-        </Box>
+            <TrackInfoDialog
+                item={item}
+                open={infoOpen}
+                onClose={() => setInfoOpen(false)}
+                playQueue={queueItems}
+            />
+        </>
     );
 }
 
@@ -340,13 +557,13 @@ function ArtistCard({ artist, onClick }: { artist: AudiusUser; onClick: () => vo
                 width: 148,
                 cursor: "pointer",
                 textAlign: "center",
-                "&:hover .card-bg": { bgcolor: "#282828" },
-                ".card-bg": { transition: "background-color 0.2s" },
+                "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
+                ".card-bg": { transition: "background-color 0.2s, border-color 0.2s" },
             }}
         >
             <Box
                 className="card-bg"
-                sx={{ position: "relative", borderRadius: 1.5, p: 1.5, bgcolor: "#181818" }}
+                sx={{ ...MUSIC_CARD_SURFACE_SX, position: "relative", borderRadius: 1.5, p: 1.5 }}
             >
                 <Box sx={{ position: "absolute", zIndex: 1, top: 8, right: 8 }}>
                     <LibraryToggleButton
@@ -371,10 +588,10 @@ function ArtistCard({ artist, onClick }: { artist: AudiusUser; onClick: () => vo
                         boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
                     }}
                 />
-                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "white", mb: 0.25 }}>
+                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
                     {formatDisplayName(artist.name)}
                 </Typography>
-                <Typography noWrap sx={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+                <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                     Nghệ sĩ
                 </Typography>
             </Box>
@@ -394,11 +611,11 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
                 flexShrink: 0,
                 width: 160,
                 cursor: "pointer",
-                "&:hover .card-bg": { bgcolor: "#282828" },
-                ".card-bg": { transition: "background-color 0.2s" },
+                "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
+                ".card-bg": { transition: "background-color 0.2s, border-color 0.2s" },
             }}
         >
-            <Box className="card-bg" sx={{ borderRadius: 1.5, p: 1.5, bgcolor: "#181818" }}>
+            <Box className="card-bg" sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}>
                 <Box sx={{ position: "relative", mb: 1.5 }}>
                     <Avatar
                         variant="rounded"
@@ -436,8 +653,7 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
                             position: "absolute",
                             top: 7,
                             left: 7,
-                            bgcolor: "rgba(12,12,12,0.7)",
-                            borderRadius: "50%",
+                            ...MUSIC_CONTROL_OVERLAY_SX,
                         }}
                     >
                         <LibraryToggleButton
@@ -453,10 +669,10 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
                         />
                     </Box>
                 </Box>
-                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "white", mb: 0.25 }}>
+                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
                     {formatDisplayName(playlist.playlist_name)}
                 </Typography>
-                <Typography noWrap sx={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+                <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                     {formatDisplayName(playlist.user.name)}
                 </Typography>
             </Box>
@@ -468,8 +684,8 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
 function EmptyState({ label, onRetry }: { label: string; onRetry?: () => void }) {
     return (
         <Box sx={{ py: 8, textAlign: "center" }}>
-            <ExploreIcon sx={{ fontSize: 48, color: "rgba(255,255,255,0.12)", mb: 1.5 }} />
-            <Typography sx={{ color: "rgba(255,255,255,0.35)", fontSize: 14, mb: onRetry ? 2 : 0 }}>
+            <ExploreIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1.5 }} />
+            <Typography sx={{ color: "text.disabled", fontSize: 14, mb: onRetry ? 2 : 0 }}>
                 {label}
             </Typography>
             {onRetry && (
@@ -477,7 +693,7 @@ function EmptyState({ label, onRetry }: { label: string; onRetry?: () => void })
                     size="small"
                     startIcon={<RefreshIcon />}
                     onClick={onRetry}
-                    sx={{ color: "rgba(255,255,255,0.4)", "&:hover": { color: "white" } }}
+                    sx={{ color: "text.disabled", "&:hover": { color: "text.primary" } }}
                 >
                     Thử lại
                 </Button>
@@ -511,8 +727,8 @@ function QueueItem({ item, queue }: { item: MediaItem; queue: MediaItem[] }) {
                 px: 2,
                 py: 0.75,
                 cursor: "pointer",
-                bgcolor: active ? "rgba(255,255,255,0.08)" : "transparent",
-                "&:hover": { bgcolor: active ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)" },
+                bgcolor: active ? "action.selected" : "transparent",
+                "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
                 transition: "background-color 0.15s",
             }}
         >
@@ -524,18 +740,18 @@ function QueueItem({ item, queue }: { item: MediaItem; queue: MediaItem[] }) {
             <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography
                     noWrap
-                    sx={{ fontSize: 13, fontWeight: 500, color: active ? SP_GREEN : "white" }}
+                    sx={{ fontSize: 13, fontWeight: 500, color: active ? SP_GREEN : "text.primary" }}
                 >
                     {formatDisplayName(item.title)}
                 </Typography>
-                <Typography noWrap sx={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                <Typography noWrap sx={{ fontSize: 11, color: "text.secondary" }}>
                     {item.type === "video" && (
                         <SmartDisplayIcon sx={{ fontSize: 10, mr: 0.3, verticalAlign: "middle" }} />
                     )}
                     {formatDisplayName(item.artist)}
                 </Typography>
             </Box>
-            <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
+            <Typography sx={{ fontSize: 11, color: "text.disabled", flexShrink: 0 }}>
                 {item.duration ? formatDuration(item.duration) : ""}
             </Typography>
         </Box>
@@ -563,13 +779,14 @@ function QueuePanelContent({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
                     flexShrink: 0,
                 }}
             >
                 <Stack direction="row" spacing={1} alignItems="center">
                     <QueueMusicIcon sx={{ color: spGreen, fontSize: 20 }} />
-                    <Typography sx={{ fontWeight: 700, color: "white", fontSize: 15 }}>
+                    <Typography sx={{ fontWeight: 700, color: "text.primary", fontSize: 15 }}>
                         Queue · {queue.length}
                     </Typography>
                 </Stack>
@@ -580,7 +797,7 @@ function QueuePanelContent({
                                 size="small"
                                 onClick={onClear}
                                 sx={{
-                                    color: "rgba(255,255,255,0.4)",
+                                    color: "text.secondary",
                                     "&:hover": { color: "#ef4444" },
                                 }}
                             >
@@ -592,7 +809,7 @@ function QueuePanelContent({
                         <IconButton
                             size="small"
                             onClick={onClose}
-                            sx={{ color: "rgba(255,255,255,0.4)", "&:hover": { color: "white" } }}
+                            sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
                         >
                             <CloseIcon fontSize="small" />
                         </IconButton>
@@ -611,9 +828,9 @@ function QueuePanelContent({
                 {queue.length === 0 ? (
                     <Box sx={{ p: 3, textAlign: "center" }}>
                         <QueueMusicIcon
-                            sx={{ fontSize: 40, color: "rgba(255,255,255,0.15)", mb: 1 }}
+                            sx={{ fontSize: 40, color: "text.disabled", mb: 1 }}
                         />
-                        <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+                        <Typography sx={{ color: "text.disabled", fontSize: 13 }}>
                             Queue trống. Phát một bài để bắt đầu.
                         </Typography>
                     </Box>
@@ -632,6 +849,8 @@ function SidebarInner({
     libraryItems,
     playlists,
     spGreen,
+    collapsed = false,
+    onToggleCollapse,
     onNavigate,
     onClose,
 }: {
@@ -640,6 +859,8 @@ function SidebarInner({
     libraryItems: { id: MusicView; label: string; icon: React.ReactNode; count?: number }[];
     playlists: import("@services/musicBackendService").MusicPlaylistRow[];
     spGreen: string;
+    collapsed?: boolean;
+    onToggleCollapse?: () => void;
     onNavigate: (v: MusicView) => void;
     onClose?: () => void;
 }) {
@@ -657,60 +878,92 @@ function SidebarInner({
                     justifyContent: "space-between",
                 }}
             >
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    onClick={() => {
+                        window.location.href = "/";
+                    }}
+                    sx={{
+                        cursor: "pointer",
+                        minWidth: 0,
+                        "&:hover .music-brand-text": {
+                            color: "primary.main",
+                        },
+                    }}
+                >
                     <MusicNoteIcon sx={{ color: spGreen, fontSize: 28 }} />
-                    <Typography
-                        sx={{ fontWeight: 900, fontSize: 18, color: "white", letterSpacing: -0.5 }}
-                    >
-                        TÙM LUM NHẠC
-                    </Typography>
+                    {!collapsed && (
+                        <Typography
+                            className="music-brand-text"
+                            sx={{ fontWeight: 900, fontSize: 18, color: "text.primary", letterSpacing: -0.5 }}
+                        >
+                            TÙM LUM NHẠC
+                        </Typography>
+                    )}
                 </Stack>
-                {onClose && (
-                    <IconButton
-                        size="small"
-                        onClick={onClose}
-                        sx={{ color: "rgba(255,255,255,0.4)", "&:hover": { color: "white" } }}
-                    >
-                        <CloseIcon fontSize="small" />
-                    </IconButton>
-                )}
+                <Stack direction="row" spacing={0.5}>
+                    {onToggleCollapse && !onClose && (
+                        <Tooltip title={collapsed ? "Mở rộng menu" : "Thu gọn menu"}>
+                            <IconButton
+                                size="small"
+                                onClick={onToggleCollapse}
+                                sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
+                            >
+                                {collapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    {onClose && (
+                        <IconButton
+                            size="small"
+                            onClick={onClose}
+                            sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
+                        >
+                            <CloseIcon fontSize="small" />
+                        </IconButton>
+                    )}
+                </Stack>
             </Box>
 
             {/* Main nav */}
             <Box sx={{ px: 1.5, mb: 2, flexShrink: 0 }}>
                 {navItems.map((item) => (
-                    <Box
-                        key={item.id}
-                        onClick={() => onNavigate(item.id)}
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 2,
-                            px: 1.5,
-                            py: 1.25,
-                            borderRadius: 1,
-                            cursor: "pointer",
-                            color: view === item.id ? "white" : "rgba(255,255,255,0.6)",
-                            fontWeight: view === item.id ? 700 : 500,
-                            fontSize: 14,
-                            "&:hover": { color: "white" },
-                        }}
-                    >
+                    <Tooltip key={item.id} title={collapsed ? item.label : ""} placement="right">
                         <Box
+                            onClick={() => onNavigate(item.id)}
                             sx={{
-                                color: view === item.id ? spGreen : "inherit",
                                 display: "flex",
-                                "& svg": { fontSize: 22 },
+                                alignItems: "center",
+                                justifyContent: collapsed ? "center" : "flex-start",
+                                gap: collapsed ? 0 : 2,
+                                px: 1.5,
+                                py: 1.25,
+                                borderRadius: 1,
+                                cursor: "pointer",
+                                color: view === item.id ? "text.primary" : "text.secondary",
+                                fontWeight: view === item.id ? 700 : 500,
+                                fontSize: 14,
+                                "&:hover": { color: "text.primary" },
                             }}
                         >
-                            {item.icon}
+                            <Box
+                                sx={{
+                                    color: view === item.id ? spGreen : "inherit",
+                                    display: "flex",
+                                    "& svg": { fontSize: 22 },
+                                }}
+                            >
+                                {item.icon}
+                            </Box>
+                            {!collapsed && item.label}
                         </Box>
-                        {item.label}
-                    </Box>
+                    </Tooltip>
                 ))}
             </Box>
 
-            <Divider sx={{ borderColor: "rgba(255,255,255,0.1)", mx: 1.5, flexShrink: 0 }} />
+            <Divider sx={{ borderColor: "divider", mx: 1.5, flexShrink: 0 }} />
 
             {/* Library — scrollable */}
             <Box
@@ -723,54 +976,62 @@ function SidebarInner({
                     pb: "var(--persistent-music-player-height, 90px)",
                 }}
             >
-                <Typography
-                    sx={{
-                        px: 1.5,
-                        mb: 1,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "rgba(255,255,255,0.5)",
-                        letterSpacing: 1,
-                        textTransform: "uppercase",
-                    }}
-                >
-                    Your Library
-                </Typography>
-                {libraryItems.map((item) => (
-                    <Box
-                        key={item.id}
-                        onClick={() => onNavigate(item.id)}
+                {!collapsed && (
+                    <Typography
                         sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 2,
                             px: 1.5,
-                            py: 1,
-                            borderRadius: 1,
-                            cursor: "pointer",
-                            color: view === item.id ? "white" : "rgba(255,255,255,0.6)",
-                            bgcolor: view === item.id ? "rgba(255,255,255,0.1)" : "transparent",
-                            "&:hover": { color: "white", bgcolor: "rgba(255,255,255,0.07)" },
+                            mb: 1,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "text.secondary",
+                            letterSpacing: 1,
+                            textTransform: "uppercase",
                         }}
                     >
-                        <Box sx={{ display: "flex", "& svg": { fontSize: 20 } }}>{item.icon}</Box>
-                        <Typography
-                            noWrap
-                            sx={{ fontSize: 13, fontWeight: 500, color: "inherit", flex: 1 }}
+                        Your Library
+                    </Typography>
+                )}
+                {libraryItems.map((item) => (
+                    <Tooltip key={item.id} title={collapsed ? item.label : ""} placement="right">
+                        <Box
+                            onClick={() => onNavigate(item.id)}
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: collapsed ? "center" : "flex-start",
+                                gap: collapsed ? 0 : 2,
+                                px: 1.5,
+                                py: 1,
+                                borderRadius: 1,
+                                cursor: "pointer",
+                                color: view === item.id ? "text.primary" : "text.secondary",
+                                bgcolor: view === item.id ? "action.selected" : "transparent",
+                                "&:hover": { color: "text.primary", bgcolor: "action.hover" },
+                            }}
                         >
-                            {item.label}
-                        </Typography>
-                        {item.count !== undefined && (
-                            <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-                                {item.count}
-                            </Typography>
-                        )}
-                    </Box>
+                            <Box sx={{ display: "flex", "& svg": { fontSize: 20 } }}>{item.icon}</Box>
+                            {!collapsed && (
+                                <>
+                                    <Typography
+                                        noWrap
+                                        sx={{ fontSize: 13, fontWeight: 500, color: "inherit", flex: 1 }}
+                                    >
+                                        {item.label}
+                                    </Typography>
+                                    {item.count !== undefined && (
+                                        <Typography sx={{ fontSize: 11, color: "text.disabled" }}>
+                                            {item.count}
+                                        </Typography>
+                                    )}
+                                </>
+                            )}
+                        </Box>
+                    </Tooltip>
                 ))}
 
-                {playlists.length > 0 && (
+                {!collapsed && playlists.length > 0 && (
                     <>
-                        <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", my: 1.5 }} />
+                        <Divider sx={{ borderColor: "divider", my: 1.5 }} />
                         {playlists.map((playlist) => (
                             <Box
                                 key={playlist.id}
@@ -780,18 +1041,18 @@ function SidebarInner({
                                     py: 0.75,
                                     borderRadius: 1,
                                     cursor: "pointer",
-                                    "&:hover": { bgcolor: "rgba(255,255,255,0.07)" },
+                                    "&:hover": { bgcolor: "action.hover" },
                                 }}
                             >
                                 <Typography
                                     noWrap
-                                    sx={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}
+                                    sx={{ fontSize: 13, color: "text.secondary" }}
                                 >
                                     {formatDisplayName(playlist.name)}
                                 </Typography>
                                 <Typography
                                     noWrap
-                                    sx={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}
+                                    sx={{ fontSize: 11, color: "text.disabled" }}
                                 >
                                     {playlist.tracks?.length ?? 0} bài
                                 </Typography>
@@ -806,9 +1067,12 @@ function SidebarInner({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function MusicPage() {
+    useSmartQueueAutofill();
+    const { mode, toggleMode } = useThemeMode();
     const [view, setView] = useState<MusicView>("home");
     const [keyword, setKeyword] = useState("");
     const [showQueue, setShowQueue] = useState(false);
+    const [showLyrics, setShowLyrics] = useState(false);
     const [playlistName, setPlaylistName] = useState("");
     const [selectedArtist, setSelectedArtist] = useState<AudiusUser | null>(null);
     const [selectedPlaylist, setSelectedPlaylist] = useState<AudiusPlaylist | null>(null);
@@ -817,6 +1081,7 @@ export default function MusicPage() {
     const [trendingTime, setTrendingTime] = useState<TrendingTimeFilter>("week");
     const [searchTab, setSearchTab] = useState(0);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     // Separate scroll containers for search columns (state so IntersectionSentinel re-renders with correct root)
     const mainScrollRef = useRef<HTMLDivElement | null>(null);
@@ -872,7 +1137,12 @@ export default function MusicPage() {
     const backendSearchHistoryQuery = useBackendSearchHistoryQuery();
     const backendPlaylistsQuery = useBackendPlaylistsQuery();
 
+    // Prefetch lyrics khi phát bài mới — kết quả được cache, panel hiển thị ngay
+    useLyricsQuery(currentItem);
+
     const createPlaylistMutation = useCreatePlaylistMutation(() => setPlaylistName(""));
+    const deleteSearchHistoryMutation = useDeleteSearchHistoryMutation();
+    const clearSearchHistoryMutation = useClearSearchHistoryMutation();
     const addToPlaylistMutation = useAddToPlaylistMutation();
 
     useEffect(() => {
@@ -955,6 +1225,7 @@ export default function MusicPage() {
 
     const navItems = [
         { id: "home" as MusicView, label: "Home", icon: <HomeIcon /> },
+        { id: "ai" as MusicView, label: "AI Music", icon: <AutoAwesomeIcon /> },
         { id: "search" as MusicView, label: "Search", icon: <SearchIcon /> },
         { id: "artists" as MusicView, label: "Artists", icon: <AlbumIcon /> },
         { id: "playlists" as MusicView, label: "Playlists", icon: <PlaylistPlayIcon /> },
@@ -1018,9 +1289,9 @@ export default function MusicPage() {
             sx={{
                 display: "flex",
                 width: "100vw",
-                height: "100dvh",
+                height: "calc(100dvh - var(--persistent-music-player-height, 90px))",
                 overflow: "hidden",
-                bgcolor: "#121212",
+                ...MUSIC_MENU_BACKGROUND_SX,
             }}
         >
             {/* ── Mobile Sidebar Drawer ─────────────────────────────────── */}
@@ -1030,7 +1301,13 @@ export default function MusicPage() {
                 ModalProps={{ keepMounted: true }}
                 sx={{
                     display: { lg: "none" },
-                    "& .MuiDrawer-paper": { width: SIDEBAR_W, bgcolor: "#000", border: "none" },
+                    "& .MuiDrawer-paper": {
+                        width: SIDEBAR_W,
+                        bgcolor: (theme) => alpha(theme.palette.background.default, 0.84),
+                        backdropFilter: "blur(18px)",
+                        border: "none",
+                        ...MUSIC_CHROME_SURFACE_SX,
+                    },
                 }}
             >
                 <SidebarInner
@@ -1051,12 +1328,14 @@ export default function MusicPage() {
             {/* ── Left Sidebar (desktop) ────────────────────────────────── */}
             <Box
                 sx={{
-                    width: SIDEBAR_W,
+                    width: sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W,
                     flexShrink: 0,
                     display: { xs: "none", lg: "flex" },
                     flexDirection: "column",
-                    bgcolor: "#000",
-                    overflow: "hidden",
+                    bgcolor: (theme) => alpha(theme.palette.background.default, 0.82),
+                    backdropFilter: "blur(18px)",
+                    transition: "width 220ms ease, background-color 220ms ease",
+                    ...MUSIC_CHROME_SURFACE_SX,
                 }}
             >
                 <SidebarInner
@@ -1065,6 +1344,8 @@ export default function MusicPage() {
                     libraryItems={libraryItems}
                     playlists={backendPlaylistsQuery.data ?? []}
                     spGreen={SP_GREEN}
+                    collapsed={sidebarCollapsed}
+                    onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
                     onNavigate={(v) => {
                         setOpenLibraryPlaylistId(undefined);
                         setView(v);
@@ -1090,9 +1371,12 @@ export default function MusicPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 2,
-                        bgcolor: "#121212",
-                        borderBottom: "1px solid rgba(255,255,255,0.06)",
+                        bgcolor: (theme) => alpha(theme.palette.background.default, 0.74),
+                        backdropFilter: "blur(16px)",
+                        borderBottom: "1px solid",
+                        borderColor: "divider",
                         flexShrink: 0,
+                        ...MUSIC_CHROME_SURFACE_SX,
                     }}
                 >
                     {/* Mobile: hamburger to open sidebar */}
@@ -1100,8 +1384,8 @@ export default function MusicPage() {
                         onClick={() => setSidebarOpen(true)}
                         sx={{
                             display: { lg: "none" },
-                            color: "rgba(255,255,255,0.7)",
-                            "&:hover": { color: "white" },
+                            color: "text.secondary",
+                            "&:hover": { color: "text.primary" },
                         }}
                     >
                         <MenuIcon />
@@ -1118,63 +1402,63 @@ export default function MusicPage() {
                             flex: 1,
                             maxWidth: 380,
                             "& .MuiOutlinedInput-root": {
-                                bgcolor: "rgba(255,255,255,0.1)",
+                                bgcolor: "action.hover",
                                 borderRadius: 3,
-                                color: "white",
+                                color: "text.primary",
                                 fontSize: 14,
                                 "& fieldset": { borderColor: "transparent" },
-                                "&:hover fieldset": { borderColor: "rgba(255,255,255,0.3)" },
+                                "&:hover fieldset": { borderColor: "divider" },
                                 "&.Mui-focused fieldset": { borderColor: SP_GREEN },
-                                "& input::placeholder": { color: "rgba(255,255,255,0.4)" },
+                                "& input::placeholder": { color: "text.disabled" },
                             },
                         }}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
                                     <SearchIcon
-                                        sx={{ color: "rgba(255,255,255,0.5)", fontSize: 18 }}
+                                        sx={{ color: "text.secondary", fontSize: 18 }}
                                     />
                                 </InputAdornment>
                             ),
                         }}
                     />
 
-                    {/* Recent searches in topbar */}
-                    {view === "search" && (backendSearchHistoryQuery.data?.length ?? 0) > 0 && (
-                        <Stack
-                            direction="row"
-                            spacing={0.75}
-                            sx={{ display: { xs: "none", md: "flex" } }}
-                            flexWrap="wrap"
-                            useFlexGap
-                        >
-                            {(backendSearchHistoryQuery.data ?? []).slice(0, 5).map((row) => (
-                                <Chip
-                                    key={row.id}
-                                    label={row.keyword}
-                                    size="small"
-                                    onClick={() => {
-                                        setKeyword(row.keyword);
-                                        setView("search");
-                                    }}
-                                    sx={{
-                                        bgcolor: "rgba(255,255,255,0.1)",
-                                        color: "rgba(255,255,255,0.7)",
-                                        fontSize: 11,
-                                        "&:hover": { bgcolor: "rgba(255,255,255,0.15)" },
-                                    }}
-                                />
-                            ))}
-                        </Stack>
-                    )}
 
-                    <Box sx={{ ml: "auto" }}>
+                    <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <Tooltip title={mode === "light" ? "Chuyển sang tối" : "Chuyển sang sáng"}>
+                            <IconButton
+                                onClick={toggleMode}
+                                sx={{
+                                    color: "text.secondary",
+                                    "&:hover": { color: "text.primary" },
+                                }}
+                            >
+                                {mode === "light" ? <Brightness4Icon /> : <Brightness7Icon />}
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Lời bài hát">
+                            <IconButton
+                                onClick={() => {
+                                    setShowLyrics((p) => !p);
+                                    if (!showLyrics) setShowQueue(false);
+                                }}
+                                sx={{
+                                    color: showLyrics ? SP_GREEN : "text.secondary",
+                                    "&:hover": { color: "text.primary" },
+                                }}
+                            >
+                                <LyricsOutlinedIcon />
+                            </IconButton>
+                        </Tooltip>
                         <Tooltip title="Queue">
                             <IconButton
-                                onClick={() => setShowQueue((p) => !p)}
+                                onClick={() => {
+                                    setShowQueue((p) => !p);
+                                    if (!showQueue) setShowLyrics(false);
+                                }}
                                 sx={{
-                                    color: showQueue ? SP_GREEN : "rgba(255,255,255,0.6)",
-                                    "&:hover": { color: "white" },
+                                    color: showQueue ? SP_GREEN : "text.secondary",
+                                    "&:hover": { color: "text.primary" },
                                 }}
                             >
                                 <QueueMusicIcon />
@@ -1192,7 +1476,6 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
                         <Box sx={{ mb: 3 }}>
@@ -1200,7 +1483,7 @@ export default function MusicPage() {
                                 sx={{
                                     fontWeight: 900,
                                     fontSize: { xs: 24, md: 30 },
-                                    color: "white",
+                                    color: "text.primary",
                                     mb: 2,
                                 }}
                             >
@@ -1238,17 +1521,17 @@ export default function MusicPage() {
                                             bgcolor:
                                                 trendingGenre === g
                                                     ? SP_GREEN
-                                                    : "rgba(255,255,255,0.1)",
+                                                    : "action.hover",
                                             color:
                                                 trendingGenre === g
                                                     ? "black"
-                                                    : "rgba(255,255,255,0.7)",
+                                                    : "text.secondary",
                                             fontWeight: trendingGenre === g ? 700 : 400,
                                             "&:hover": {
                                                 bgcolor:
                                                     trendingGenre === g
                                                         ? "#fb923c"
-                                                        : "rgba(255,255,255,0.18)",
+                                                        : "action.selected",
                                             },
                                         }}
                                     />
@@ -1270,19 +1553,16 @@ export default function MusicPage() {
                                         sx={{
                                             bgcolor:
                                                 trendingTime === t
-                                                    ? "rgba(255,255,255,0.15)"
+                                                    ? "action.selected"
                                                     : "transparent",
                                             color:
                                                 trendingTime === t
-                                                    ? "white"
-                                                    : "rgba(255,255,255,0.45)",
+                                                    ? "text.primary"
+                                                    : "text.disabled",
                                             border: "1px solid",
-                                            borderColor:
-                                                trendingTime === t
-                                                    ? "rgba(255,255,255,0.3)"
-                                                    : "rgba(255,255,255,0.12)",
+                                            borderColor: "divider",
                                             fontWeight: trendingTime === t ? 700 : 400,
-                                            "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
+                                            "&:hover": { bgcolor: "action.hover" },
                                         }}
                                     />
                                 ))}
@@ -1362,6 +1642,19 @@ export default function MusicPage() {
                     </Box>
                 )}
 
+                {/* Keep AI Music mounted so its generated journey survives menu changes. */}
+                <Box
+                    sx={{
+                        display: view === "ai" ? "block" : "none",
+                        flex: 1,
+                        minHeight: 0,
+                        overflow: "auto",
+                        p: { xs: 2, md: 3 },
+                    }}
+                >
+                    <AIStudioView />
+                </Box>
+
                 {/* ── SEARCH ──────────────────────────────────────────────── */}
                 {view === "search" && (
                     <Box
@@ -1380,22 +1673,39 @@ export default function MusicPage() {
                                     p: { xs: 2, md: 3 },
                                     overflow: "auto",
                                     flex: 1,
-                                    pb: "var(--persistent-music-player-height, 90px)",
                                 }}
                             >
                                 {/* Search history chips */}
                                 {(backendSearchHistoryQuery.data?.length ?? 0) > 0 && (
                                     <Box sx={{ mb: 4 }}>
-                                        <Typography
+                                        <Box
                                             sx={{
-                                                fontWeight: 800,
-                                                fontSize: 20,
-                                                color: "white",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
                                                 mb: 2,
                                             }}
                                         >
-                                            Tìm kiếm gần đây
-                                        </Typography>
+                                            <Typography
+                                                sx={{
+                                                    fontWeight: 800,
+                                                    fontSize: 20,
+                                                    color: "text.primary",
+                                                }}
+                                            >
+                                                Tìm kiếm gần đây
+                                            </Typography>
+                                            <Tooltip title="Xóa tất cả lịch sử">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => clearSearchHistoryMutation.mutate()}
+                                                    disabled={clearSearchHistoryMutation.isPending}
+                                                    sx={{ color: "text.secondary", "&:hover": { color: "error.main" } }}
+                                                >
+                                                    <DeleteOutlineIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Box>
                                         <Stack direction="row" flexWrap="wrap" gap={1} useFlexGap>
                                             {(backendSearchHistoryQuery.data ?? [])
                                                 .slice(0, 12)
@@ -1405,15 +1715,18 @@ export default function MusicPage() {
                                                         label={row.keyword}
                                                         icon={<SearchIcon />}
                                                         onClick={() => setKeyword(row.keyword)}
+                                                        onDelete={() =>
+                                                            deleteSearchHistoryMutation.mutate(row.id)
+                                                        }
                                                         sx={{
-                                                            bgcolor: "rgba(255,255,255,0.1)",
-                                                            color: "rgba(255,255,255,0.8)",
-                                                            "& .MuiChip-icon": {
-                                                                color: "rgba(255,255,255,0.5)",
+                                                            bgcolor: "action.hover",
+                                                            color: "text.primary",
+                                                            "& .MuiChip-icon": { color: "text.secondary" },
+                                                            "& .MuiChip-deleteIcon": {
+                                                                color: "text.disabled",
+                                                                "&:hover": { color: "error.main" },
                                                             },
-                                                            "&:hover": {
-                                                                bgcolor: "rgba(255,255,255,0.18)",
-                                                            },
+                                                            "&:hover": { bgcolor: "action.selected" },
                                                         }}
                                                     />
                                                 ))}
@@ -1428,7 +1741,7 @@ export default function MusicPage() {
                                             sx={{
                                                 fontWeight: 800,
                                                 fontSize: 20,
-                                                color: "white",
+                                                color: "text.primary",
                                                 mb: 2,
                                             }}
                                         >
@@ -1447,7 +1760,7 @@ export default function MusicPage() {
 
                                 {!backendSearchHistoryQuery.data?.length && !recentItems.length && (
                                     <Typography
-                                        sx={{ color: "rgba(255,255,255,0.4)", fontSize: 14, mt: 2 }}
+                                        sx={{ color: "text.secondary", fontSize: 14, mt: 2 }}
                                     >
                                         Nhập từ khóa để tìm bài hát, nghệ sĩ hoặc playlist.
                                     </Typography>
@@ -1472,15 +1785,16 @@ export default function MusicPage() {
                                         display: { xs: "flex", lg: "none" },
                                         flexShrink: 0,
                                         px: 2,
-                                        borderBottom: "1px solid rgba(255,255,255,0.08)",
+                                        borderBottom: "1px solid",
+                                        borderColor: "divider",
                                         "& .MuiTab-root": {
-                                            color: "rgba(255,255,255,0.5)",
+                                            color: "text.secondary",
                                             fontSize: 13,
                                             fontWeight: 600,
                                             textTransform: "none",
                                             minHeight: 40,
                                         },
-                                        "& .Mui-selected": { color: "white" },
+                                        "& .Mui-selected": { color: "text.primary" },
                                         "& .MuiTabs-indicator": { bgcolor: SP_GREEN, height: 2 },
                                     }}
                                 >
@@ -1510,19 +1824,20 @@ export default function MusicPage() {
                                             },
                                             flexDirection: "column",
                                             overflow: "hidden",
-                                            borderRight: { lg: "1px solid rgba(255,255,255,0.06)" },
+                                            borderRight: { lg: "1px solid" },
+                                            borderColor: { lg: "divider" },
                                         }}
                                     >
                                         <Typography
                                             sx={{
                                                 fontWeight: 800,
                                                 fontSize: 20,
-                                                color: "white",
+                                                color: "text.primary",
                                                 px: { xs: 2, md: 3 },
                                                 pt: { xs: 2, md: 3 },
                                                 pb: 2,
                                                 flexShrink: 0,
-                                                bgcolor: "#121212",
+                                                bgcolor: "background.default",
                                                 display: { xs: "none", lg: "block" },
                                             }}
                                         >
@@ -1535,7 +1850,7 @@ export default function MusicPage() {
                                                 flex: 1,
                                                 minHeight: 0,
                                                 px: { xs: 2, md: 3 },
-                                                pb: "var(--persistent-music-player-height, 90px)",
+                                                pb: { xs: 2, md: 3 },
                                             }}
                                         >
                                             {tracksQuery.isFetching && !searchTrackItems.length ? (
@@ -1607,7 +1922,7 @@ export default function MusicPage() {
                                                                     textAlign: "center",
                                                                     py: 2,
                                                                     fontSize: 12,
-                                                                    color: "rgba(255,255,255,0.3)",
+                                                                    color: "text.disabled",
                                                                 }}
                                                             >
                                                                 Đã hiển thị tất cả{" "}
@@ -1634,12 +1949,12 @@ export default function MusicPage() {
                                             sx={{
                                                 fontWeight: 800,
                                                 fontSize: 20,
-                                                color: "white",
+                                                color: "text.primary",
                                                 px: { xs: 2, md: 3 },
                                                 pt: { xs: 2, md: 3 },
                                                 pb: 2,
                                                 flexShrink: 0,
-                                                bgcolor: "#121212",
+                                                bgcolor: "background.default",
                                                 display: { xs: "none", lg: "block" },
                                             }}
                                         >
@@ -1652,7 +1967,7 @@ export default function MusicPage() {
                                                 flex: 1,
                                                 minHeight: 0,
                                                 px: { xs: 2, md: 3 },
-                                                pb: "var(--persistent-music-player-height, 90px)",
+                                                pb: { xs: 2, md: 3 },
                                             }}
                                         >
                                             {videosQuery.isFetching && !searchVideoItems.length ? (
@@ -1724,7 +2039,7 @@ export default function MusicPage() {
                                                                     textAlign: "center",
                                                                     py: 2,
                                                                     fontSize: 12,
-                                                                    color: "rgba(255,255,255,0.3)",
+                                                                    color: "text.disabled",
                                                                 }}
                                                             >
                                                                 Đã hiển thị tất cả{" "}
@@ -1750,12 +2065,11 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
                         {!selectedArtist && (
                             <Typography
-                                sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}
+                                sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
                             >
                                 {hasSearchKeyword ? "Kết quả tìm kiếm" : "Nghệ sĩ phổ biến hôm nay"}
                             </Typography>
@@ -1783,10 +2097,9 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
-                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
                             {hasSearchKeyword ? "Kết quả tìm kiếm" : "Playlists nổi bật hôm nay"}
                         </Typography>
                         <PlaylistGrid
@@ -1808,7 +2121,6 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
                         <LibraryView initialPlaylistId={openLibraryPlaylistId} />
@@ -1822,13 +2134,12 @@ export default function MusicPage() {
                             flex: 1,
                             minHeight: 0,
                             overflow: "auto",
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
                         <Box
                             sx={{
                                 p: { xs: 2, md: 3 },
-                                background: "linear-gradient(135deg, #4B0082 0%, #121212 100%)",
+                                background: (theme) => `linear-gradient(135deg, #4B0082 0%, ${theme.palette.background.default} 100%)`,
                                 display: "flex",
                                 alignItems: "flex-end",
                                 gap: 3,
@@ -1848,14 +2159,14 @@ export default function MusicPage() {
                                     boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
                                 }}
                             >
-                                <FavoriteIcon sx={{ fontSize: 64, color: "white" }} />
+                                <FavoriteIcon sx={{ fontSize: 64, color: "text.primary" }} />
                             </Box>
                             <Box>
                                 <Typography
                                     sx={{
                                         fontSize: 11,
                                         fontWeight: 700,
-                                        color: "white",
+                                        color: "text.primary",
                                         textTransform: "uppercase",
                                         letterSpacing: 1,
                                     }}
@@ -1866,14 +2177,14 @@ export default function MusicPage() {
                                     sx={{
                                         fontWeight: 900,
                                         fontSize: { xs: 28, md: 48 },
-                                        color: "white",
+                                        color: "text.primary",
                                         lineHeight: 1.1,
                                     }}
                                 >
                                     Liked Songs
                                 </Typography>
                                 <Typography
-                                    sx={{ color: "rgba(255,255,255,0.6)", fontSize: 14, mt: 1 }}
+                                    sx={{ color: "text.secondary", fontSize: 14, mt: 1 }}
                                 >
                                     {likedItems.length} bài hát
                                 </Typography>
@@ -1905,10 +2216,9 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
-                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
                             Nghe gần đây
                         </Typography>
                         {recentItems.length ? (
@@ -1935,10 +2245,9 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
-                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "white", mb: 2 }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
                             Playlists cá nhân
                         </Typography>
                         <Stack
@@ -1954,14 +2263,14 @@ export default function MusicPage() {
                                 fullWidth
                                 sx={{
                                     "& .MuiOutlinedInput-root": {
-                                        bgcolor: "rgba(255,255,255,0.08)",
-                                        color: "white",
-                                        "& fieldset": { borderColor: "rgba(255,255,255,0.15)" },
+                                        bgcolor: "action.hover",
+                                        color: "text.primary",
+                                        "& fieldset": { borderColor: "divider" },
                                         "&:hover fieldset": {
-                                            borderColor: "rgba(255,255,255,0.3)",
+                                            borderColor: "text.secondary",
                                         },
                                         "&.Mui-focused fieldset": { borderColor: SP_GREEN },
-                                        "& input::placeholder": { color: "rgba(255,255,255,0.35)" },
+                                        "& input::placeholder": { color: "text.disabled" },
                                     },
                                 }}
                             />
@@ -1982,8 +2291,8 @@ export default function MusicPage() {
                                     },
                                     "&:hover": { bgcolor: "#fb923c" },
                                     "&:disabled": {
-                                        bgcolor: "rgba(255,255,255,0.1)",
-                                        color: "rgba(255,255,255,0.3)",
+                                        bgcolor: "action.hover",
+                                        color: "text.disabled",
                                     },
                                 }}
                             >
@@ -2009,11 +2318,11 @@ export default function MusicPage() {
                                             setView("library");
                                         }}
                                         sx={{
-                                            bgcolor: "#181818",
+                                            bgcolor: "background.paper",
                                             borderRadius: 1.5,
                                             p: 2,
                                             cursor: "pointer",
-                                            "&:hover": { bgcolor: "#282828" },
+                                            "&:hover": { bgcolor: "action.selected" },
                                             transition: "background-color 0.2s",
                                         }}
                                     >
@@ -2021,7 +2330,7 @@ export default function MusicPage() {
                                             sx={{
                                                 width: "100%",
                                                 aspectRatio: "1",
-                                                bgcolor: "#333",
+                                                bgcolor: "action.selected",
                                                 borderRadius: 1,
                                                 mb: 1.5,
                                                 display: "flex",
@@ -2032,13 +2341,13 @@ export default function MusicPage() {
                                             <LibraryMusicIcon
                                                 sx={{
                                                     fontSize: 40,
-                                                    color: "rgba(255,255,255,0.3)",
+                                                    color: "text.disabled",
                                                 }}
                                             />
                                         </Box>
                                         <Typography
                                             noWrap
-                                            sx={{ fontWeight: 700, color: "white", fontSize: 14 }}
+                                            sx={{ fontWeight: 700, color: "text.primary", fontSize: 14 }}
                                         >
                                             {formatDisplayName(playlist.name)}
                                         </Typography>
@@ -2046,7 +2355,7 @@ export default function MusicPage() {
                                             noWrap
                                             sx={{
                                                 fontSize: 12,
-                                                color: "rgba(255,255,255,0.5)",
+                                                color: "text.secondary",
                                                 mt: 0.25,
                                             }}
                                         >
@@ -2067,7 +2376,7 @@ export default function MusicPage() {
                                             }}
                                             sx={{
                                                 mt: 1,
-                                                color: "rgba(255,255,255,0.5)",
+                                                color: "text.secondary",
                                                 fontSize: 11,
                                                 p: 0,
                                                 minWidth: 0,
@@ -2075,7 +2384,7 @@ export default function MusicPage() {
                                                     color: SP_GREEN,
                                                     bgcolor: "transparent",
                                                 },
-                                                "&:disabled": { color: "rgba(255,255,255,0.2)" },
+                                                "&:disabled": { color: "text.disabled" },
                                             }}
                                         >
                                             Thêm đang phát
@@ -2096,7 +2405,6 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
                         <LeaderboardView />
@@ -2112,7 +2420,6 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
                         <ListeningStatsView />
@@ -2128,7 +2435,6 @@ export default function MusicPage() {
                             minHeight: 0,
                             overflow: "auto",
                             p: { xs: 2, md: 3 },
-                            pb: "var(--persistent-music-player-height, 90px)",
                         }}
                     >
                         <UserProfileView />
@@ -2145,7 +2451,7 @@ export default function MusicPage() {
                 ModalProps={{ keepMounted: true }}
                 sx={{
                     display: { xs: "block", xl: "none" },
-                    "& .MuiDrawer-paper": { width: QUEUE_W, bgcolor: "#000", border: "none" },
+                    "& .MuiDrawer-paper": { width: QUEUE_W, bgcolor: "background.default", border: "none" },
                 }}
             >
                 <QueuePanelContent
@@ -2156,7 +2462,7 @@ export default function MusicPage() {
                 />
             </Drawer>
 
-            {/* Desktop: inline panel */}
+            {/* Desktop: inline queue panel */}
             {showQueue && (
                 <Box
                     sx={{
@@ -2164,8 +2470,9 @@ export default function MusicPage() {
                         flexShrink: 0,
                         display: { xs: "none", xl: "flex" },
                         flexDirection: "column",
-                        bgcolor: "#000",
-                        borderLeft: "1px solid rgba(255,255,255,0.08)",
+                        bgcolor: "background.default",
+                        borderLeft: "1px solid",
+                        borderColor: "divider",
                         overflow: "hidden",
                     }}
                 >
@@ -2174,6 +2481,45 @@ export default function MusicPage() {
                         spGreen={SP_GREEN}
                         onClose={() => setShowQueue(false)}
                         onClear={clearQueue}
+                    />
+                </Box>
+            )}
+
+            {/* ── Right Lyrics Panel ───────────────────────────────────── */}
+            {/* Mobile/tablet: Drawer */}
+            <Drawer
+                anchor="right"
+                open={showLyrics}
+                onClose={() => setShowLyrics(false)}
+                ModalProps={{ keepMounted: true }}
+                sx={{
+                    display: { xs: "block", xl: "none" },
+                    "& .MuiDrawer-paper": { width: LYRICS_W, bgcolor: "background.default", border: "none" },
+                }}
+            >
+                <LyricsPanelContent
+                    item={currentItem}
+                    onClose={() => setShowLyrics(false)}
+                />
+            </Drawer>
+
+            {/* Desktop: inline lyrics panel */}
+            {showLyrics && (
+                <Box
+                    sx={{
+                        width: LYRICS_W,
+                        flexShrink: 0,
+                        display: { xs: "none", xl: "flex" },
+                        flexDirection: "column",
+                        bgcolor: "background.default",
+                        borderLeft: "1px solid",
+                        borderColor: "divider",
+                        overflow: "hidden",
+                    }}
+                >
+                    <LyricsPanelContent
+                        item={currentItem}
+                        onClose={() => setShowLyrics(false)}
                     />
                 </Box>
             )}

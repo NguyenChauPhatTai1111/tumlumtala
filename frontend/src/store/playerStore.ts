@@ -5,6 +5,14 @@ import {
     trackListeningEvent,
 } from "@services/musicBackendService";
 
+export interface PlaybackContext {
+    context: "organic" | "ai_dj" | "radio" | "smart_queue" | "dynamic" | "friend_sync";
+    sessionId?: string;
+    searchQueries?: string[];
+    startedAt?: number;
+    reasons?: Record<string, string>;
+}
+
 interface PlayerStore {
     currentItem: MediaItem | null;
     queue: MediaItem[];
@@ -16,10 +24,12 @@ interface PlayerStore {
     likedItems: MediaItem[];
     // internal tracking — not exposed to consumers
     _playStartTime: number | null;
+    _completedItemId: string | null;
+    playbackContext: PlaybackContext;
     hydrateLibrary: (likedItems: MediaItem[], recentItems: MediaItem[]) => void;
     setRecentItems: (recentItems: MediaItem[]) => void;
     setLikedItems: (likedItems: MediaItem[]) => void;
-    play: (item: MediaItem, queue?: MediaItem[]) => void;
+    play: (item: MediaItem, queue?: MediaItem[], context?: PlaybackContext) => void;
     pause: () => void;
     resume: () => void;
     next: () => void;
@@ -29,18 +39,39 @@ interface PlayerStore {
     toggleLike: (item: MediaItem) => void;
     clearQueue: () => void;
     appendToQueue: (items: MediaItem[]) => void;
-    replaceQueue: (items: MediaItem[], startIndex?: number) => void;
+    replaceQueue: (items: MediaItem[], startIndex?: number, context?: PlaybackContext) => void;
+    setPlaybackContext: (context: PlaybackContext) => void;
     // called by BottomPlayer when actual playback position is known
     reportProgress: (listenedSeconds: number) => void;
 }
 
-function firePlayEvent(item: MediaItem) {
+const eventUUID = () =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+function firePlayEvent(
+    item: MediaItem,
+    context: PlaybackContext,
+    previousSourceId?: string,
+) {
     trackListeningEvent({
         media_item: mediaItemToEventPayload(item),
+        event_uuid: eventUUID(),
+        session_id: context.sessionId,
+        context: context.context,
+        previous_source_id: previousSourceId,
+        recommendation_reason: context.reasons?.[item.sourceId],
         event_type: "play",
         listen_duration: 0,
         track_duration: item.duration ?? 0,
         genre: item.genre,
+        mood: item.mood,
+        energy: item.energy,
+        tempo: item.bpm,
+        musical_key: item.musical_key,
+        is_instrumental: item.isInstrumental,
+        vocal_gender: item.vocalGender,
     });
 }
 
@@ -48,16 +79,28 @@ function fireTransitionEvent(
     item: MediaItem,
     listenedSeconds: number,
     trackDuration: number,
+    context: PlaybackContext,
 ) {
     const ratio = trackDuration > 0 ? listenedSeconds / trackDuration : 0;
     // < 40% listened = skip, >= 40% = complete
     const eventType = ratio >= 0.4 ? "complete" : "skip";
     trackListeningEvent({
         media_item: mediaItemToEventPayload(item),
+        event_uuid: eventUUID(),
+        session_id: context.sessionId,
+        context: context.context,
+        recommendation_reason: context.reasons?.[item.sourceId],
         event_type: eventType,
         listen_duration: Math.round(listenedSeconds),
         track_duration: trackDuration,
+        position_ms: Math.round(listenedSeconds * 1000),
         genre: item.genre,
+        mood: item.mood,
+        energy: item.energy,
+        tempo: item.bpm,
+        musical_key: item.musical_key,
+        is_instrumental: item.isInstrumental,
+        vocal_gender: item.vocalGender,
     });
 }
 
@@ -71,17 +114,25 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     recentItems: [],
     likedItems: [],
     _playStartTime: null,
+    _completedItemId: null,
+    playbackContext: { context: "organic" },
 
     hydrateLibrary: (likedItems, recentItems) => set({ likedItems, recentItems }),
     setRecentItems: (recentItems) => set({ recentItems }),
     setLikedItems: (likedItems) => set({ likedItems }),
 
-    play: (item, queue) =>
+    play: (item, queue, requestedContext) =>
         set((state) => {
+            const nextContext = requestedContext ?? { context: "organic" as const };
             // fire transition event for the item we're leaving
             if (state.currentItem && state._playStartTime !== null) {
                 const listened = (Date.now() - state._playStartTime) / 1000;
-                fireTransitionEvent(state.currentItem, listened, state.currentItem.duration ?? 0);
+                fireTransitionEvent(
+                    state.currentItem,
+                    listened,
+                    state.currentItem.duration ?? 0,
+                    state.playbackContext,
+                );
             }
 
             const nextQueue = queue?.length ? queue : [item, ...state.queue];
@@ -90,7 +141,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
                 0,
             );
 
-            firePlayEvent(item);
+            firePlayEvent(item, nextContext, state.currentItem?.sourceId);
 
             return {
                 currentItem: item,
@@ -98,6 +149,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
                 currentIndex,
                 isPlaying: true,
                 _playStartTime: Date.now(),
+                _completedItemId: null,
+                playbackContext: nextContext,
             };
         }),
 
@@ -111,7 +164,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         // fire transition for current track before moving
         if (state.currentItem && state._playStartTime !== null) {
             const listened = (Date.now() - state._playStartTime) / 1000;
-            fireTransitionEvent(state.currentItem, listened, state.currentItem.duration ?? 0);
+            fireTransitionEvent(
+                state.currentItem,
+                listened,
+                state.currentItem.duration ?? 0,
+                state.playbackContext,
+            );
         }
 
         const nextIndex = state.shuffle
@@ -125,16 +183,16 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
             }
             const first = state.queue[0];
             if (first) {
-                firePlayEvent(first);
-                set({ currentItem: first, currentIndex: 0, isPlaying: true, _playStartTime: Date.now() });
+                firePlayEvent(first, state.playbackContext, state.currentItem?.sourceId);
+                set({ currentItem: first, currentIndex: 0, isPlaying: true, _playStartTime: Date.now(), _completedItemId: null });
             }
             return;
         }
 
         const nextItem = state.queue[nextIndex];
         if (nextItem) {
-            firePlayEvent(nextItem);
-            set({ currentItem: nextItem, currentIndex: nextIndex, isPlaying: true, _playStartTime: Date.now() });
+            firePlayEvent(nextItem, state.playbackContext, state.currentItem?.sourceId);
+            set({ currentItem: nextItem, currentIndex: nextIndex, isPlaying: true, _playStartTime: Date.now(), _completedItemId: null });
         }
     },
 
@@ -144,19 +202,25 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
         if (state.currentItem && state._playStartTime !== null) {
             const listened = (Date.now() - state._playStartTime) / 1000;
-            fireTransitionEvent(state.currentItem, listened, state.currentItem.duration ?? 0);
+            fireTransitionEvent(
+                state.currentItem,
+                listened,
+                state.currentItem.duration ?? 0,
+                state.playbackContext,
+            );
         }
 
         const previousIndex =
             state.currentIndex <= 0 ? state.queue.length - 1 : state.currentIndex - 1;
         const previousItem = state.queue[previousIndex];
         if (previousItem) {
-            firePlayEvent(previousItem);
+            firePlayEvent(previousItem, state.playbackContext, state.currentItem?.sourceId);
             set({
                 currentItem: previousItem,
                 currentIndex: previousIndex,
                 isPlaying: true,
                 _playStartTime: Date.now(),
+                _completedItemId: null,
             });
         }
     },
@@ -191,6 +255,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
             currentIndex: -1,
             isPlaying: false,
             _playStartTime: null,
+            _completedItemId: null,
+            playbackContext: { context: "organic" },
         }),
 
     appendToQueue: (items) =>
@@ -200,39 +266,63 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
             return { queue: [...state.queue, ...newItems] };
         }),
 
-    replaceQueue: (items, startIndex = 0) => {
+    replaceQueue: (items, startIndex = 0, requestedContext) => {
         const state = get();
+        const nextContext = requestedContext ?? { context: "organic" as const };
         if (state.currentItem && state._playStartTime !== null) {
             const listened = (Date.now() - state._playStartTime) / 1000;
-            fireTransitionEvent(state.currentItem, listened, state.currentItem.duration ?? 0);
+            fireTransitionEvent(
+                state.currentItem,
+                listened,
+                state.currentItem.duration ?? 0,
+                state.playbackContext,
+            );
         }
         const item = items[startIndex] ?? items[0];
         if (!item) return;
-        firePlayEvent(item);
+        firePlayEvent(item, nextContext, state.currentItem?.sourceId);
         set({
             queue: items,
             currentItem: item,
             currentIndex: startIndex,
             isPlaying: true,
             _playStartTime: Date.now(),
+            _completedItemId: null,
+            playbackContext: nextContext,
         });
     },
+
+    setPlaybackContext: (playbackContext) => set({ playbackContext }),
 
     // BottomPlayer calls this periodically with actual audio currentTime
     reportProgress: (listenedSeconds) => {
         const state = get();
         if (!state.currentItem || !state.isPlaying) return;
         const duration = state.currentItem.duration ?? 0;
-        if (duration > 0 && listenedSeconds >= duration - 2) {
+        if (
+            duration > 0 &&
+            listenedSeconds >= duration - 2 &&
+            state._completedItemId !== state.currentItem.id
+        ) {
             trackListeningEvent({
                 media_item: mediaItemToEventPayload(state.currentItem),
+                event_uuid: eventUUID(),
+                session_id: state.playbackContext.sessionId,
+                context: state.playbackContext.context,
+                recommendation_reason: state.playbackContext.reasons?.[state.currentItem.sourceId],
                 event_type: "complete",
                 listen_duration: Math.round(listenedSeconds),
                 track_duration: duration,
+                position_ms: Math.round(listenedSeconds * 1000),
                 genre: state.currentItem.genre,
+                mood: state.currentItem.mood,
+                energy: state.currentItem.energy,
+                tempo: state.currentItem.bpm,
+                musical_key: state.currentItem.musical_key,
+                is_instrumental: state.currentItem.isInstrumental,
+                vocal_gender: state.currentItem.vocalGender,
             });
-            // reset so we don't fire again for same track
-            set({ _playStartTime: Date.now() });
+            set({ _completedItemId: state.currentItem.id });
         }
     },
 }));

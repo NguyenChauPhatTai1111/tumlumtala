@@ -93,9 +93,13 @@ export const toAudioMediaItem = (track: AudiusTrack): MediaItem => ({
     publishedAt: track.created_at,
     viewCount: track.play_count,
     genre: track.genre,
+    mood: track.mood,
     bpm: track.bpm,
+    energy: track.bpm ? Math.min(Math.max((track.bpm - 60) / 100, 0.1), 0.95) : undefined,
     musical_key: track.musical_key,
     tags: track.tags,
+    likeCount: track.favorite_count,
+    repostCount: track.repost_count,
     album: track.album_backlink
         ? {
               id: String(track.album_backlink.playlist_id),
@@ -456,6 +460,136 @@ export const searchYouTubeVideos = async (
             .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0)),
         nextPageToken,
     };
+};
+
+// ─── Lyrics ───────────────────────────────────────────────────────────────────
+
+export interface LyricsLine {
+    text: string;
+    time?: number; // seconds, from syncedLyrics timestamp
+}
+
+export interface TrackLyrics {
+    lines: LyricsLine[];
+    synced: boolean;
+}
+
+interface LrcLibResponse {
+    id: number;
+    plainLyrics: string | null;
+    syncedLyrics: string | null;
+    instrumental: boolean;
+}
+
+// Strip parenthesized/bracketed suffixes e.g. "(Olazaran Remix)" or "[Live]",
+// then strip trailing punctuation like "!!!" or "..."
+const stripSuffixes = (s: string) =>
+    s
+        .replace(/\s*(?:\(.*?\)|\[.*?])/g, "")
+        .replace(/[^\w\s]+$/u, "")
+        .trim();
+
+const decodeYouTubeText = (value: string) => {
+    if (typeof document === "undefined") return value;
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = value;
+    return textarea.value;
+};
+
+const cleanYouTubeArtist = (value: string) =>
+    decodeYouTubeText(value)
+        .replace(/\s*-\s*Topic\s*$/i, "")
+        .replace(/\s+VEVO\s*$/i, "")
+        .replace(/\s+(?:Official|Music)\s*$/i, "")
+        .trim();
+
+const cleanYouTubeTitle = (value: string) =>
+    stripSuffixes(
+        decodeYouTubeText(value)
+            .replace(/[–—]/g, " - ")
+            .replace(
+                /\s*(?:\||•)\s*(?:official\s+)?(?:music\s+)?(?:video|audio|lyrics?|visualizer|mv).*$/i,
+                "",
+            )
+            .replace(
+                /\s+(?:official\s+)?(?:music\s+)?(?:video|audio|lyric\s+video|visualizer|mv)\s*$/i,
+                "",
+            )
+            .replace(/\s+#\S+(?:\s+#\S+)*\s*$/u, ""),
+    );
+
+const lyricsCandidates = (artist: string, title: string): Array<[string, string]> => {
+    const cleanedArtist = cleanYouTubeArtist(artist);
+    const cleanedTitle = cleanYouTubeTitle(title);
+    const dashParts = cleanedTitle
+        .split(/\s+-\s+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+    const candidates: Array<[string, string]> = [];
+
+    // YouTube commonly stores "Artist - Track" entirely in the video title.
+    if (dashParts.length >= 2) {
+        candidates.push(
+            [dashParts[0], cleanYouTubeTitle(dashParts.slice(1).join(" - "))],
+            [cleanedArtist, cleanYouTubeTitle(dashParts.slice(1).join(" - "))],
+        );
+    }
+
+    candidates.push(
+        [cleanedArtist, cleanedTitle],
+        [cleanedArtist, stripSuffixes(title)],
+        [artist, cleanedTitle],
+    );
+
+    const seen = new Set<string>();
+    return candidates.filter(([candidateArtist, candidateTitle]) => {
+        if (!candidateArtist || !candidateTitle) return false;
+        const key = `${candidateArtist.toLocaleLowerCase()}::${candidateTitle.toLocaleLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+};
+
+// Parse "[mm:ss.xx] text" lines from syncedLyrics
+const parseSynced = (raw: string): LyricsLine[] =>
+    raw
+        .split("\n")
+        .map((line) => {
+            const m = line.match(/^\[(\d{2}):(\d{2}\.\d+)\]\s*(.*)/);
+            if (!m) return null;
+            const time = parseInt(m[1], 10) * 60 + parseFloat(m[2]);
+            return { text: m[3].trim(), time };
+        })
+        .filter((l): l is NonNullable<typeof l> => l !== null);
+
+const parsePlain = (raw: string): LyricsLine[] =>
+    raw.split("\n").map((line) => ({ text: line.trim() }));
+
+const lrcLibGet = async (artistName: string, trackName: string): Promise<TrackLyrics | null> => {
+    const res = await axios.get<LrcLibResponse>("https://lrclib.net/api/get", {
+        params: { artist_name: artistName, track_name: trackName },
+    });
+    const data = res.data;
+    if (data.instrumental) return { lines: [], synced: false };
+    if (data.syncedLyrics) return { lines: parseSynced(data.syncedLyrics), synced: true };
+    if (data.plainLyrics) return { lines: parsePlain(data.plainLyrics), synced: false };
+    return null;
+};
+
+export const getTrackLyrics = async (
+    artist: string,
+    title: string,
+): Promise<TrackLyrics | null> => {
+    for (const [a, t] of lyricsCandidates(artist, title)) {
+        try {
+            const result = await lrcLibGet(a, t);
+            if (result) return result;
+        } catch {
+            // 404 or network error — try next candidate
+        }
+    }
+    return null;
 };
 
 // ─── Radio ────────────────────────────────────────────────────────────────────

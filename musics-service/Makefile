@@ -12,7 +12,7 @@ MIGRATIONS_SNAPSHOT_DIR := internal/infrastructure/db/migrations/snapshots
 .NOTPARALLEL:
 
 .PHONY: help up start down wait-db ensure-db fresh-db \
-	migrate-up migrate-main migrate-snapshots migrate-fresh build
+	migrate-up migrate-main migrate-snapshots migrate-fresh build verify-routes
 
 help:
 	@echo "  make up                     Build và start musics-service"
@@ -23,9 +23,11 @@ help:
 
 up: migrate-up
 	@$(COMPOSE) up -d --build
+	@$(MAKE) verify-routes
 
 start:
 	@$(COMPOSE) up -d
+	@$(MAKE) verify-routes
 
 down:
 	@$(COMPOSE) down --remove-orphans
@@ -82,3 +84,36 @@ migrate-fresh: fresh-db migrate-up
 
 build:
 	@$(COMPOSE) build musics-service
+
+# Every protected route must reach the auth middleware. A 404 here means the
+# running image is older than the API contract even when the container is up.
+verify-routes:
+	@set -e; \
+	base="http://localhost:$(PORT)/api/v1/music"; \
+	for attempt in $$(seq 1 30); do \
+		code=$$(curl --silent --output /dev/null --write-out '%{http_code}' "$$base/liked" || true); \
+		[ "$$code" = "401" ] && break; \
+		[ "$$attempt" = "30" ] && { echo "❌ musics-service is not ready (HTTP $$code)"; exit 1; }; \
+		sleep 1; \
+	done; \
+	for route in \
+		"GET liked" "POST liked" "DELETE liked/route-check" \
+		"GET recent" "POST recent" \
+		"GET search-history" "POST search-history" \
+		"GET playlists" "POST playlists" "DELETE playlists/1" "POST playlists/1/tracks" \
+		"GET library" "POST library" "DELETE library/1" \
+		"GET events" "POST events" "GET dna" \
+		"POST ai/sessions" "GET ai/sessions/route-check" \
+		"POST ai/sessions/route-check/candidates" "POST ai/sessions/route-check/messages" \
+		"POST smart-queue" "POST radio" "POST dynamic-playlist" \
+		"GET insights/journey" "GET insights/heatmap" "GET discover" "GET challenges" \
+		"POST explain" "POST compare" "POST album-review" "POST remix-discovery" \
+		"POST sync/rooms" "POST sync/rooms/join" "POST sync/rooms/route-check/recommendations"; do \
+		set -- $$route; method="$$1"; path="$$2"; \
+		code=$$(curl --silent --output /dev/null --write-out '%{http_code}' --request "$$method" "$$base/$$path"); \
+		if [ "$$code" != "401" ]; then \
+			echo "❌ missing music route: $$method /api/v1/music/$$path (HTTP $$code)"; \
+			exit 1; \
+		fi; \
+	done; \
+	echo "✅ all music API routes are active"

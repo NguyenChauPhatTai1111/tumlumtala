@@ -11,8 +11,8 @@ export const TrackList = ({ tracks }: { tracks: AudiusTrack[] }) => {
 	if (!tracks.length) {
 		return (
 			<Box sx={{ py: 6, textAlign: "center" }}>
-				<MusicNoteIcon sx={{ fontSize: 48, color: "rgba(255,255,255,0.15)", mb: 1.5 }} />
-				<Typography sx={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>
+				<MusicNoteIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1.5 }} />
+				<Typography sx={{ color: "text.disabled", fontSize: 14 }}>
 					Chưa có bài hát phù hợp.
 				</Typography>
 			</Box>

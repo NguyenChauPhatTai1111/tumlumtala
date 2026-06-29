@@ -12,6 +12,7 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import RadioIcon from "@mui/icons-material/Radio";
 import {
+    alpha,
     Box,
     Button,
     Divider,
@@ -22,6 +23,7 @@ import {
     MenuItem,
     TextField,
     Tooltip,
+    useTheme,
 } from "@mui/material";
 import {
     useAddLibraryItemMutation,
@@ -46,6 +48,7 @@ export function TrackOptionsButton({
     item: MediaItem;
     alwaysVisible?: boolean;
 }) {
+    const theme = useTheme();
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const [playlistMode, setPlaylistMode] = useState(false);
     const [playlistName, setPlaylistName] = useState("");
@@ -147,7 +150,27 @@ export function TrackOptionsButton({
 
     return (
         <>
-            <Tooltip title="Tuỳ chọn khác">
+            <Tooltip
+                title="Tuỳ chọn khác"
+                slotProps={{
+                    tooltip: {
+                        sx: {
+                            bgcolor:
+                                theme.palette.mode === "light"
+                                    ? alpha(theme.palette.primary.main, 0.92)
+                                    : "grey.900",
+                            color:
+                                theme.palette.mode === "light"
+                                    ? theme.palette.primary.contrastText
+                                    : "common.white",
+                            boxShadow:
+                                theme.palette.mode === "light"
+                                    ? `0 10px 24px ${alpha(theme.palette.primary.main, 0.18)}`
+                                    : undefined,
+                        },
+                    },
+                }}
+            >
                 <IconButton
                     size="small"
                     aria-label={`Tuỳ chọn cho ${item.title}`}
@@ -156,8 +179,18 @@ export function TrackOptionsButton({
                         setAnchorEl(event.currentTarget);
                     }}
                     sx={{
-                        color: alwaysVisible ? "rgba(255,255,255,0.66)" : "rgba(255,255,255,0.38)",
-                        "&:hover": { color: "#fff" },
+                        color:
+                            alwaysVisible && theme.palette.mode === "light"
+                                ? alpha(theme.palette.text.primary, 0.8)
+                                : alwaysVisible
+                                  ? "text.secondary"
+                                  : "text.disabled",
+                        "&:hover": {
+                            color:
+                                theme.palette.mode === "light"
+                                    ? "primary.main"
+                                    : "text.primary",
+                        },
                     }}
                 >
                     <MoreHorizIcon sx={{ fontSize: 20 }} />
@@ -174,19 +207,35 @@ export function TrackOptionsButton({
                             width: 328,
                             maxWidth: "calc(100vw - 16px)",
                             maxHeight: 430,
-                            color: "#f5f5f5",
-                            bgcolor: "#292929",
-                            border: "1px solid rgba(255,255,255,0.08)",
-                            boxShadow: "0 18px 45px rgba(0,0,0,0.55)",
+                            color: "text.primary",
+                            bgcolor:
+                                theme.palette.mode === "light"
+                                    ? alpha(theme.palette.background.default, 0.98)
+                                    : "background.paper",
+                            border: "1px solid",
+                            borderColor:
+                                theme.palette.mode === "light"
+                                    ? alpha(theme.palette.primary.main, 0.16)
+                                    : "divider",
+                            boxShadow:
+                                theme.palette.mode === "light"
+                                    ? `0 22px 44px ${alpha(theme.palette.primary.main, 0.14)}`
+                                    : "0 18px 45px rgba(0,0,0,0.55)",
                             "& .MuiMenuItem-root": {
                                 minHeight: 48,
                                 px: 2,
                                 borderRadius: 0.75,
                                 mx: 0.75,
+                                "&:hover": {
+                                    bgcolor:
+                                        theme.palette.mode === "light"
+                                            ? alpha(theme.palette.primary.main, 0.08)
+                                            : undefined,
+                                },
                             },
                             "& .MuiListItemIcon-root": {
                                 minWidth: 44,
-                                color: "rgba(255,255,255,0.65)",
+                                color: "text.secondary",
                             },
                             "& .MuiListItemIcon-root svg": {
                                 fontSize: 19,
@@ -208,7 +257,7 @@ export function TrackOptionsButton({
                             </ListItemIcon>
                             <ListItemText primary="Chọn danh sách phát" />
                         </MenuItem>
-                        <Divider sx={{ borderColor: "rgba(255,255,255,0.1)", my: 0.5 }} />
+                        <Divider sx={{ my: 0.5 }} />
                         {(playlistsQuery.data ?? []).map((playlist) => (
                             <MenuItem
                                 key={playlist.id}
@@ -222,7 +271,7 @@ export function TrackOptionsButton({
                                     primary={formatDisplayName(playlist.name)}
                                     secondary={`${playlist.tracks?.length ?? 0} bài`}
                                     slotProps={{
-                                        secondary: { sx: { color: "rgba(255,255,255,0.42)" } },
+                                        secondary: { sx: { color: "text.secondary" } },
                                     }}
                                 />
                             </MenuItem>
@@ -240,8 +289,8 @@ export function TrackOptionsButton({
                                 fullWidth
                                 sx={{
                                     "& .MuiOutlinedInput-root": {
-                                        color: "#fff",
-                                        bgcolor: "rgba(255,255,255,0.06)",
+                                        color: "text.primary",
+                                        bgcolor: "action.hover",
                                     },
                                 }}
                             />
@@ -254,7 +303,7 @@ export function TrackOptionsButton({
                                     mt: 1,
                                     minHeight: 42,
                                     px: 2.25,
-                                    color: "#111",
+                                    color: "background.default",
                                     bgcolor: "#f97316",
                                     fontWeight: 750,
                                     textTransform: "none",
@@ -279,7 +328,7 @@ export function TrackOptionsButton({
                                 sx={{
                                     ml: 1.5,
                                     fontSize: 18,
-                                    color: "rgba(255,255,255,0.55)",
+                                    color: "text.secondary",
                                 }}
                             />
                         </MenuItem>
@@ -323,7 +372,7 @@ export function TrackOptionsButton({
                                 />
                             </MenuItem>
                         )}
-                        <Divider sx={{ borderColor: "rgba(255,255,255,0.1)", my: 0.5 }} />
+                        <Divider sx={{ my: 0.5 }} />
                         {isAudio && (
                             <MenuItem onClick={() => void startRadio()} disabled={radioLoading}>
                                 <ListItemIcon>

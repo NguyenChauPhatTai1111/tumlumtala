@@ -7,6 +7,7 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RepeatIcon from "@mui/icons-material/Repeat";
@@ -20,6 +21,7 @@ import VolumeDownIcon from "@mui/icons-material/VolumeDown";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import {
+    alpha,
     Avatar,
     Box,
     IconButton,
@@ -42,6 +44,53 @@ import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
 import { TrackInfoButton } from "./TrackInfoDialog";
 
 const SPOTIFY_GREEN = "#f97316";
+const MUSIC_SHELL_PLAYER_SX = {
+    background: (theme: import("@mui/material").Theme) =>
+        theme.palette.mode === "light"
+            ? alpha(theme.palette.background.default, 0.84)
+            : alpha(theme.palette.background.paper, 0.86),
+    backdropFilter: "blur(18px)",
+    overflow: "hidden",
+    isolation: "isolate",
+    "&::before": {
+        content: '""',
+        position: "absolute",
+        inset: "-24%",
+        background: (theme: import("@mui/material").Theme) =>
+            `linear-gradient(105deg, transparent 34%, ${alpha(
+                theme.palette.common.white,
+                theme.palette.mode === "light" ? 0.08 : 0.03,
+            )} 50%, transparent 66%)`,
+        filter: "blur(24px)",
+        opacity: 0.28,
+        transform: "translateX(-170%) skewX(-18deg)",
+        animation: "musicPlayerSheen 11s ease-in-out infinite",
+        pointerEvents: "none",
+        zIndex: 0,
+    },
+    "&::after": {
+        content: '""',
+        position: "absolute",
+        inset: 0,
+        background: (theme: import("@mui/material").Theme) =>
+            `radial-gradient(circle at 12% 20%, ${alpha(
+                theme.palette.primary.main,
+                theme.palette.mode === "light" ? 0.045 : 0.03,
+            )} 0%, transparent 30%)`,
+        pointerEvents: "none",
+        zIndex: 0,
+    },
+    "@keyframes musicPlayerSheen": {
+        "0%": { opacity: 0, transform: "translateX(-170%) skewX(-18deg)" },
+        "18%": { opacity: 0.26 },
+        "46%": { opacity: 0, transform: "translateX(170%) skewX(-18deg)" },
+        "100%": { opacity: 0, transform: "translateX(170%) skewX(-18deg)" },
+    },
+    "& > *": {
+        position: "relative",
+        zIndex: 1,
+    },
+};
 
 const SpotifySlider = ({
     value,
@@ -73,7 +122,7 @@ const SpotifySlider = ({
                 "&:hover, &.Mui-focusVisible": { boxShadow: `0 0 0 8px ${SPOTIFY_GREEN}30` },
             },
             "& .MuiSlider-track": { border: "none" },
-            "& .MuiSlider-rail": { opacity: 0.3, bgcolor: "rgba(255,255,255,0.5)" },
+            "& .MuiSlider-rail": { opacity: 0.3, bgcolor: "text.secondary" },
             "&:hover .MuiSlider-thumb": { opacity: 1 },
         }}
     />
@@ -522,8 +571,9 @@ export const BottomPlayer = () => {
                 right: 0,
                 bottom: 0,
                 zIndex: (t) => t.zIndex.drawer + 1,
-                bgcolor: "#181818",
-                borderTop: "1px solid rgba(255,255,255,0.08)",
+                ...MUSIC_SHELL_PLAYER_SX,
+                borderTop: "1px solid",
+                borderColor: "divider",
                 opacity: hideForComposer ? 0 : 1,
                 pointerEvents: hideForComposer ? "none" : "auto",
                 transform: hideForComposer ? "translateY(100%)" : "translateY(0)",
@@ -748,7 +798,7 @@ export const BottomPlayer = () => {
                     const audio = e.currentTarget;
                     setAudioCurrentTime(audio.currentTime || 0);
                     setAudioDuration(audio.duration || 0);
-                    reportProgress(audio.currentTime || 0);
+                    reportProgressRef.current(audio.currentTime || 0);
                 }}
             />
 
@@ -784,13 +834,13 @@ export const BottomPlayer = () => {
                         <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Typography
                                 noWrap
-                                sx={{ fontSize: 13, fontWeight: 600, color: "white" }}
+                                sx={{ fontSize: 13, fontWeight: 600, color: "text.primary" }}
                             >
                                 {formatDisplayName(currentItem?.title) || "Chọn bài hát"}
                             </Typography>
                             <Typography
                                 noWrap
-                                sx={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}
+                                sx={{ fontSize: 11, color: "text.secondary" }}
                             >
                                 {formatDisplayName(currentItem?.artist)}
                             </Typography>
@@ -805,8 +855,8 @@ export const BottomPlayer = () => {
                                 size="small"
                                 onClick={previous}
                                 sx={{
-                                    color: "rgba(255,255,255,0.7)",
-                                    "&:hover": { color: "white" },
+                                    color: "text.secondary",
+                                    "&:hover": { color: "text.primary" },
                                 }}
                             >
                                 <SkipPreviousIcon sx={{ fontSize: 22 }} />
@@ -815,12 +865,12 @@ export const BottomPlayer = () => {
                                 onClick={isPlaying ? pause : resume}
                                 disabled={!currentItem}
                                 sx={{
-                                    color: "black",
-                                    bgcolor: "white",
+                                    color: "white",
+                                    bgcolor: "#f97316",
                                     width: 32,
                                     height: 32,
-                                    "&:hover": { bgcolor: "#e0e0e0", transform: "scale(1.05)" },
-                                    "&:disabled": { bgcolor: "rgba(255,255,255,0.2)" },
+                                    "&:hover": { bgcolor: "#ea6a00", transform: "scale(1.05)" },
+                                    "&:disabled": { bgcolor: "action.selected" },
                                 }}
                             >
                                 {isPlaying ? (
@@ -833,8 +883,8 @@ export const BottomPlayer = () => {
                                 size="small"
                                 onClick={next}
                                 sx={{
-                                    color: "rgba(255,255,255,0.7)",
-                                    "&:hover": { color: "white" },
+                                    color: "text.secondary",
+                                    "&:hover": { color: "text.primary" },
                                 }}
                             >
                                 <SkipNextIcon sx={{ fontSize: 22 }} />
@@ -843,8 +893,8 @@ export const BottomPlayer = () => {
                                 size="small"
                                 onClick={() => setExpanded(!expanded)}
                                 sx={{
-                                    color: "rgba(255,255,255,0.5)",
-                                    "&:hover": { color: "white" },
+                                    color: "text.disabled",
+                                    "&:hover": { color: "text.primary" },
                                 }}
                             >
                                 {expanded ? (
@@ -880,13 +930,13 @@ export const BottomPlayer = () => {
                                 <Box sx={{ minWidth: 0, flex: 1 }}>
                                     <Typography
                                         noWrap
-                                        sx={{ fontSize: 14, fontWeight: 600, color: "white" }}
+                                        sx={{ fontSize: 14, fontWeight: 600, color: "text.primary" }}
                                     >
                                         {formatDisplayName(currentItem.title)}
                                     </Typography>
                                     <Typography
                                         noWrap
-                                        sx={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}
+                                        sx={{ fontSize: 12, color: "text.secondary" }}
                                     >
                                         {formatDisplayName(currentItem.artist)}
                                     </Typography>
@@ -902,8 +952,8 @@ export const BottomPlayer = () => {
                                             }
                                         }}
                                         sx={{
-                                            color: liked ? SPOTIFY_GREEN : "rgba(255,255,255,0.5)",
-                                            "&:hover": { color: liked ? "#fb923c" : "white" },
+                                            color: liked ? SPOTIFY_GREEN : "text.secondary",
+                                            "&:hover": { color: liked ? "#fb923c" : "text.primary" },
                                         }}
                                     >
                                         {liked ? (
@@ -915,7 +965,7 @@ export const BottomPlayer = () => {
                                 </Tooltip>
                             </>
                         ) : (
-                            <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+                            <Typography sx={{ color: "text.disabled", fontSize: 13 }}>
                                 Chọn bài hát để phát
                             </Typography>
                         )}
@@ -936,8 +986,8 @@ export const BottomPlayer = () => {
                                     size="small"
                                     onClick={toggleShuffle}
                                     sx={{
-                                        color: shuffle ? SPOTIFY_GREEN : "rgba(255,255,255,0.5)",
-                                        "&:hover": { color: shuffle ? "#fb923c" : "white" },
+                                        color: shuffle ? SPOTIFY_GREEN : "text.secondary",
+                                        "&:hover": { color: shuffle ? "#fb923c" : "text.primary" },
                                     }}
                                 >
                                     <ShuffleIcon sx={{ fontSize: 18 }} />
@@ -948,8 +998,8 @@ export const BottomPlayer = () => {
                                     size="small"
                                     onClick={previous}
                                     sx={{
-                                        color: "rgba(255,255,255,0.7)",
-                                        "&:hover": { color: "white" },
+                                        color: "text.secondary",
+                                        "&:hover": { color: "text.primary" },
                                     }}
                                 >
                                     <SkipPreviousIcon sx={{ fontSize: 22 }} />
@@ -961,8 +1011,8 @@ export const BottomPlayer = () => {
                                         size="small"
                                         onClick={() => handleAudioSeekBy(-5)}
                                         sx={{
-                                            color: "rgba(255,255,255,0.6)",
-                                            "&:hover": { color: "white" },
+                                            color: "text.secondary",
+                                            "&:hover": { color: "text.primary" },
                                         }}
                                     >
                                         <Replay5Icon sx={{ fontSize: 18 }} />
@@ -974,15 +1024,15 @@ export const BottomPlayer = () => {
                                     onClick={isPlaying ? pause : resume}
                                     disabled={!currentItem}
                                     sx={{
-                                        color: "black",
-                                        bgcolor: "white",
+                                        color: "white",
+                                        bgcolor: "#f97316",
                                         width: 36,
                                         height: 36,
-                                        "&:hover": { bgcolor: "#e0e0e0", transform: "scale(1.05)" },
+                                        "&:hover": { bgcolor: "#ea6a00", transform: "scale(1.05)" },
                                         transition: "transform 0.15s ease",
                                         "&:disabled": {
-                                            bgcolor: "rgba(255,255,255,0.15)",
-                                            color: "rgba(255,255,255,0.3)",
+                                            bgcolor: "action.selected",
+                                            color: "text.disabled",
                                         },
                                     }}
                                 >
@@ -999,8 +1049,8 @@ export const BottomPlayer = () => {
                                         size="small"
                                         onClick={() => handleAudioSeekBy(5)}
                                         sx={{
-                                            color: "rgba(255,255,255,0.6)",
-                                            "&:hover": { color: "white" },
+                                            color: "text.secondary",
+                                            "&:hover": { color: "text.primary" },
                                         }}
                                     >
                                         <Forward5Icon sx={{ fontSize: 18 }} />
@@ -1012,8 +1062,8 @@ export const BottomPlayer = () => {
                                     size="small"
                                     onClick={next}
                                     sx={{
-                                        color: "rgba(255,255,255,0.7)",
-                                        "&:hover": { color: "white" },
+                                        color: "text.secondary",
+                                        "&:hover": { color: "text.primary" },
                                     }}
                                 >
                                     <SkipNextIcon sx={{ fontSize: 22 }} />
@@ -1035,9 +1085,9 @@ export const BottomPlayer = () => {
                                         color:
                                             repeat !== "off"
                                                 ? SPOTIFY_GREEN
-                                                : "rgba(255,255,255,0.5)",
+                                                : "text.secondary",
                                         "&:hover": {
-                                            color: repeat !== "off" ? "#fb923c" : "white",
+                                            color: repeat !== "off" ? "#fb923c" : "text.primary",
                                         },
                                     }}
                                 >
@@ -1053,7 +1103,7 @@ export const BottomPlayer = () => {
                             <Typography
                                 sx={{
                                     fontSize: 11,
-                                    color: "rgba(255,255,255,0.4)",
+                                    color: "text.secondary",
                                     fontVariantNumeric: "tabular-nums",
                                     flexShrink: 0,
                                 }}
@@ -1072,7 +1122,7 @@ export const BottomPlayer = () => {
                             <Typography
                                 sx={{
                                     fontSize: 11,
-                                    color: "rgba(255,255,255,0.4)",
+                                    color: "text.secondary",
                                     fontVariantNumeric: "tabular-nums",
                                     flexShrink: 0,
                                 }}
@@ -1103,8 +1153,8 @@ export const BottomPlayer = () => {
                                         )
                                     }
                                     sx={{
-                                        color: "rgba(255,255,255,0.5)",
-                                        "&:hover": { color: "white" },
+                                        color: "text.secondary",
+                                        "&:hover": { color: "text.primary" },
                                     }}
                                 >
                                     {videoCollapsed ? (
@@ -1120,8 +1170,8 @@ export const BottomPlayer = () => {
                                 size="small"
                                 onClick={() => setVolume((v) => (v === 0 ? 1 : 0))}
                                 sx={{
-                                    color: "rgba(255,255,255,0.5)",
-                                    "&:hover": { color: "white" },
+                                    color: "text.secondary",
+                                    "&:hover": { color: "text.primary" },
                                 }}
                             >
                                 {volumeIcon}
@@ -1136,8 +1186,8 @@ export const BottomPlayer = () => {
                                     clearQueue();
                                 }}
                                 sx={{
-                                    color: "rgba(255,255,255,0.3)",
-                                    "&:hover": { color: "white" },
+                                    color: "text.disabled",
+                                    "&:hover": { color: "text.primary" },
                                     ml: 0.5,
                                 }}
                             >

@@ -63,8 +63,8 @@ export const MediaRow = ({
                 py: 0.75,
                 borderRadius: 1,
                 cursor: "pointer",
-                bgcolor: active ? "rgba(255,255,255,0.08)" : "transparent",
-                "&:hover": { bgcolor: active ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)" },
+                bgcolor: active ? "action.selected" : "transparent",
+                "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
                 transition: "background-color 0.15s ease",
             }}
         >
@@ -79,7 +79,7 @@ export const MediaRow = ({
                             e.stopPropagation();
                             handlePlay();
                         }}
-                        sx={{ color: "white", p: 0, width: 16, height: 16 }}
+                        sx={{ color: "text.primary", p: 0, width: 16, height: 16 }}
                     >
                         {active && isPlaying ? (
                             <PauseIcon sx={{ fontSize: 16 }} />
@@ -117,7 +117,7 @@ export const MediaRow = ({
                     <Typography
                         sx={{
                             fontSize: 13,
-                            color: active ? SPOTIFY_GREEN : "rgba(255,255,255,0.4)",
+                            color: active ? SPOTIFY_GREEN : "text.disabled",
                             fontVariantNumeric: "tabular-nums",
                             lineHeight: 1,
                         }}
@@ -142,7 +142,7 @@ export const MediaRow = ({
                     sx={{
                         fontSize: 14,
                         fontWeight: 500,
-                        color: active ? SPOTIFY_GREEN : "white",
+                        color: active ? SPOTIFY_GREEN : "text.primary",
                     }}
                 >
                     {formatDisplayName(item.title)}
@@ -152,12 +152,12 @@ export const MediaRow = ({
                                 fontSize: 12,
                                 ml: 0.5,
                                 verticalAlign: "middle",
-                                color: "rgba(255,255,255,0.4)",
+                                color: "text.disabled",
                             }}
                         />
                     )}
                 </Typography>
-                <Typography noWrap sx={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+                <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                     {formatDisplayName(item.artist)}
                     {item.viewCount ? ` · ${formatCompactNumber(item.viewCount)} lượt xem` : ""}
                     {publishedDate ? ` · ${publishedDate}` : ""}
@@ -170,7 +170,7 @@ export const MediaRow = ({
                     sx={{
                         display: { xs: "none", md: "block" },
                         fontSize: 12,
-                        color: "rgba(255,255,255,0.46)",
+                        color: "text.secondary",
                     }}
                 >
                     {formatDisplayName(item.album?.name) || "Đĩa đơn"}
@@ -192,11 +192,11 @@ export const MediaRow = ({
                         color: liked
                             ? SPOTIFY_GREEN
                             : hovered
-                              ? "rgba(255,255,255,0.68)"
-                              : "rgba(255,255,255,0.38)",
+                              ? "text.primary"
+                              : "text.disabled",
                         transition: "color 160ms ease, transform 160ms ease",
                         "&:hover": {
-                            color: liked ? "#fb923c" : "#fff",
+                            color: liked ? "#fb923c" : "text.primary",
                             transform: "scale(1.06)",
                         },
                         "&:active": { transform: "scale(0.96)" },
@@ -218,7 +218,7 @@ export const MediaRow = ({
             <Typography
                 sx={{
                     fontSize: 13,
-                    color: "rgba(255,255,255,0.4)",
+                    color: "text.disabled",
                     fontVariantNumeric: "tabular-nums",
                     minWidth: 36,
                     textAlign: "right",

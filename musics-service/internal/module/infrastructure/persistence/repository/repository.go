@@ -10,6 +10,7 @@ import (
 
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/event"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/history"
+	"github.com/tumlumtala/musics-service/internal/module/domain/entity/intelligence"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/library"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/liked"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/media"
@@ -40,7 +41,9 @@ func (r *Repository) UpsertMediaItem(ctx context.Context, item media.MediaItem) 
 			},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"title", "artist", "thumbnail", "stream_url",
-				"video_id", "duration", "view_count", "updated_at",
+				"video_id", "duration", "view_count", "genre", "mood",
+				"energy", "tempo", "musical_key", "is_instrumental",
+				"vocal_gender", "like_count", "repost_count", "tags", "updated_at",
 			}),
 		}).
 		Create(&item).Error
@@ -217,6 +220,18 @@ func (r *Repository) ListSearchHistory(ctx context.Context, userUUID string) ([]
 	return uniqueRows, nil
 }
 
+func (r *Repository) DeleteSearchHistory(ctx context.Context, userUUID string, id uint64) error {
+	return r.db.WithContext(ctx).
+		Where("user_uuid = ? AND id = ?", userUUID, id).
+		Delete(&search.SearchHistory{}).Error
+}
+
+func (r *Repository) ClearSearchHistory(ctx context.Context, userUUID string) error {
+	return r.db.WithContext(ctx).
+		Where("user_uuid = ?", userUUID).
+		Delete(&search.SearchHistory{}).Error
+}
+
 func (r *Repository) CreatePlaylist(ctx context.Context, p playlist.Playlist) (*playlist.Playlist, error) {
 	err := r.db.WithContext(ctx).Create(&p).Error
 	return &p, err
@@ -319,10 +334,229 @@ func (r *Repository) RemoveLibraryItem(ctx context.Context, userUUID string, ite
 
 func (r *Repository) AddListeningEvent(ctx context.Context, e event.ListeningEvent) (*event.ListeningEvent, error) {
 	e.OccurredAt = time.Now()
+	if e.EventUUID != nil && *e.EventUUID != "" {
+		result := r.db.WithContext(ctx).
+			Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "event_uuid"}},
+				DoNothing: true,
+			}).
+			Create(&e)
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		var saved event.ListeningEvent
+		if err := r.db.WithContext(ctx).
+			Where("event_uuid = ?", *e.EventUUID).
+			First(&saved).Error; err != nil {
+			return nil, err
+		}
+		saved.Duplicate = result.RowsAffected == 0
+		return &saved, nil
+	}
 	if err := r.db.WithContext(ctx).Create(&e).Error; err != nil {
 		return nil, err
 	}
 	return &e, nil
+}
+
+func (r *Repository) UpsertDNADimension(ctx context.Context, dimension intelligence.DNADimension) error {
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "user_uuid"},
+				{Name: "dimension_type"},
+				{Name: "dimension_value"},
+			},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"positive_score":      gorm.Expr("positive_score + ?", dimension.PositiveScore),
+				"negative_score":      gorm.Expr("negative_score + ?", dimension.NegativeScore),
+				"play_count":          gorm.Expr("play_count + ?", dimension.PlayCount),
+				"completion_sum":      gorm.Expr("completion_sum + ?", dimension.CompletionSum),
+				"skip_count":          gorm.Expr("skip_count + ?", dimension.SkipCount),
+				"last_interaction_at": dimension.LastInteractionAt,
+				"updated_at":          time.Now(),
+			}),
+		}).
+		Create(&dimension).Error
+}
+
+func (r *Repository) ListDNADimensions(ctx context.Context, userUUID string) ([]intelligence.DNADimension, error) {
+	var rows []intelligence.DNADimension
+	err := r.db.WithContext(ctx).
+		Where("user_uuid = ?", userUUID).
+		Order("(positive_score - negative_score) DESC, play_count DESC").
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) ListListeningEventsSince(ctx context.Context, userUUID string, since time.Time, limit int) ([]event.ListeningEvent, error) {
+	var rows []event.ListeningEvent
+	err := r.db.WithContext(ctx).
+		Where("user_uuid = ? AND occurred_at >= ?", userUUID, since).
+		Order("occurred_at DESC").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) ListCommunityEventsSince(ctx context.Context, excludeUserUUID string, since time.Time, limit int) ([]event.ListeningEvent, error) {
+	var rows []event.ListeningEvent
+	err := r.db.WithContext(ctx).
+		Where("user_uuid <> ? AND occurred_at >= ?", excludeUserUUID, since).
+		Where("previous_source_id IS NOT NULL AND previous_source_id <> ''").
+		Order("occurred_at DESC").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) ListCandidateMedia(ctx context.Context, userUUID string, limit int) ([]media.MediaItem, error) {
+	var rows []media.MediaItem
+	err := r.db.WithContext(ctx).
+		Where("user_uuid = ?", userUUID).
+		Order("updated_at DESC").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) ListHiddenGemMedia(ctx context.Context, limit int) ([]media.MediaItem, error) {
+	var rows []media.MediaItem
+	err := r.db.WithContext(ctx).
+		Where("view_count < ?", 1000).
+		Order("(like_count + repost_count * 2) DESC, updated_at DESC").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) FindMediaBySourceIDs(ctx context.Context, sourceIDs []string) ([]media.MediaItem, error) {
+	if len(sourceIDs) == 0 {
+		return []media.MediaItem{}, nil
+	}
+	var rows []media.MediaItem
+	latestIDs := r.db.Model(&media.MediaItem{}).
+		Select("MAX(id)").
+		Where("source_id IN ?", sourceIDs).
+		Group("source_id")
+	err := r.db.WithContext(ctx).
+		Where("id IN (?)", latestIDs).
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) CreateAISession(ctx context.Context, session intelligence.AISession) error {
+	return r.db.WithContext(ctx).Create(&session).Error
+}
+
+func (r *Repository) UpdateAISession(ctx context.Context, session intelligence.AISession) error {
+	return r.db.WithContext(ctx).
+		Model(&intelligence.AISession{}).
+		Where("id = ? AND user_uuid = ?", session.ID, session.UserUUID).
+		Updates(map[string]any{
+			"prompt":            session.Prompt,
+			"title":             session.Title,
+			"assistant_message": session.AssistantMessage,
+			"status":            session.Status,
+			"plan":              session.Plan,
+			"context":           session.Context,
+			"updated_at":        time.Now(),
+		}).Error
+}
+
+func (r *Repository) GetAISession(ctx context.Context, userUUID, sessionID string) (*intelligence.AISession, error) {
+	var session intelligence.AISession
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND user_uuid = ?", sessionID, userUUID).
+		First(&session).Error
+	return &session, err
+}
+
+func (r *Repository) AddAIMessage(ctx context.Context, message intelligence.AIMessage) error {
+	return r.db.WithContext(ctx).Create(&message).Error
+}
+
+func (r *Repository) ListAIMessages(ctx context.Context, sessionID string) ([]intelligence.AIMessage, error) {
+	var rows []intelligence.AIMessage
+	err := r.db.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Order("id ASC").
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) ReplaceAISessionTracks(ctx context.Context, sessionID string, tracks []intelligence.AISessionTrack) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("session_id = ?", sessionID).Delete(&intelligence.AISessionTrack{}).Error; err != nil {
+			return err
+		}
+		if len(tracks) == 0 {
+			return nil
+		}
+		return tx.Create(&tracks).Error
+	})
+}
+
+func (r *Repository) AppendAISessionTracks(ctx context.Context, sessionID string, tracks []intelligence.AISessionTrack) error {
+	if len(tracks) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&tracks).Error
+}
+
+func (r *Repository) ListAISessionTracks(ctx context.Context, sessionID string) ([]intelligence.AISessionTrack, error) {
+	var rows []intelligence.AISessionTrack
+	err := r.db.WithContext(ctx).
+		Preload("MediaItem").
+		Where("session_id = ?", sessionID).
+		Order("position ASC").
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) UpsertChallengeProgress(ctx context.Context, progress intelligence.ChallengeProgress) error {
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "user_uuid"},
+				{Name: "challenge_key"},
+				{Name: "period_key"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"progress", "target", "completed_at", "updated_at",
+			}),
+		}).
+		Create(&progress).Error
+}
+
+func (r *Repository) CreateSyncRoom(ctx context.Context, room intelligence.SyncRoom) error {
+	return r.db.WithContext(ctx).Create(&room).Error
+}
+
+func (r *Repository) JoinSyncRoom(ctx context.Context, userUUID, inviteCode string) (*intelligence.SyncRoom, error) {
+	var room intelligence.SyncRoom
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("invite_code = ? AND status = ? AND expires_at > ?", strings.ToUpper(inviteCode), "waiting", time.Now()).
+			First(&room).Error; err != nil {
+			return err
+		}
+		if room.OwnerUUID == userUUID {
+			return gorm.ErrInvalidData
+		}
+		room.GuestUUID = &userUUID
+		room.Status = "active"
+		return tx.Save(&room).Error
+	})
+	return &room, err
+}
+
+func (r *Repository) GetSyncRoom(ctx context.Context, userUUID, roomID string) (*intelligence.SyncRoom, error) {
+	var room intelligence.SyncRoom
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND (owner_uuid = ? OR guest_uuid = ?)", roomID, userUUID, userUUID).
+		First(&room).Error
+	return &room, err
 }
 
 func (r *Repository) ListListeningEvents(ctx context.Context, userUUID string, limit int) ([]event.ListeningEvent, error) {

@@ -81,8 +81,7 @@ export const ArtistsPanel = ({
                     sx={{
                         position: "absolute",
                         inset: 0,
-                        background:
-                            "linear-gradient(90deg, rgba(10,10,10,0.68), rgba(10,10,10,0.08) 72%), linear-gradient(0deg, #121212 0%, transparent 62%)",
+                        background: (theme: import("@mui/material").Theme) => `linear-gradient(90deg, rgba(0,0,0,0.68), rgba(0,0,0,0.08) 72%), linear-gradient(0deg, ${theme.palette.background.default} 0%, transparent 62%)`,
                     }}
                 />
                 <Box sx={{ position: "relative", zIndex: 1, maxWidth: 900 }}>
@@ -110,7 +109,7 @@ export const ArtistsPanel = ({
                     >
                         {formatDisplayName(selectedArtist.name)}
                     </Typography>
-                    <Typography sx={{ mt: 1.5, fontSize: 13, color: "rgba(255,255,255,0.78)" }}>
+                    <Typography sx={{ mt: 1.5, fontSize: 13, color: "text.secondary" }}>
                         @{selectedArtist.handle}
                         {" · "}
                         {formatCount(selectedArtist.follower_count)} người theo dõi
@@ -123,7 +122,7 @@ export const ArtistsPanel = ({
                 sx={{
                     px: { xs: 2, md: 5 },
                     pb: 7,
-                    background: "linear-gradient(180deg, rgba(50,31,22,0.64) 0%, #121212 240px)",
+                    background: (theme: import("@mui/material").Theme) => `linear-gradient(180deg, rgba(50,31,22,0.64) 0%, ${theme.palette.background.default} 240px)`,
                 }}
             >
                 <Stack direction="row" alignItems="center" spacing={1.25} sx={{ py: 2.5 }}>
@@ -134,7 +133,7 @@ export const ArtistsPanel = ({
                         sx={{
                             width: 56,
                             height: 56,
-                            color: "#111",
+                            color: "background.default",
                             bgcolor: ACCENT,
                             "&:hover": { bgcolor: "#fb923c", transform: "scale(1.04)" },
                             transition: "transform 180ms ease",
@@ -155,16 +154,16 @@ export const ArtistsPanel = ({
                         onClick={() => replaceQueue(artistRadioTracks, 0)}
                         sx={{
                             color: "#fff",
-                            borderColor: "rgba(255,255,255,0.46)",
+                            borderColor: "divider",
                             borderRadius: 99,
                             textTransform: "none",
                             fontWeight: 700,
-                            "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.06)" },
+                            "&:hover": { borderColor: "text.primary", bgcolor: "action.hover" },
                         }}
                     >
                         Artist Radio
                     </Button>
-                    <IconButton sx={{ color: "rgba(255,255,255,0.58)" }}>
+                    <IconButton sx={{ color: "text.secondary" }}>
                         <MoreHorizIcon />
                     </IconButton>
                     <LibraryToggleButton
@@ -207,7 +206,7 @@ export const ArtistsPanel = ({
                                 onClick={() => setShowAllTracks((value) => !value)}
                                 sx={{
                                     mt: 1,
-                                    color: "rgba(255,255,255,0.55)",
+                                    color: "text.secondary",
                                     textTransform: "none",
                                     fontWeight: 700,
                                 }}
@@ -303,8 +302,8 @@ function ArtistDirectory({
     if (!artists.length) {
         return (
             <Box sx={{ py: 8, textAlign: "center" }}>
-                <AlbumIcon sx={{ fontSize: 52, color: "rgba(255,255,255,0.12)", mb: 1.5 }} />
-                <Typography sx={{ color: "rgba(255,255,255,0.4)" }}>
+                <AlbumIcon sx={{ fontSize: 52, color: "text.disabled", mb: 1.5 }} />
+                <Typography sx={{ color: "text.disabled" }}>
                     Nhập từ khóa để tìm nghệ sĩ.
                 </Typography>
             </Box>
@@ -328,9 +327,9 @@ function ArtistDirectory({
                         p: 2,
                         borderRadius: 2,
                         cursor: "pointer",
-                        bgcolor: "#181818",
+                        bgcolor: "background.paper",
                         transition: "background-color 180ms ease, transform 180ms ease",
-                        "&:hover": { bgcolor: "#252525", transform: "translateY(-2px)" },
+                        "&:hover": { bgcolor: "action.selected", transform: "translateY(-2px)" },
                     }}
                 >
                     <Box sx={{ position: "absolute", zIndex: 1, top: 9, right: 9 }}>
@@ -353,7 +352,7 @@ function ArtistDirectory({
                     <Typography noWrap fontWeight={750}>
                         {formatDisplayName(artist.name)}
                     </Typography>
-                    <Typography noWrap variant="caption" sx={{ color: "rgba(255,255,255,0.48)" }}>
+                    <Typography noWrap variant="caption" sx={{ color: "text.secondary" }}>
                         @{artist.handle}
                     </Typography>
                 </Box>
@@ -401,7 +400,7 @@ function FeaturedCollection({
                     <Typography fontWeight={850}>
                         {formatDisplayName(playlist.playlist_name)}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.62)" }}>
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
                         {playlist.is_album ? "Album" : "Playlist"} · {playlist.track_count ?? 0} bài
                     </Typography>
                 </Box>
@@ -418,7 +417,7 @@ function CollectionCard({ playlist, onClick }: { playlist: AudiusPlaylist; onCli
                 p: 1.25,
                 borderRadius: 1.5,
                 cursor: "pointer",
-                "&:hover": { bgcolor: "#242424" },
+                "&:hover": { bgcolor: "action.selected" },
             }}
         >
             <Avatar
@@ -429,7 +428,7 @@ function CollectionCard({ playlist, onClick }: { playlist: AudiusPlaylist; onCli
             <Typography noWrap sx={{ fontSize: 13, fontWeight: 700 }}>
                 {formatDisplayName(playlist.playlist_name)}
             </Typography>
-            <Typography noWrap variant="caption" sx={{ color: "rgba(255,255,255,0.45)" }}>
+            <Typography noWrap variant="caption" sx={{ color: "text.secondary" }}>
                 {playlist.is_album ? "Album" : "Playlist"} · {playlist.track_count ?? 0} bài
             </Typography>
         </Box>

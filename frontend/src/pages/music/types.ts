@@ -100,9 +100,15 @@ export interface MediaItem {
     publishedAt?: string;
     viewCount?: number;
     genre?: string;
+    mood?: string;
     bpm?: number;
+    energy?: number;
     musical_key?: string;
     tags?: string;
+    isInstrumental?: boolean;
+    vocalGender?: "female" | "male" | "mixed" | string;
+    likeCount?: number;
+    repostCount?: number;
     album?: {
         id: string;
         name: string;

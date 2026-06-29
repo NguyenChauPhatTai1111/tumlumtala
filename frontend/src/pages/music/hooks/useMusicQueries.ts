@@ -1,11 +1,12 @@
-import type { MediaItem } from "@pages/music/types";
-import type { TrendingGenre, TrendingTimeFilter } from "@pages/music/types";
+import type { AudiusUser, MediaItem, TrendingGenre, TrendingTimeFilter } from "@pages/music/types";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     addTrackToMusicPlaylist,
     addMusicLibraryItem,
+    clearMusicSearchHistory,
     createMusicPlaylist,
     deleteMusicPlaylist,
+    deleteMusicSearchHistory,
     getMusicLibrary,
     getLikedMusic,
     getMusicPlaylists,
@@ -32,12 +33,30 @@ import {
     getTrendingPlaylists,
     getTrendingTracks,
     getUndergroundTrendingTracks,
+    getTrackLyrics,
     searchArtists,
     searchPlaylists,
     searchTracks,
     searchYouTubeVideos,
 } from "@services/musicService";
-import type { AudiusUser } from "@pages/music/types";
+
+
+// ─── Lyrics ───────────────────────────────────────────────────────────────────
+
+export const useLyricsQuery = (item: MediaItem | null) =>
+    useQuery({
+        queryKey: [
+            "music",
+            "lyrics",
+            item?.type ?? "",
+            item?.artist ?? "",
+            item?.title ?? "",
+        ],
+        queryFn: () => getTrackLyrics(item!.artist, item!.title),
+        enabled: Boolean(item?.artist) && Boolean(item?.title),
+        staleTime: 60 * 60 * 1000,
+        retry: false,
+    });
 
 // ─── Trending ─────────────────────────────────────────────────────────────────
 
@@ -342,6 +361,26 @@ export const useLikeMusicMutation = (item: MediaItem, liked: boolean) => {
             void queryClient.invalidateQueries({
                 queryKey: ["music", "backend", "liked"],
             });
+        },
+    });
+};
+
+export const useDeleteSearchHistoryMutation = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: number) => deleteMusicSearchHistory(id),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ["music", "backend", "search-history"] });
+        },
+    });
+};
+
+export const useClearSearchHistoryMutation = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: clearMusicSearchHistory,
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ["music", "backend", "search-history"] });
         },
     });
 };
