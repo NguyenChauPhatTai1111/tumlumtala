@@ -160,6 +160,48 @@ const MUSIC_CONTROL_OVERLAY_SX = {
             : "none",
     backdropFilter: "blur(10px)",
 };
+const MUSIC_3D_CARD_SX = {
+    perspective: "1400px",
+    transformStyle: "preserve-3d",
+    transition: "transform 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+    "& .card-bg": {
+        transformStyle: "preserve-3d",
+        transition:
+            "transform 360ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 360ms ease, background-color 0.2s, border-color 0.2s",
+    },
+    "& .card-cover": {
+        transform: "translateZ(0px)",
+        transition: "transform 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+        willChange: "transform",
+    },
+    "& .card-title": {
+        transform: "translateZ(0px)",
+        transition: "transform 360ms cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease",
+    },
+    "& .card-subtitle, & .card-badge": {
+        transform: "translateZ(0px)",
+        transition: "transform 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+    },
+    "&:hover": {
+        transform: "translateY(-6px)",
+    },
+    "&:hover .card-bg": {
+        transform: "rotateX(6deg) rotateY(-5deg) translateY(-2px)",
+        boxShadow: "0 22px 36px rgba(0,0,0,0.24)",
+    },
+    "&:hover .card-cover": {
+        transform: "translateZ(26px) scale(1.025)",
+    },
+    "&:hover .card-title": {
+        transform: "translateZ(18px)",
+    },
+    "&:hover .card-subtitle": {
+        transform: "translateZ(12px)",
+    },
+    "&:hover .card-badge": {
+        transform: "translateZ(14px)",
+    },
+};
 const MUSIC_MENU_BACKGROUND_SX = {
     position: "relative",
     isolation: "isolate",
@@ -194,14 +236,22 @@ const MUSIC_MENU_BACKGROUND_SX = {
     "&::after": {
         content: '""',
         position: "absolute",
-        inset: 0,
+        inset: "-10%",
         background: (theme: import("@mui/material").Theme) =>
             `radial-gradient(circle at 18% 16%, ${alpha(
                 theme.palette.primary.main,
                 theme.palette.mode === "light" ? 0.06 : 0.045,
-            )} 0%, transparent 28%)`,
+            )} 0%, transparent 24%), radial-gradient(circle at 82% 78%, ${alpha(
+                theme.palette.secondary.main,
+                theme.palette.mode === "light" ? 0.05 : 0.035,
+            )} 0%, transparent 22%)`,
         pointerEvents: "none",
         zIndex: 0,
+        transform:
+            "perspective(1400px) rotateX(72deg) rotateZ(-10deg) translate3d(-4%, 8%, 0)",
+        transformOrigin: "center center",
+        animation: "musicAmbientDepth 28s ease-in-out infinite",
+        opacity: 0.92,
     },
     "@keyframes musicMenuSheen": {
         "0%": {
@@ -218,6 +268,18 @@ const MUSIC_MENU_BACKGROUND_SX = {
         "100%": {
             opacity: 0,
             transform: "translateX(165%) skewX(-18deg)",
+        },
+    },
+    "@keyframes musicAmbientDepth": {
+        "0%, 100%": {
+            opacity: 0.82,
+            transform:
+                "perspective(1400px) rotateX(72deg) rotateZ(-10deg) translate3d(-4%, 8%, 0)",
+        },
+        "50%": {
+            opacity: 1,
+            transform:
+                "perspective(1400px) rotateX(66deg) rotateZ(6deg) translate3d(4%, -6%, 0)",
         },
     },
     "& > *": {
@@ -408,8 +470,8 @@ function TrackCard({
                 sx={{
                     flexShrink: 0,
                     width: 160,
+                    ...MUSIC_3D_CARD_SX,
                     "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
-                    ".card-bg": { transition: "background-color 0.2s, border-color 0.2s" },
                 }}
             >
                 <Box className="card-bg" sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}>
@@ -429,6 +491,7 @@ function TrackCard({
                             }}
                         >
                             <Avatar
+                                className="card-cover"
                                 variant="rounded"
                                 src={item.thumbnail}
                                 sx={{
@@ -503,6 +566,7 @@ function TrackCard({
                         </Box>
                     </Box>
                     <Typography
+                        className="card-title"
                         component="button"
                         type="button"
                         onClick={openInfo}
@@ -524,11 +588,12 @@ function TrackCard({
                     >
                         {formatDisplayName(track.title)}
                     </Typography>
-                    <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                    <Typography className="card-subtitle" noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                         {formatDisplayName(track.user.name)}
                     </Typography>
                     {recommendationReason && (
                         <Typography
+                            className="card-badge"
                             noWrap
                             sx={{ mt: 0.5, fontSize: 10.5, fontWeight: 650, color: "#fdba74" }}
                         >
@@ -557,8 +622,8 @@ function ArtistCard({ artist, onClick }: { artist: AudiusUser; onClick: () => vo
                 width: 148,
                 cursor: "pointer",
                 textAlign: "center",
+                ...MUSIC_3D_CARD_SX,
                 "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
-                ".card-bg": { transition: "background-color 0.2s, border-color 0.2s" },
             }}
         >
             <Box
@@ -579,6 +644,7 @@ function ArtistCard({ artist, onClick }: { artist: AudiusUser; onClick: () => vo
                     />
                 </Box>
                 <Avatar
+                    className="card-cover"
                     src={getAudiusProfileImage(artist)}
                     sx={{
                         width: 116,
@@ -588,10 +654,10 @@ function ArtistCard({ artist, onClick }: { artist: AudiusUser; onClick: () => vo
                         boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
                     }}
                 />
-                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
+                <Typography className="card-title" noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
                     {formatDisplayName(artist.name)}
                 </Typography>
-                <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                <Typography className="card-subtitle" noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                     Nghệ sĩ
                 </Typography>
             </Box>
@@ -611,13 +677,14 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
                 flexShrink: 0,
                 width: 160,
                 cursor: "pointer",
+                ...MUSIC_3D_CARD_SX,
                 "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
-                ".card-bg": { transition: "background-color 0.2s, border-color 0.2s" },
             }}
         >
             <Box className="card-bg" sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}>
                 <Box sx={{ position: "relative", mb: 1.5 }}>
                     <Avatar
+                        className="card-cover"
                         variant="rounded"
                         src={getPlaylistArtwork(playlist)}
                         sx={{
@@ -669,10 +736,10 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
                         />
                     </Box>
                 </Box>
-                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
+                <Typography className="card-title" noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
                     {formatDisplayName(playlist.playlist_name)}
                 </Typography>
-                <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                <Typography className="card-subtitle" noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
                     {formatDisplayName(playlist.user.name)}
                 </Typography>
             </Box>
@@ -1695,16 +1762,26 @@ export default function MusicPage() {
                                             >
                                                 Tìm kiếm gần đây
                                             </Typography>
-                                            <Tooltip title="Xóa tất cả lịch sử">
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => clearSearchHistoryMutation.mutate()}
-                                                    disabled={clearSearchHistoryMutation.isPending}
-                                                    sx={{ color: "text.secondary", "&:hover": { color: "error.main" } }}
-                                                >
-                                                    <DeleteOutlineIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<DeleteOutlineIcon fontSize="small" />}
+                                                onClick={() => clearSearchHistoryMutation.mutate()}
+                                                disabled={clearSearchHistoryMutation.isPending}
+                                                sx={{
+                                                    color: "error.main",
+                                                    borderColor: "error.main",
+                                                    textTransform: "none",
+                                                    fontSize: 13,
+                                                    "&:hover": {
+                                                        bgcolor: "error.main",
+                                                        borderColor: "error.main",
+                                                        color: "#fff",
+                                                    },
+                                                }}
+                                            >
+                                                Xóa tất cả
+                                            </Button>
                                         </Box>
                                         <Stack direction="row" flexWrap="wrap" gap={1} useFlexGap>
                                             {(backendSearchHistoryQuery.data ?? [])
