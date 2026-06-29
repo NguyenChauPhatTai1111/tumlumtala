@@ -9,14 +9,17 @@ import (
 
 	"github.com/tumlumtala/musics-service/internal/common/httpctx"
 	"github.com/tumlumtala/musics-service/internal/common/responses"
+	librarydto "github.com/tumlumtala/musics-service/internal/module/application/dto/library"
 	mediadto "github.com/tumlumtala/musics-service/internal/module/application/dto/media"
 	playlistdto "github.com/tumlumtala/musics-service/internal/module/application/dto/playlist"
 	searchdto "github.com/tumlumtala/musics-service/internal/module/application/dto/search"
 	historyquery "github.com/tumlumtala/musics-service/internal/module/application/query/history"
+	libraryquery "github.com/tumlumtala/musics-service/internal/module/application/query/library"
 	likedquery "github.com/tumlumtala/musics-service/internal/module/application/query/liked"
 	playlistquery "github.com/tumlumtala/musics-service/internal/module/application/query/playlist"
 	searchquery "github.com/tumlumtala/musics-service/internal/module/application/query/search"
 	historyuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/history"
+	libraryuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/library"
 	likeduc "github.com/tumlumtala/musics-service/internal/module/application/usecase/liked"
 	playlistuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/playlist"
 	searchuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/search"
@@ -31,6 +34,8 @@ type Handler struct {
 	searchUseCase   *searchuc.UseCase
 	playlistQuery   *playlistquery.QueryService
 	playlistUseCase *playlistuc.UseCase
+	libraryQuery    *libraryquery.QueryService
+	libraryUseCase  *libraryuc.UseCase
 }
 
 func NewHandler(
@@ -42,6 +47,8 @@ func NewHandler(
 	searchUseCase *searchuc.UseCase,
 	playlistQuery *playlistquery.QueryService,
 	playlistUseCase *playlistuc.UseCase,
+	libraryQuery *libraryquery.QueryService,
+	libraryUseCase *libraryuc.UseCase,
 ) *Handler {
 	return &Handler{
 		likedQuery:      likedQuery,
@@ -52,7 +59,60 @@ func NewHandler(
 		searchUseCase:   searchUseCase,
 		playlistQuery:   playlistQuery,
 		playlistUseCase: playlistUseCase,
+		libraryQuery:    libraryQuery,
+		libraryUseCase:  libraryUseCase,
 	}
+}
+
+func (h *Handler) ListLibrary(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	items, err := h.libraryQuery.List(c.Request.Context(), userUUID)
+	if err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusOK, "lấy thư viện thành công", responses.ResponseData{Data: items})
+}
+
+func (h *Handler) AddLibraryItem(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	var req librarydto.AddItemRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		responses.ResponseError(c, responses.ErrBadRequest(err.Error()))
+		return
+	}
+	item, err := h.libraryUseCase.Add(c.Request.Context(), userUUID, req)
+	if err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusCreated, "đã thêm vào thư viện", responses.ResponseData{Data: item})
+}
+
+func (h *Handler) RemoveLibraryItem(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	itemID, err := strconv.ParseUint(c.Param("item_id"), 10, 64)
+	if err != nil || itemID == 0 {
+		responses.ResponseError(c, responses.ErrBadRequest("item_id không hợp lệ"))
+		return
+	}
+	if err := h.libraryUseCase.Remove(c.Request.Context(), userUUID, itemID); err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusOK, "đã xóa khỏi thư viện", responses.ResponseData{Data: gin.H{"id": itemID}})
 }
 
 func (h *Handler) ListLiked(c *gin.Context) {
@@ -228,4 +288,22 @@ func (h *Handler) AddPlaylistTrack(c *gin.Context) {
 		return
 	}
 	responses.ResponseSuccess(c, http.StatusCreated, "đã thêm bài vào playlist", responses.ResponseData{Data: item})
+}
+
+func (h *Handler) DeletePlaylist(c *gin.Context) {
+	userUUID, err := httpctx.UserUUID(c)
+	if err != nil {
+		responses.ResponseError(c, responses.ErrUnauthorized("chưa đăng nhập"))
+		return
+	}
+	playlistID, err := strconv.ParseUint(c.Param("playlist_id"), 10, 64)
+	if err != nil || playlistID == 0 {
+		responses.ResponseError(c, responses.ErrBadRequest("playlist_id không hợp lệ"))
+		return
+	}
+	if err := h.playlistUseCase.Delete(c.Request.Context(), userUUID, playlistID); err != nil {
+		responses.ResponseError(c, err)
+		return
+	}
+	responses.ResponseSuccess(c, http.StatusOK, "đã xóa playlist", responses.ResponseData{Data: gin.H{"id": playlistID}})
 }

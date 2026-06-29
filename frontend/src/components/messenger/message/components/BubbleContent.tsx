@@ -6,6 +6,7 @@ import FilePreviewModal, {
 import ImageGalleryModal from "@components/messenger/dialogs/ImageGalleryModal";
 import type { BubbleContentProps } from "@components/messenger/types/message-ui";
 import { getActivityText } from "@components/messenger/utils/activityText";
+import { MentionText } from "./MentionText";
 import {
     getCallStatusLabel,
     getCallTitle,
@@ -25,6 +26,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message } from "@/types/messenger";
 import { resolveCdnUrl } from "@/utils/urlUtils";
+import { stripMentionSyntax } from "@/utils/mentionUtils";
 
 const emojiOnlyRegex = emojiRegex();
 
@@ -250,7 +252,7 @@ const BubbleReplyContent = ({
 
     return (
         <Typography variant="body2" sx={textSx}>
-            {replyMessage.content}
+            {stripMentionSyntax(replyMessage.content)}
         </Typography>
     );
 };
@@ -730,28 +732,32 @@ export const BubbleContent = ({
                         onDoubleClick={() => onToggleReaction?.(message, "❤️")}
                         sx={{ display: "inline", cursor: "pointer" }}
                     >
-                        <Linkify
-                            options={{
-                                target: "_blank",
-                                rel: "noopener noreferrer",
-                                className: "message-link",
-                                render: {
-                                    url: (props: {
-                                        attributes: React.AnchorHTMLAttributes<HTMLAnchorElement>;
-                                        content: React.ReactNode;
-                                    }) => (
-                                        <a
-                                            {...props.attributes}
-                                            style={{ color: "#4dabf7", textDecoration: "none" }}
-                                        >
-                                            {props.content}
-                                        </a>
-                                    ),
-                                },
-                            }}
-                        >
-                            {message.content}
-                        </Linkify>
+                        {/@\[[^\]]+\]\(\d+\)/.test(message.content) ? (
+                            <MentionText content={message.content} />
+                        ) : (
+                            <Linkify
+                                options={{
+                                    target: "_blank",
+                                    rel: "noopener noreferrer",
+                                    className: "message-link",
+                                    render: {
+                                        url: (props: {
+                                            attributes: React.AnchorHTMLAttributes<HTMLAnchorElement>;
+                                            content: React.ReactNode;
+                                        }) => (
+                                            <a
+                                                {...props.attributes}
+                                                style={{ color: "#4dabf7", textDecoration: "none" }}
+                                            >
+                                                {props.content}
+                                            </a>
+                                        ),
+                                    },
+                                }}
+                            >
+                                {message.content}
+                            </Linkify>
+                        )}
                     </Box>
                 )}
             </Box>

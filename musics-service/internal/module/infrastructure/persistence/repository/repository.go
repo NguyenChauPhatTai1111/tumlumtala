@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/history"
+	"github.com/tumlumtala/musics-service/internal/module/domain/entity/library"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/liked"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/media"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/playlist"
@@ -233,6 +234,12 @@ func (r *Repository) ListPlaylists(ctx context.Context, userUUID string) ([]play
 	return rows, err
 }
 
+func (r *Repository) DeletePlaylist(ctx context.Context, userUUID string, playlistID uint64) error {
+	return r.db.WithContext(ctx).
+		Where("id = ? AND user_uuid = ?", playlistID, userUUID).
+		Delete(&playlist.Playlist{}).Error
+}
+
 func (r *Repository) AddPlaylistTrack(ctx context.Context, userUUID string, playlistID uint64, item media.MediaItem, position int) (*playlist.PlaylistTrack, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).
@@ -270,4 +277,41 @@ func (r *Repository) AddPlaylistTrack(ctx context.Context, userUUID string, play
 		Where("playlist_id = ? AND media_item_id = ?", playlistID, saved.ID).
 		First(&track).Error
 	return &track, err
+}
+
+func (r *Repository) ListLibraryItems(ctx context.Context, userUUID string) ([]library.Item, error) {
+	var rows []library.Item
+	err := r.db.WithContext(ctx).
+		Where("user_uuid = ?", userUUID).
+		Order("updated_at DESC, id DESC").
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) AddLibraryItem(ctx context.Context, item library.Item) (*library.Item, error) {
+	err := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "user_uuid"},
+				{Name: "item_type"},
+				{Name: "source_id"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"title", "subtitle", "thumbnail", "metadata", "updated_at",
+			}),
+		}).
+		Create(&item).Error
+	if err != nil {
+		return nil, err
+	}
+	err = r.db.WithContext(ctx).
+		Where("user_uuid = ? AND item_type = ? AND source_id = ?", item.UserUUID, item.ItemType, item.SourceID).
+		First(&item).Error
+	return &item, err
+}
+
+func (r *Repository) RemoveLibraryItem(ctx context.Context, userUUID string, itemID uint64) error {
+	return r.db.WithContext(ctx).
+		Where("id = ? AND user_uuid = ?", itemID, userUUID).
+		Delete(&library.Item{}).Error
 }

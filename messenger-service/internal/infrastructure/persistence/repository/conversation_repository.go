@@ -90,20 +90,22 @@ func (r *userConversationRepository) GetUserConversations(ctx context.Context, u
 
 	type conversationRow struct {
 		entity.UserConversation
-		ThemeID                  *uint   `gorm:"column:theme_id"`
-		ThemeURL                 *string `gorm:"column:theme_url"`
-		ThemePresetID            *string `gorm:"column:theme_preset_id"`
-		ThemeName                *string `gorm:"column:theme_name"`
-		ThemeBackground          *string `gorm:"column:theme_background"`
-		ThemeBackgroundColor     *string `gorm:"column:theme_background_color"`
-		ThemeIncomingBubbleColor *string `gorm:"column:theme_incoming_bubble_color"`
-		ThemeOutgoingBubbleColor *string `gorm:"column:theme_outgoing_bubble_color"`
-		ThemeIncomingTextColor   *string `gorm:"column:theme_incoming_text_color"`
-		ThemeOutgoingTextColor   *string `gorm:"column:theme_outgoing_text_color"`
+		ThemeID                   *uint   `gorm:"column:theme_id"`
+		ThemeURL                  *string `gorm:"column:theme_url"`
+		ThemePresetID             *string `gorm:"column:theme_preset_id"`
+		ThemeName                 *string `gorm:"column:theme_name"`
+		ThemeBackground           *string `gorm:"column:theme_background"`
+		ThemeBackgroundColor      *string `gorm:"column:theme_background_color"`
+		ThemeIncomingBubbleColor  *string `gorm:"column:theme_incoming_bubble_color"`
+		ThemeOutgoingBubbleColor  *string `gorm:"column:theme_outgoing_bubble_color"`
+		ThemeIncomingTextColor    *string `gorm:"column:theme_incoming_text_color"`
+		ThemeOutgoingTextColor    *string `gorm:"column:theme_outgoing_text_color"`
 		CustomIncomingBubbleColor string  `gorm:"column:custom_incoming_bubble_color"`
 		CustomOutgoingBubbleColor string  `gorm:"column:custom_outgoing_bubble_color"`
 		CustomIncomingTextColor   string  `gorm:"column:custom_incoming_text_color"`
 		CustomOutgoingTextColor   string  `gorm:"column:custom_outgoing_text_color"`
+		CustomBackground          string  `gorm:"column:custom_background"`
+		CustomBackgroundColor     string  `gorm:"column:custom_background_color"`
 	}
 	var rows []conversationRow
 	query := `
@@ -124,6 +126,8 @@ func (r *userConversationRepository) GetUserConversations(ctx context.Context, u
 			ct.outgoing_bubble_color AS theme_outgoing_bubble_color,
 			ct.incoming_text_color AS theme_incoming_text_color,
 			ct.outgoing_text_color AS theme_outgoing_text_color,
+			COALESCE(uc.background, '') AS custom_background,
+			COALESCE(uc.background_color, '') AS custom_background_color,
 			COALESCE(uc.custom_incoming_bubble_color, '') AS custom_incoming_bubble_color,
 			COALESCE(uc.custom_outgoing_bubble_color, '') AS custom_outgoing_bubble_color,
 			COALESCE(uc.custom_incoming_text_color, '') AS custom_incoming_text_color,
@@ -314,6 +318,8 @@ func (r *userConversationRepository) GetUserConversations(ctx context.Context, u
 			Avatar:                  it.Avatar,
 			ThemeID:                 it.ThemeID,
 			ThemeURL:                derefStr(it.ThemeURL),
+			Background:              it.CustomBackground,
+			BackgroundColor:         it.CustomBackgroundColor,
 			NotificationsEnabled:    it.NotificationsEnabled,
 			CreatedBy:               it.CreatedBy,
 			CreatedAt:               it.CreatedAt,
@@ -634,6 +640,8 @@ func (r *userConversationRepository) UpdateConversation(ctx context.Context, con
 			"avatar":                       m.Avatar,
 			"theme_id":                     m.ThemeID,
 			"theme_url":                    m.ThemeURL,
+			"background":                   m.Background,
+			"background_color":             m.BackgroundColor,
 			"quick_reaction":               m.QuickReaction,
 			"custom_incoming_bubble_color": m.CustomIncomingBubbleColor,
 			"custom_outgoing_bubble_color": m.CustomOutgoingBubbleColor,

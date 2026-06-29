@@ -93,12 +93,18 @@ export interface MessageFileMetadata {
 	duration?: number;
 }
 
+export interface MentionItem {
+	id: number;
+	fullname: string;
+}
+
 export interface SendMessagePayloadItem {
 	type: string;
 	content: string;
 	item_id?: number;
 	file?: File;
 	metadata?: MessageFileMetadata;
+	mentions?: MentionItem[];
 }
 
 export type SendMessagePayload = string | SendMessagePayloadItem[];
@@ -113,6 +119,7 @@ export interface Message {
 	sender_gender?: string;
 	receiver_id: string;
 	content: string;
+	mentions?: MentionItem[];
 	reply_to_message_id?: number | null;
 	is_read: boolean;
 	created_at: string;
@@ -155,6 +162,7 @@ export interface SendMessageRequest {
 	temp_id?: string;
 	reply_to_message_id?: number | null;
 	metadata?: MessageFileMetadata;
+	mentions?: MentionItem[];
 }
 
 export interface SendMessageResponse {

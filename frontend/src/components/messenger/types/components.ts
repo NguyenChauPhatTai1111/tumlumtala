@@ -71,6 +71,7 @@ export type ComposerInputProps = {
 	inputRef: MutableRefObject<HTMLTextAreaElement | null>;
 	outgoingTextColor?: string;
 	onTextChange: (value: string) => void;
+	onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 	onSend: () => void;
 	onPaste: (event: React.ClipboardEvent<HTMLElement>) => void;
 	onOpenEmoji: (event: MouseEvent<HTMLButtonElement>) => void;

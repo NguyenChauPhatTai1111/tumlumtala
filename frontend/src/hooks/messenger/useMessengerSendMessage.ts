@@ -8,6 +8,7 @@ import type { UseMutationResult } from "@tanstack/react-query";
 import emojiRegex from "emoji-regex";
 import { useCallback, useRef } from "react";
 import type {
+	MentionItem,
 	Message,
 	SendMessagePayloadItem,
 	SendMessageRequest,
@@ -87,6 +88,7 @@ export const useMessengerSendMessage = ({
 			options?: {
 				tempId?: string;
 				skipOptimistic?: boolean;
+				mentions?: MentionItem[];
 			},
 		) => {
 			if (editingMessage) {
@@ -121,7 +123,8 @@ export const useMessengerSendMessage = ({
 			}
 
 			const now = Date.now();
-			if (now - lastSentAtRef.current < SPAM_INTERVAL_MS) {
+			const hasAttachment = Array.isArray(text) && text.some((item) => item.file);
+			if (!hasAttachment && now - lastSentAtRef.current < SPAM_INTERVAL_MS) {
 				open?.({
 					type: "error",
 					message: "Bạn đang gửi tin nhắn quá nhanh. Vui lòng chờ một chút.",
@@ -150,6 +153,7 @@ export const useMessengerSendMessage = ({
 					type ||
 					(isEmojiContent(trimmed) ? "emoji" : "text");
 
+				const mentions = options?.mentions ?? undefined;
 				const optimisticMessage: Message = {
 					id: 0,
 					temp_id: tempId,
@@ -168,6 +172,7 @@ export const useMessengerSendMessage = ({
 							: undefined,
 					file: payload?.[0]?.file,
 					metadata: payload?.[0]?.metadata,
+					mentions,
 				};
 
 				if (!options?.skipOptimistic) {
@@ -185,6 +190,7 @@ export const useMessengerSendMessage = ({
 						replyingMessage && Number.isFinite(Number(replyingMessage.id))
 							? Number(replyingMessage.id)
 							: undefined,
+					mentions,
 				};
 				const uploadAndSend = async () => {
 					try {

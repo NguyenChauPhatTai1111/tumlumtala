@@ -25,6 +25,11 @@ func RegisterRoutes(r *gin.Engine, h *Handler, jwtSecret string) {
 
 		music.GET("/playlists", h.ListPlaylists)
 		music.POST("/playlists", h.CreatePlaylist)
+		music.DELETE("/playlists/:playlist_id", h.DeletePlaylist)
 		music.POST("/playlists/:playlist_id/tracks", h.AddPlaylistTrack)
+
+		music.GET("/library", h.ListLibrary)
+		music.POST("/library", h.AddLibraryItem)
+		music.DELETE("/library/:item_id", h.RemoveLibraryItem)
 	}
 }

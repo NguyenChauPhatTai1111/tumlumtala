@@ -4,7 +4,7 @@ import type {
 	VideoPreview,
 } from "@components/messenger/composer/types";
 import type { MessengerWebSocketService } from "@/services/messengerWebSocketService";
-import type { Message, SendMessagePayloadItem } from "@/types/messenger";
+import type { MentionItem, Message, Participant, SendMessagePayloadItem } from "@/types/messenger";
 
 export interface MessengerComposerProps {
 	key?: string | number;
@@ -29,12 +29,14 @@ export interface MessengerComposerProps {
 	}) => void;
 	quickReaction?: string;
 	ws?: MessengerWebSocketService | null;
+	participants?: Participant[];
+	currentUserId?: number;
 	onCancelReply?: () => void;
 	onCancelEdit?: () => void;
 	onSend: (
 		text: string | SendMessagePayloadItem[],
 		type?: string,
 		id?: number,
-		options?: { tempId?: string; skipOptimistic?: boolean },
+		options?: { tempId?: string; skipOptimistic?: boolean; mentions?: MentionItem[] },
 	) => undefined | boolean | Promise<undefined | boolean>;
 }

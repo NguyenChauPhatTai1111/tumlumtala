@@ -1,0 +1,60 @@
+import LibraryAddIcon from "@mui/icons-material/LibraryAdd";
+import LibraryAddCheckIcon from "@mui/icons-material/LibraryAddCheck";
+import { IconButton, Tooltip } from "@mui/material";
+import {
+    useAddLibraryItemMutation,
+    useMusicLibraryQuery,
+    useRemoveLibraryItemMutation,
+} from "@pages/music/hooks/useMusicQueries";
+import type { AddMusicLibraryItem } from "@services/musicBackendService";
+
+export function LibraryToggleButton({
+    item,
+    label,
+    compact = false,
+}: {
+    item: AddMusicLibraryItem;
+    label?: string;
+    compact?: boolean;
+}) {
+    const libraryQuery = useMusicLibraryQuery();
+    const addMutation = useAddLibraryItemMutation();
+    const removeMutation = useRemoveLibraryItemMutation();
+    const saved = libraryQuery.data?.find(
+        (entry) => entry.item_type === item.item_type && entry.source_id === item.source_id,
+    );
+    const pending = addMutation.isPending || removeMutation.isPending;
+
+    return (
+        <Tooltip title={saved ? "Xóa khỏi thư viện" : (label ?? "Thêm vào thư viện")}>
+            <IconButton
+                disabled={pending}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    if (saved) {
+                        removeMutation.mutate(saved.id);
+                        return;
+                    }
+                    addMutation.mutate(item);
+                }}
+                sx={{
+                    width: compact ? 30 : undefined,
+                    height: compact ? 30 : undefined,
+                    color: saved ? "#f97316" : "rgba(255,255,255,0.62)",
+                    border: compact ? "none" : "1px solid",
+                    borderColor: saved ? "rgba(249,115,22,0.45)" : "rgba(255,255,255,0.24)",
+                    "&:hover": {
+                        color: saved ? "#fb923c" : "#fff",
+                        borderColor: "currentColor",
+                    },
+                }}
+            >
+                {saved ? (
+                    <LibraryAddCheckIcon sx={{ fontSize: compact ? 17 : undefined }} />
+                ) : (
+                    <LibraryAddIcon sx={{ fontSize: compact ? 17 : undefined }} />
+                )}
+            </IconButton>
+        </Tooltip>
+    );
+}

@@ -1,10 +1,7 @@
 import { useCurrentUser } from "@hooks/common/useCurrentUser";
 import { useNotification } from "@hooks/common/useNotification";
 import { messengerKeys } from "@hooks/keys/messengerKeys";
-import {
-	useMessengerConversations,
-	useNewMessageNotification,
-} from "@hooks/messenger";
+import { useMessengerConversations, useNewMessageNotification } from "@hooks/messenger";
 import { useSharedMessengerWS } from "@/context/MessengerWebSocketContext";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
@@ -36,10 +33,8 @@ const CONVERSATION_FETCH_LIMIT = 10;
 const MINI_MESSAGE_LIMIT = 30;
 const MINI_WINDOW_LIMIT = 2;
 
-const MINI_OPEN_WINDOWS_STORAGE_KEY =
-	"tumlumtala.miniMessenger.openConversationIds";
-const MINI_RAIL_CONVERSATIONS_STORAGE_KEY =
-	"tumlumtala.miniMessenger.railConversationIds";
+const MINI_OPEN_WINDOWS_STORAGE_KEY = "tumlumtala.miniMessenger.openConversationIds";
+const MINI_RAIL_CONVERSATIONS_STORAGE_KEY = "tumlumtala.miniMessenger.railConversationIds";
 const MINI_DISMISSED_CONVERSATIONS_STORAGE_KEY =
 	"tumlumtala.miniMessenger.dismissedConversationIds";
 const MINI_RAIL_CLEARED_STORAGE_KEY = "tumlumtala.miniMessenger.railCleared";
@@ -52,9 +47,7 @@ function readStoredConversationIds(storageKey: string, limit?: number) {
 		if (!raw) return [];
 		const parsed = JSON.parse(raw);
 		if (!Array.isArray(parsed)) return [];
-		const ids = parsed
-			.map((id) => Number(id))
-			.filter((id) => Number.isInteger(id) && id > 0);
+		const ids = parsed.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
 		const uniqueIds = Array.from(new Set(ids));
 		return typeof limit === "number" ? uniqueIds.slice(-limit) : uniqueIds;
 	} catch {
@@ -63,10 +56,7 @@ function readStoredConversationIds(storageKey: string, limit?: number) {
 }
 
 function readStoredOpenConversationIds() {
-	return readStoredConversationIds(
-		MINI_OPEN_WINDOWS_STORAGE_KEY,
-		MINI_WINDOW_LIMIT,
-	);
+	return readStoredConversationIds(MINI_OPEN_WINDOWS_STORAGE_KEY, MINI_WINDOW_LIMIT);
 }
 
 function readStoredRailConversationIds() {
@@ -90,18 +80,16 @@ export function useMiniMessenger() {
 	const [openConversationIds, setOpenConversationIds] = useState<number[]>(
 		readStoredOpenConversationIds,
 	);
-	const [dismissedConversationIds, setDismissedConversationIds] = useState<
-		number[]
-	>(readStoredDismissedConversationIds);
-	const [pinnedRailConversationIds, setPinnedRailConversationIds] = useState<
-		number[]
-	>(readStoredRailConversationIds);
+	const [dismissedConversationIds, setDismissedConversationIds] = useState<number[]>(
+		readStoredDismissedConversationIds,
+	);
+	const [pinnedRailConversationIds, setPinnedRailConversationIds] = useState<number[]>(
+		readStoredRailConversationIds,
+	);
 	const [railCleared, setRailCleared] = useState(readStoredRailCleared);
 	const [newMessageOpen, setNewMessageOpen] = useState(false);
 	const [creatingConversation, setCreatingConversation] = useState(false);
-	const [activeConversationId, setActiveConversationId] = useState<
-		number | null
-	>(null);
+	const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
 
 	const location = useLocation();
 	const { data: currentUser } = useCurrentUser();
@@ -109,10 +97,7 @@ export function useMiniMessenger() {
 	const { open } = useNotification();
 	const { notify: notifyNewMessage } = useNewMessageNotification();
 	const queryClient = useQueryClient();
-	const conversationsQuery = useMessengerConversations(
-		CONVERSATION_FETCH_LIMIT,
-		0,
-	);
+	const conversationsQuery = useMessengerConversations(CONVERSATION_FETCH_LIMIT, 0);
 	const conversations = useMemo(
 		() => conversationsQuery.data?.items ?? [],
 		[conversationsQuery.data?.items],
@@ -130,55 +115,43 @@ export function useMiniMessenger() {
 	);
 	const missingConversationIds = useMemo(
 		() =>
-			Array.from(
-				new Set([...openConversationIds, ...pinnedRailConversationIds]),
-			).filter(
+			Array.from(new Set([...openConversationIds, ...pinnedRailConversationIds])).filter(
 				(id) => !conversations.some((conversation) => conversation.id === id),
 			),
 		[conversations, openConversationIds, pinnedRailConversationIds],
 	);
 	const restoredConversationQueries = useQueries({
-			queries: missingConversationIds.map((conversationId) => ({
-				queryKey: messengerKeys.conversation(String(conversationId)),
-				queryFn: () => getConversation(conversationId),
-				staleTime: 30_000,
-				retry: (failureCount: number, error: unknown) => {
-					const status = getHttpStatus(error);
-					if (status === 403 || status === 404) return false;
-					return failureCount < 1;
-				},
-			})),
-		});
+		queries: missingConversationIds.map((conversationId) => ({
+			queryKey: messengerKeys.conversation(String(conversationId)),
+			queryFn: () => getConversation(conversationId),
+			staleTime: 30_000,
+			retry: (failureCount: number, error: unknown) => {
+				const status = getHttpStatus(error);
+				if (status === 403 || status === 404) return false;
+				return failureCount < 1;
+			},
+		})),
+	});
 	const restoredConversations = useMemo(
 		() =>
 			restoredConversationQueries
 				.map((query) => query.data)
-				.filter((conversation): conversation is Conversation =>
-					Boolean(conversation),
-				),
+				.filter((conversation): conversation is Conversation => Boolean(conversation)),
 		[restoredConversationQueries],
 	);
 	useEffect(() => {
-		const unavailableIds = missingConversationIds.filter(
-			(conversationId, index) => {
-				const query = restoredConversationQueries[index];
-				const status = getHttpStatus(query?.error);
-				return query?.isError && (status === 403 || status === 404);
-			},
-		);
+		const unavailableIds = missingConversationIds.filter((conversationId, index) => {
+			const query = restoredConversationQueries[index];
+			const status = getHttpStatus(query?.error);
+			return query?.isError && (status === 403 || status === 404);
+		});
 		if (unavailableIds.length === 0) return;
 
 		const unavailable = new Set(unavailableIds);
 		setOpenConversationIds((prev) => prev.filter((id) => !unavailable.has(id)));
-		setPinnedRailConversationIds((prev) =>
-			prev.filter((id) => !unavailable.has(id)),
-		);
-		setDismissedConversationIds((prev) =>
-			prev.filter((id) => !unavailable.has(id)),
-		);
-		setActiveConversationId((prev) =>
-			prev !== null && unavailable.has(prev) ? null : prev,
-		);
+		setPinnedRailConversationIds((prev) => prev.filter((id) => !unavailable.has(id)));
+		setDismissedConversationIds((prev) => prev.filter((id) => !unavailable.has(id)));
+		setActiveConversationId((prev) => (prev !== null && unavailable.has(prev) ? null : prev));
 		for (const conversationId of unavailableIds) {
 			queryClient.removeQueries({
 				queryKey: messengerKeys.conversation(String(conversationId)),
@@ -225,55 +198,36 @@ export function useMiniMessenger() {
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
-		window.localStorage.setItem(
-			MINI_RAIL_CLEARED_STORAGE_KEY,
-			railCleared ? "true" : "false",
-		);
+		window.localStorage.setItem(MINI_RAIL_CLEARED_STORAGE_KEY, railCleared ? "true" : "false");
 	}, [railCleared]);
 
-	const openConversation = useCallback(
-		(conversationId: number, keepInRail = false) => {
-			setRailCleared(false);
-			setDismissedConversationIds((prev) =>
-				prev.filter((id) => id !== conversationId),
-			);
-			setPinnedRailConversationIds((prev) => {
-				const without = prev.filter((id) => id !== conversationId);
-				return keepInRail ? [...without, conversationId] : without;
-			});
-			setOpenConversationIds((prev) => {
-				const next = [
-					...prev.filter((id) => id !== conversationId),
-					conversationId,
-				];
-				return next.slice(-MINI_WINDOW_LIMIT);
-			});
-		},
-		[],
-	);
+	const openConversation = useCallback((conversationId: number, keepInRail = false) => {
+		setRailCleared(false);
+		setDismissedConversationIds((prev) => prev.filter((id) => id !== conversationId));
+		setPinnedRailConversationIds((prev) => {
+			const without = prev.filter((id) => id !== conversationId);
+			return keepInRail ? [...without, conversationId] : without;
+		});
+		setOpenConversationIds((prev) => {
+			const next = [...prev.filter((id) => id !== conversationId), conversationId];
+			return next.slice(-MINI_WINDOW_LIMIT);
+		});
+	}, []);
 
 	const minimizeConversation = useCallback((conversationId: number) => {
-		setOpenConversationIds((prev) =>
-			prev.filter((id) => id !== conversationId),
-		);
+		setOpenConversationIds((prev) => prev.filter((id) => id !== conversationId));
 	}, []);
 
 	const closeConversation = useCallback((conversationId: number) => {
-		setOpenConversationIds((prev) =>
-			prev.filter((id) => id !== conversationId),
-		);
-		setPinnedRailConversationIds((prev) =>
-			prev.filter((id) => id !== conversationId),
-		);
+		setOpenConversationIds((prev) => prev.filter((id) => id !== conversationId));
+		setPinnedRailConversationIds((prev) => prev.filter((id) => id !== conversationId));
 		setDismissedConversationIds((prev) =>
 			prev.includes(conversationId) ? prev : [...prev, conversationId],
 		);
 	}, []);
 
 	const closeAllConversations = useCallback(() => {
-		setDismissedConversationIds(
-			conversations.map((conversation) => conversation.id),
-		);
+		setDismissedConversationIds(conversations.map((conversation) => conversation.id));
 		setPinnedRailConversationIds([]);
 		setOpenConversationIds([]);
 		setRailCleared(true);
@@ -284,12 +238,8 @@ export function useMiniMessenger() {
 	}, []);
 
 	const dismissConversation = useCallback((conversationId: number) => {
-		setOpenConversationIds((prev) =>
-			prev.filter((id) => id !== conversationId),
-		);
-		setPinnedRailConversationIds((prev) =>
-			prev.filter((id) => id !== conversationId),
-		);
+		setOpenConversationIds((prev) => prev.filter((id) => id !== conversationId));
+		setPinnedRailConversationIds((prev) => prev.filter((id) => id !== conversationId));
 		setDismissedConversationIds((prev) =>
 			prev.includes(conversationId) ? prev : [...prev, conversationId],
 		);
@@ -351,9 +301,7 @@ export function useMiniMessenger() {
 			const detail = (event as CustomEvent<MiniMessengerCloseDetail>).detail;
 			if (!detail?.conversationId) return;
 			closeConversation(detail.conversationId);
-			setActiveConversationId((prev) =>
-				prev === detail.conversationId ? null : prev,
-			);
+			setActiveConversationId((prev) => (prev === detail.conversationId ? null : prev));
 		};
 		const handleToggle = (event: Event) => {
 			const detail = (event as CustomEvent<MiniMessengerToggleDetail>).detail;
@@ -380,10 +328,7 @@ export function useMiniMessenger() {
 			window.removeEventListener(MINI_MESSENGER_OPEN_EVENT, handleOpen);
 			window.removeEventListener(MINI_MESSENGER_CLOSE_EVENT, handleClose);
 			window.removeEventListener(MINI_MESSENGER_TOGGLE_EVENT, handleToggle);
-			window.removeEventListener(
-				MINI_MESSENGER_CLOSE_ALL_EVENT,
-				handleCloseAll,
-			);
+			window.removeEventListener(MINI_MESSENGER_CLOSE_ALL_EVENT, handleCloseAll);
 		};
 	}, [closeAllConversations, closeConversation, openConversation]);
 
@@ -411,12 +356,7 @@ export function useMiniMessenger() {
 		};
 
 		const handleConversationsListResult = (data: unknown) => {
-			const parsed = parsePaginated(
-				data,
-				toConversation,
-				CONVERSATION_FETCH_LIMIT,
-				0,
-			);
+			const parsed = parsePaginated(data, toConversation, CONVERSATION_FETCH_LIMIT, 0);
 			queryClient.setQueryData(
 				messengerKeys.conversations(CONVERSATION_FETCH_LIMIT, 0),
 				parsed,
@@ -433,59 +373,53 @@ export function useMiniMessenger() {
 				0,
 			);
 
-			queryClient.setQueryData<PaginatedResult<Message>>(
-				messagesKey,
-				(old) => {
-					if (!old) return old;
-					const messageSeq = msg.message_seq ?? msg.seq;
-					const tempMatch = msg.temp_id
-						? old.items.find((item) => item.temp_id === msg.temp_id)
-						: undefined;
-					if (tempMatch) {
-						return {
-							...old,
-							items: old.items.map((item) =>
-								item.temp_id === msg.temp_id
-									? {
-											...item,
-											...msg,
-											temp_id: item.temp_id,
-											pending: false,
-											failed: false,
-											status: "sent",
-											metadata: msg.metadata ?? item.metadata,
-										}
-									: item,
-							),
-						};
-					}
-					const exists = old.items.some(
-						(item) =>
-							(msg.id > 0 && item.id === msg.id) ||
-							(messageSeq != null &&
-								(item.message_seq === messageSeq ||
-									item.seq === messageSeq)),
-					);
-					if (exists) {
-						return old;
-					}
-
+			queryClient.setQueryData<PaginatedResult<Message>>(messagesKey, (old) => {
+				if (!old) return old;
+				const messageSeq = msg.message_seq ?? msg.seq;
+				const tempMatch = msg.temp_id
+					? old.items.find((item) => item.temp_id === msg.temp_id)
+					: undefined;
+				if (tempMatch) {
 					return {
 						...old,
-						items: [...old.items, msg].slice(-MINI_MESSAGE_LIMIT),
-						total: old.total + 1,
+						items: old.items.map((item) =>
+							item.temp_id === msg.temp_id
+								? {
+										...item,
+										...msg,
+										temp_id: item.temp_id,
+										pending: false,
+										failed: false,
+										status: "sent",
+										metadata: msg.metadata ?? item.metadata,
+									}
+								: item,
+						),
 					};
-				},
-			);
+				}
+				const exists = old.items.some(
+					(item) =>
+						(msg.id > 0 && item.id === msg.id) ||
+						(messageSeq != null &&
+							(item.message_seq === messageSeq || item.seq === messageSeq)),
+				);
+				if (exists) {
+					return old;
+				}
+
+				return {
+					...old,
+					items: [...old.items, msg].slice(-MINI_MESSAGE_LIMIT),
+					total: old.total + 1,
+				};
+			});
 
 			queryClient.setQueryData<PaginatedResult<Conversation>>(
 				messengerKeys.conversations(CONVERSATION_FETCH_LIMIT, 0),
 				(old) => {
 					if (!old) return old;
 
-					const idx = old.items.findIndex(
-						(item) => item.id === msg.conversation_id,
-					);
+					const idx = old.items.findIndex((item) => item.id === msg.conversation_id);
 					if (idx === -1) return old;
 
 					const conversation = old.items[idx];
@@ -501,10 +435,7 @@ export function useMiniMessenger() {
 							? conversation.unread_count
 							: (conversation.unread_count ?? 0) + 1,
 					};
-					const next = [
-						updated,
-						...old.items.filter((_, index) => index !== idx),
-					];
+					const next = [updated, ...old.items.filter((_, index) => index !== idx)];
 
 					return {
 						...old,
@@ -521,16 +452,13 @@ export function useMiniMessenger() {
 			if (Number(msg.sender_id) !== Number(currentUserId)) {
 				void (async () => {
 					const conversation =
-						availableConversations.find(
-							(item) => item.id === msg.conversation_id,
-						) ?? (await getConversation(msg.conversation_id).catch(() => null));
-					if (!conversation || conversation.notifications_enabled === false)
-						return;
+						availableConversations.find((item) => item.id === msg.conversation_id) ??
+						(await getConversation(msg.conversation_id).catch(() => null));
+					if (!conversation || conversation.notifications_enabled === false) return;
 
 					if (!location.pathname.startsWith("/messenger")) {
 						const senderParticipant = conversation.participants.find(
-							(participant) =>
-								Number(participant.id) === Number(msg.sender_id),
+							(participant) => Number(participant.id) === Number(msg.sender_id),
 						);
 
 						notifyNewMessage({
@@ -570,11 +498,7 @@ export function useMiniMessenger() {
 			updater: (message: Message) => Message,
 		) => {
 			queryClient.setQueryData<PaginatedResult<Message>>(
-				messengerKeys.messages(
-					String(conversationId),
-					MINI_MESSAGE_LIMIT,
-					0,
-				),
+				messengerKeys.messages(String(conversationId), MINI_MESSAGE_LIMIT, 0),
 				(old) =>
 					old
 						? {
@@ -613,11 +537,7 @@ export function useMiniMessenger() {
 			if (!event.message_id || !event.conversation_id) return;
 
 			queryClient.setQueryData<PaginatedResult<Message>>(
-				messengerKeys.messages(
-					String(event.conversation_id),
-					MINI_MESSAGE_LIMIT,
-					0,
-				),
+				messengerKeys.messages(String(event.conversation_id), MINI_MESSAGE_LIMIT, 0),
 				(old) =>
 					old
 						? {
@@ -641,8 +561,7 @@ export function useMiniMessenger() {
 			if (!event.message_id || !event.conversation_id) return;
 
 			const eventUserId = String(event.user_id ?? "");
-			const isCurrentUser =
-				eventUserId !== "" && eventUserId === String(currentUserId ?? "");
+			const isCurrentUser = eventUserId !== "" && eventUserId === String(currentUserId ?? "");
 
 			updateMessageCache(event.conversation_id, (message) => {
 				if (message.id !== event.message_id) return message;
@@ -652,16 +571,19 @@ export function useMiniMessenger() {
 
 				return {
 					...message,
-					my_reaction: isCurrentUser
-						? (event.reaction ?? null)
-						: message.my_reaction,
+					my_reaction: isCurrentUser ? (event.reaction ?? null) : message.my_reaction,
 					reactions: event.reaction
-						? [
-								...withoutUser,
-								{ user_id: eventUserId, emoji: event.reaction },
-							]
+						? [...withoutUser, { user_id: eventUserId, emoji: event.reaction }]
 						: withoutUser,
 				};
+			});
+
+			// Reaction notifications are stored as the conversation's synthetic
+			// last message, so keep the mini-messenger rail in sync as well.
+			ws.listConversations({
+				requestId: crypto.randomUUID(),
+				limit: CONVERSATION_FETCH_LIMIT,
+				page: 1,
 			});
 		};
 
@@ -674,8 +596,7 @@ export function useMiniMessenger() {
 			if (!event.message_id || !event.conversation_id) return;
 
 			const eventUserId = String(event.user_id ?? "");
-			const isCurrentUser =
-				eventUserId !== "" && eventUserId === String(currentUserId ?? "");
+			const isCurrentUser = eventUserId !== "" && eventUserId === String(currentUserId ?? "");
 
 			updateMessageCache(event.conversation_id, (message) =>
 				message.id === event.message_id
@@ -696,8 +617,7 @@ export function useMiniMessenger() {
 			last_read_seq: number;
 			seen_at?: string;
 		}) => {
-			if (!data.conversation_id || !data.user_id || !data.last_read_seq)
-				return;
+			if (!data.conversation_id || !data.user_id || !data.last_read_seq) return;
 
 			queryClient.setQueryData<PaginatedResult<Conversation>>(
 				messengerKeys.conversations(CONVERSATION_FETCH_LIMIT, 0),
@@ -715,7 +635,8 @@ export function useMiniMessenger() {
 															? {
 																	...participant,
 																	last_read_seq: Math.max(
-																		participant.last_read_seq ?? 0,
+																		participant.last_read_seq ??
+																			0,
 																		data.last_read_seq,
 																	),
 																	last_read_at:
@@ -761,20 +682,12 @@ export function useMiniMessenger() {
 
 	const visibleWindowIds = openConversationIds.slice(-MINI_WINDOW_LIMIT);
 	const windowConversations = visibleWindowIds
-		.map((id) =>
-			availableConversations.find((conversation) => conversation.id === id),
-		)
-		.filter((conversation): conversation is Conversation =>
-			Boolean(conversation),
-		);
+		.map((id) => availableConversations.find((conversation) => conversation.id === id))
+		.filter((conversation): conversation is Conversation => Boolean(conversation));
 	const visibleRailConversations = railCleared
 		? []
 		: pinnedRailConversationIds
-				.map((id) =>
-					availableConversations.find(
-						(conversation) => conversation.id === id,
-					),
-				)
+				.map((id) => availableConversations.find((conversation) => conversation.id === id))
 				.filter(
 					(conversation): conversation is Conversation =>
 						conversation !== undefined &&

@@ -13,4 +13,11 @@ type CallSessionRepository interface {
 	Start(ctx context.Context, id string) (*entity.CallSession, error)
 	End(ctx context.Context, id string, status string) (*entity.CallSession, error)
 	ListByConversation(ctx context.Context, conversationID uint, limit int) ([]entity.CallSession, error)
+
+	// Group call participant management
+	AddParticipant(ctx context.Context, p *entity.CallParticipant) error
+	GetParticipants(ctx context.Context, callID string) ([]entity.CallParticipant, error)
+	UpdateParticipantStatus(ctx context.Context, callID string, userID uint, status string) error
+	CountActiveParticipants(ctx context.Context, callID string) (int, error)
+	GetActiveGroupCall(ctx context.Context, conversationID uint) (*entity.CallSession, error)
 }

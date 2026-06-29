@@ -23,6 +23,8 @@ type UserConversation struct {
 	ThemeID                   *uint              `json:"theme_id,omitempty"`
 	ThemeURL                  string             `json:"theme_url,omitempty"`
 	Theme                     *ConversationTheme `json:"theme,omitempty"`
+	Background                string             `json:"background,omitempty"`
+	BackgroundColor           string             `json:"background_color,omitempty"`
 	CustomIncomingBubbleColor string             `json:"custom_incoming_bubble_color,omitempty"`
 	CustomOutgoingBubbleColor string             `json:"custom_outgoing_bubble_color,omitempty"`
 	CustomIncomingTextColor   string             `json:"custom_incoming_text_color,omitempty"`

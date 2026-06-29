@@ -152,6 +152,18 @@ func (h *Handler) Handle(client *websocket.Client, msg websocket.Message) {
 		h.handleCallTerminal(client, msg, "ended", "call:end")
 	case "call:failed":
 		h.handleCallTerminal(client, msg, "failed", "call:failed")
+	case "call:group-join":
+		h.handleGroupCallJoin(client, msg)
+	case "call:group-status":
+		h.handleGroupCallStatus(client, msg)
+	case "call:group-heartbeat":
+		h.handleGroupCallHeartbeat(client, msg)
+	case "call:group-decline":
+		h.handleGroupCallDecline(client, msg)
+	case "call:group-leave":
+		h.handleGroupCallLeave(client, msg)
+	case "call:media-state":
+		h.handleCallMediaState(client, msg)
 	case "call:offer", "call:answer", "call:ice-candidate", "call:reconnect":
 		h.handleCallRelay(client, msg)
 	default:

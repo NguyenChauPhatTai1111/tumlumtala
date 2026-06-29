@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export function useCallTimer(active: boolean) {
+export function useCallTimer(active: boolean, startedAt?: string) {
 	const [seconds, setSeconds] = useState(0);
 
 	useEffect(() => {
@@ -8,9 +8,12 @@ export function useCallTimer(active: boolean) {
 			setSeconds(0);
 			return;
 		}
+		// If server provides a start timestamp, use it to calculate elapsed offset
+		const offset = startedAt ? Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)) : 0;
+		setSeconds(offset);
 		const id = window.setInterval(() => setSeconds((value) => value + 1), 1000);
 		return () => window.clearInterval(id);
-	}, [active]);
+	}, [active, startedAt]);
 
 	const minutes = Math.floor(seconds / 60);
 	const rest = seconds % 60;

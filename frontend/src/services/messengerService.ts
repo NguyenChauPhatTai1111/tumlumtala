@@ -1,4 +1,5 @@
 import { apiClient } from "@api/client";
+import axios from "axios";
 import type {
 	Conversation,
 	ConversationListQuery,
@@ -30,6 +31,17 @@ const apiRequest = async (endpoint: string, options: ApiRequestOptions = {}) => 
 };
 
 const MESSENGER_PREFIX = "/messenger";
+
+export const getMessengerApiErrorMessage = (
+	error: unknown,
+	fallback: string,
+): string => {
+	if (!axios.isAxiosError<{ message?: string }>(error)) {
+		return fallback;
+	}
+
+	return error.response?.data?.message || fallback;
+};
 
 const toRecord = (value: unknown): Record<string, unknown> => {
 	return value && typeof value === "object"
@@ -619,8 +631,10 @@ export const getConversationMembers = async (conversationId: number) => {
 export const updateConversationBackground = async (
 	conversationId: number,
 	payload: {
-		theme_id: number;
+		theme_id?: number;
 		theme_url?: string | File;
+		background?: string;
+		background_color?: string;
 		custom_incoming_bubble_color?: string;
 		custom_outgoing_bubble_color?: string;
 		custom_incoming_text_color?: string;
@@ -631,8 +645,12 @@ export const updateConversationBackground = async (
 		payload.theme_url instanceof File
 			? (() => {
 					const formData = new FormData();
-					formData.append("theme_id", String(payload.theme_id));
+					if (payload.theme_id != null) {
+						formData.append("theme_id", String(payload.theme_id));
+					}
 					formData.append("file", payload.theme_url, payload.theme_url.name);
+					if (payload.background_color)
+						formData.append("background_color", payload.background_color);
 					if (payload.custom_incoming_bubble_color)
 						formData.append(
 							"custom_incoming_bubble_color",
@@ -656,9 +674,15 @@ export const updateConversationBackground = async (
 					return formData;
 				})()
 			: {
-					theme_id: payload.theme_id,
+					theme_id: payload.theme_id ?? null,
 					...(payload.theme_url !== undefined
 						? { theme_url: payload.theme_url }
+						: {}),
+					...(payload.background !== undefined
+						? { background: payload.background }
+						: {}),
+					...(payload.background_color !== undefined
+						? { background_color: payload.background_color }
 						: {}),
 					...(payload.custom_incoming_bubble_color
 						? {

@@ -41,10 +41,12 @@ func (uc *ChangeBackgroundUseCase) Execute(ctx context.Context, conversationID u
 	if !isParticipant {
 		return domainerrors.ErrNotParticipant
 	}
-	conversation.ThemeID = &req.ThemeID
+	conversation.ThemeID = req.ThemeID
 	if req.ThemeURL != nil {
 		conversation.ThemeURL = *req.ThemeURL
 	}
+	conversation.Background = req.Background
+	conversation.BackgroundColor = req.BackgroundColor
 	conversation.CustomIncomingBubbleColor = req.CustomIncomingBubbleColor
 	conversation.CustomOutgoingBubbleColor = req.CustomOutgoingBubbleColor
 	conversation.CustomIncomingTextColor = req.CustomIncomingTextColor

@@ -11,6 +11,7 @@ export const ComposerInput = ({
 	inputRef,
 	outgoingTextColor,
 	onTextChange,
+	onKeyDown,
 	onSend,
 	onOpenEmoji,
 	onSelectImages,
@@ -113,6 +114,8 @@ export const ComposerInput = ({
 					onChange={(event) => onTextChange(event.target.value)}
 					onPaste={onPaste}
 					onKeyDown={(event) => {
+						onKeyDown?.(event);
+						if (event.defaultPrevented) return;
 						if (event.key === "Enter" && !event.shiftKey && !disabled) {
 							event.preventDefault();
 							onSend();

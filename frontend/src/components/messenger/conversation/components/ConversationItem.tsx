@@ -27,6 +27,7 @@ import { useLongPress } from "@hooks/ui/useLongPress";
 import { type MouseEvent, useMemo, useRef } from "react";
 import { formatTimestampRealtime } from "@/utils";
 import { resolveCdnUrl } from "@/utils/urlUtils";
+import { isMentioned, stripMentionSyntax } from "@/utils/mentionUtils";
 
 function formatUnreadBadge(count: number) {
     if (count <= 0) return 0;
@@ -432,7 +433,7 @@ export const ConversationItem = ({
                                     />
                                 ) : conversation.last_message_content ? (
                                     (() => {
-                                        const content = String(
+                                        const rawContent = String(
                                             conversation.last_message_content ?? "",
                                         ).trim();
                                         const message_type =
@@ -441,8 +442,22 @@ export const ConversationItem = ({
                                         const isActivity = message_type === "activity";
                                         const callPreview = getConversationCallPreview(conversation);
                                         if (isActivity) {
-                                            return content;
+                                            return rawContent;
                                         }
+
+                                        // Check mention: show "X đã nhắc đến bạn"
+                                        const senderIsOther =
+                                            conversation.last_message_sender_id !== currentUserId;
+                                        if (
+                                            senderIsOther &&
+                                            isMentioned(rawContent, currentUserId)
+                                        ) {
+                                            const senderName =
+                                                conversation.last_message_sender_name ?? "Ai đó";
+                                            return `${senderName} đã nhắc đến bạn`;
+                                        }
+
+                                        const content = stripMentionSyntax(rawContent);
                                         const sender = isReaction
                                             ? ""
                                             : conversation.last_message_sender_id === currentUserId

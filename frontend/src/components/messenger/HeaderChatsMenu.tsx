@@ -40,6 +40,7 @@ import { useMessengerPresence } from "@/context/MessengerPresenceContext";
 import type { Conversation } from "@/types/messenger";
 import { formatTimestampRealtime } from "@/utils";
 import { resolveCdnUrl } from "@/utils/urlUtils";
+import { isMentioned, stripMentionSyntax } from "@/utils/mentionUtils";
 import { hydrateConversationParticipantAvatars } from "./utils/avatarHydration";
 import { getConversationCallPreview } from "./utils/callMessage";
 import {
@@ -117,10 +118,19 @@ function getLastMessagePreviewContent(conversation: Conversation) {
 	if (messageType === "sticker") return "Sticker";
 	if (!content) return "Chưa có tin nhắn";
 
-	return content;
+	return stripMentionSyntax(content);
 }
 
 function getPreview(conversation: Conversation, currentUserId?: number | string) {
+	const rawContent = conversation.last_message_content?.trim() ?? "";
+	const senderIsOther = conversation.last_message_sender_id !== currentUserId &&
+		String(conversation.last_message_sender_id) !== String(currentUserId);
+
+	if (senderIsOther && rawContent && isMentioned(rawContent, Number(currentUserId))) {
+		const senderName = conversation.last_message_sender_name ?? "Ai đó";
+		return `${senderName} đã nhắc đến bạn`;
+	}
+
 	const content = getLastMessagePreviewContent(conversation);
 	if (!conversation.is_group) return content;
 	if (content === "Chưa có tin nhắn") return content;

@@ -57,6 +57,15 @@ type MessengerHandler struct {
 	hub                   *websocket.Hub
 }
 
+func coalesceString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func NewMessengerHandler(
 	db *gorm.DB,
 	createConversationUC *conversationUC.CreateConversationUseCase,
@@ -286,25 +295,31 @@ func (h *MessengerHandler) GetConversation(c *gin.Context) {
 	}
 
 	dto := conversationDTO.ConversationDTO{
-		ID:                    conv.ID,
-		IsGroup:               conv.IsGroup,
-		IsArchived:            participant.IsArchived,
-		Name:                  conv.Name,
-		Avatar:                conv.Avatar,
-		ThemeID:               conv.ThemeID,
-		ThemeURL:              conv.ThemeURL,
-		NotificationsEnabled:  participant.NotificationsEnabled,
-		CreatedAt:             conv.CreatedAt,
-		CreatedBy:             conv.CreatedBy,
-		UnreadCount:           participant.UnreadCount,
-		LastMessageAt:         conv.LastMessageAt,
-		LastMessageID:         conv.LastMessageID,
-		LastMessageContent:    conv.LastMessageContent,
-		LastMessageSenderID:   conv.LastMessageSenderID,
-		LastMessageType:       lastMessageType,
-		LastMessageSenderName: lastSenderName,
-		LastReadMessageID:     participant.LastReadSeq,
-		Participants:          participants,
+		ID:                        conv.ID,
+		IsGroup:                   conv.IsGroup,
+		IsArchived:                participant.IsArchived,
+		Name:                      conv.Name,
+		Avatar:                    conv.Avatar,
+		ThemeID:                   conv.ThemeID,
+		ThemeURL:                  conv.ThemeURL,
+		Background:                conv.Background,
+		BackgroundColor:           conv.BackgroundColor,
+		CustomIncomingBubbleColor: conv.CustomIncomingBubbleColor,
+		CustomOutgoingBubbleColor: conv.CustomOutgoingBubbleColor,
+		CustomIncomingTextColor:   conv.CustomIncomingTextColor,
+		CustomOutgoingTextColor:   conv.CustomOutgoingTextColor,
+		NotificationsEnabled:      participant.NotificationsEnabled,
+		CreatedAt:                 conv.CreatedAt,
+		CreatedBy:                 conv.CreatedBy,
+		UnreadCount:               participant.UnreadCount,
+		LastMessageAt:             conv.LastMessageAt,
+		LastMessageID:             conv.LastMessageID,
+		LastMessageContent:        conv.LastMessageContent,
+		LastMessageSenderID:       conv.LastMessageSenderID,
+		LastMessageType:           lastMessageType,
+		LastMessageSenderName:     lastSenderName,
+		LastReadMessageID:         participant.LastReadSeq,
+		Participants:              participants,
 	}
 
 	if conv.ThemeID != nil {
@@ -318,10 +333,10 @@ func (h *MessengerHandler) GetConversation(c *gin.Context) {
 				Name:                theme.Name,
 				Background:          theme.Background,
 				BackgroundColor:     theme.BackgroundColor,
-				IncomingBubbleColor: theme.IncomingBubbleColor,
-				OutgoingBubbleColor: theme.OutgoingBubbleColor,
-				IncomingTextColor:   theme.IncomingTextColor,
-				OutgoingTextColor:   theme.OutgoingTextColor,
+				IncomingBubbleColor: coalesceString(conv.CustomIncomingBubbleColor, theme.IncomingBubbleColor),
+				OutgoingBubbleColor: coalesceString(conv.CustomOutgoingBubbleColor, theme.OutgoingBubbleColor),
+				IncomingTextColor:   coalesceString(conv.CustomIncomingTextColor, theme.IncomingTextColor),
+				OutgoingTextColor:   coalesceString(conv.CustomOutgoingTextColor, theme.OutgoingTextColor),
 			}
 		}
 	}
@@ -490,11 +505,6 @@ func (h *MessengerHandler) ChangeBackground(c *gin.Context) {
 		return
 	}
 
-	if req.ThemeID == 0 {
-		ResponseBadRequest(c, "theme_id is required")
-		return
-	}
-
 	if h.mediaUploadService != nil {
 		fileHeader, fileErr := c.FormFile("file")
 		if fileErr == nil {
@@ -507,9 +517,20 @@ func (h *MessengerHandler) ChangeBackground(c *gin.Context) {
 		}
 	}
 
+	if req.ThemeID != nil && *req.ThemeID == 0 {
+		ResponseBadRequest(c, "theme_id must be greater than zero")
+		return
+	}
+	if req.ThemeID == nil && req.Background == "" && (req.ThemeURL == nil || *req.ThemeURL == "") {
+		ResponseBadRequest(c, "theme_id, background or theme_url is required")
+		return
+	}
+
 	err = h.changeBackgroundUC.Execute(c.Request.Context(), uint(convID), userID, conversationDTO.ChangeBackgroundRequest{
 		ThemeID:                   req.ThemeID,
 		ThemeURL:                  req.ThemeURL,
+		Background:                req.Background,
+		BackgroundColor:           req.BackgroundColor,
 		CustomIncomingBubbleColor: req.CustomIncomingBubbleColor,
 		CustomOutgoingBubbleColor: req.CustomOutgoingBubbleColor,
 		CustomIncomingTextColor:   req.CustomIncomingTextColor,

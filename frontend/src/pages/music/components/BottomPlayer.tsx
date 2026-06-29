@@ -1,4 +1,6 @@
 import CloseIcon from "@mui/icons-material/Close";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import Forward5Icon from "@mui/icons-material/Forward5";
 import Forward10Icon from "@mui/icons-material/Forward10";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
@@ -8,1504 +10,1135 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RepeatIcon from "@mui/icons-material/Repeat";
+import RepeatOneIcon from "@mui/icons-material/RepeatOne";
 import Replay5Icon from "@mui/icons-material/Replay5";
 import Replay10Icon from "@mui/icons-material/Replay10";
 import ShuffleIcon from "@mui/icons-material/Shuffle";
 import SkipNextIcon from "@mui/icons-material/SkipNext";
 import SkipPreviousIcon from "@mui/icons-material/SkipPrevious";
+import VolumeDownIcon from "@mui/icons-material/VolumeDown";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import {
-	Avatar,
-	Box,
-	capitalize,
-	IconButton,
-	Menu,
-	MenuItem,
-	Paper,
-	Slider,
-	Stack,
-	Tooltip,
-	Typography,
-	useMediaQuery,
-	useTheme,
+    Avatar,
+    Box,
+    IconButton,
+    Menu,
+    MenuItem,
+    Slider,
+    Stack,
+    Tooltip,
+    Typography,
+    useMediaQuery,
+    useTheme,
 } from "@mui/material";
 import type { YouTubePlayer } from "@pages/music/types/youtube";
 import { loadYouTubeIframeApi } from "@pages/music/types/youtube";
 import { formatDisplayName, formatDuration } from "@pages/music/utils";
-import {
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	type MouseEvent as ReactMouseEvent,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { usePlayerStore } from "@store/playerStore";
+import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
+import { TrackInfoButton } from "./TrackInfoDialog";
+
+const SPOTIFY_GREEN = "#f97316";
+
+const SpotifySlider = ({
+    value,
+    max,
+    onChange,
+    width,
+}: {
+    value: number;
+    max: number;
+    onChange: (value: number) => void;
+    width?: number | string;
+}) => (
+    <Slider
+        size="small"
+        min={0}
+        max={max || 1}
+        value={Math.min(value, max || 1)}
+        onChange={(_, v) => onChange(Array.isArray(v) ? v[0] : v)}
+        sx={{
+            width: width ?? "100%",
+            height: 4,
+            color: SPOTIFY_GREEN,
+            padding: "6px 0",
+            "& .MuiSlider-thumb": {
+                width: 12,
+                height: 12,
+                opacity: 0,
+                transition: "opacity 0.15s",
+                "&:hover, &.Mui-focusVisible": { boxShadow: `0 0 0 8px ${SPOTIFY_GREEN}30` },
+            },
+            "& .MuiSlider-track": { border: "none" },
+            "& .MuiSlider-rail": { opacity: 0.3, bgcolor: "rgba(255,255,255,0.5)" },
+            "&:hover .MuiSlider-thumb": { opacity: 1 },
+        }}
+    />
+);
 
 export const BottomPlayer = () => {
-	const location = useLocation();
-	const theme = useTheme();
-	const isCompactViewport = useMediaQuery(theme.breakpoints.down("md"));
-	const isMobileViewport = useMediaQuery(theme.breakpoints.down("sm"));
-	const playerPaperRef = useRef<HTMLDivElement | null>(null);
-	const audioRef = useRef<HTMLAudioElement | null>(null);
-	const youtubeFrameRef = useRef<HTMLDivElement | null>(null);
-	const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
-	const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
-	const youtubeControlsHideTimerRef = useRef<number | null>(null);
-	const volumeRef = useRef(1);
-	const youtubeStateRef = useRef({
-		isPlaying: false,
-		next: () => {},
-		pause: () => {},
-		repeat: "off" as "off" | "one" | "all",
-		resume: () => {},
-	});
+    const location = useLocation();
+    const theme = useTheme();
+    const isCompact = useMediaQuery(theme.breakpoints.down("md"));
+    const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+    const playerPaperRef = useRef<HTMLDivElement | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const youtubeFrameRef = useRef<HTMLDivElement | null>(null);
+    const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
+    const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
+    const youtubeControlsHideTimerRef = useRef<number | null>(null);
+    const volumeRef = useRef(1);
+    const youtubeStateRef = useRef({
+        isPlaying: false,
+        next: () => {},
+        pause: () => {},
+        repeat: "off" as "off" | "one" | "all",
+        resume: () => {},
+    });
 
-	const [volume, setVolume] = useState(1);
-	const [audioCurrentTime, setAudioCurrentTime] = useState(0);
-	const [audioDuration, setAudioDuration] = useState(0);
-	const [collapsedVideoId, setCollapsedVideoId] = useState<string | null>(null);
-	const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
-	const [youtubeDuration, setYoutubeDuration] = useState(0);
-	const [youtubeMuted, setYoutubeMuted] = useState(false);
-	const [youtubePlaybackRate, setYoutubePlaybackRate] = useState(1);
-	const [youtubePlaybackRates, setYoutubePlaybackRates] = useState<number[]>([
-		0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4,
-	]);
-	const [speedMenuAnchor, setSpeedMenuAnchor] = useState<HTMLElement | null>(
-		null,
-	);
-	const [youtubeFullscreen, setYoutubeFullscreen] = useState(false);
-	const [youtubeControlsVisible, setYoutubeControlsVisible] = useState(false);
-	const [expandedOutsideMusic, setExpandedOutsideMusic] = useState(false);
-	const [musicCollapsed, setMusicCollapsed] = useState(false);
-	const [expandedCompactMusic, setExpandedCompactMusic] = useState(false);
-	const [composerInputFocused, setComposerInputFocused] = useState(false);
+    const [volume, setVolume] = useState(1);
+    const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+    const [audioDuration, setAudioDuration] = useState(0);
+    const [collapsedVideoId, setCollapsedVideoId] = useState<string | null>(null);
+    const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
+    const [youtubeDuration, setYoutubeDuration] = useState(0);
+    const [youtubeMuted, setYoutubeMuted] = useState(false);
+    const [youtubePlaybackRate, setYoutubePlaybackRate] = useState(1);
+    const [youtubePlaybackRates, setYoutubePlaybackRates] = useState<number[]>([0.5, 1, 1.5, 2]);
+    const [speedMenuAnchor, setSpeedMenuAnchor] = useState<HTMLElement | null>(null);
+    const [youtubeFullscreen, setYoutubeFullscreen] = useState(false);
+    const [youtubeControlsVisible, setYoutubeControlsVisible] = useState(false);
+    const [expanded, setExpanded] = useState(false);
+    const [composerInputFocused, setComposerInputFocused] = useState(false);
 
-	const {
-		currentItem,
-		isPlaying,
-		pause,
-		resume,
-		next,
-		previous,
-		shuffle,
-		repeat,
-		toggleShuffle,
-		toggleRepeat,
-		clearQueue,
-	} = usePlayerStore();
+    const {
+        currentItem,
+        isPlaying,
+        pause,
+        resume,
+        next,
+        previous,
+        shuffle,
+        repeat,
+        toggleShuffle,
+        toggleRepeat,
+        likedItems,
+        toggleLike,
+        clearQueue,
+    } = usePlayerStore();
 
-	const youtubeVideoId =
-		currentItem?.type === "video" ? currentItem.videoId : undefined;
-	const isMusicRoute = location.pathname.startsWith("/music");
-	const videoCollapsed =
-		currentItem?.type === "video" &&
-		(!isMusicRoute || collapsedVideoId === currentItem.id);
-	const youtubeActionsVisible =
-		videoCollapsed ||
-		youtubeControlsVisible ||
-		Boolean(speedMenuAnchor) ||
-		(currentItem?.type === "video" && !isPlaying);
-	const shouldShowPlayer = Boolean(currentItem) || isMusicRoute;
-	const isMessengerRoute = location.pathname.startsWith("/messenger");
-	const hideForComposer =
-		isCompactViewport && isMessengerRoute && composerInputFocused;
-	const compactCurrentTime =
-		currentItem?.type === "video" ? youtubeCurrentTime : audioCurrentTime;
-	const compactDuration =
-		currentItem?.type === "video"
-			? youtubeDuration || currentItem?.duration || 0
-			: audioDuration || currentItem?.duration || 0;
-	const compactMuted =
-		currentItem?.type === "video" ? youtubeMuted || volume === 0 : volume === 0;
-	const compactPlayer = isMusicRoute
-		? isCompactViewport
-			? !expandedCompactMusic
-			: musicCollapsed
-		: !expandedOutsideMusic;
-	const collapseWholePlayerFromVideo = !isMusicRoute || isCompactViewport;
+    const liked = likedItems.some((entry) => entry.id === currentItem?.id);
+    const likeMutation = useLikeMusicMutation(currentItem ?? ({} as never), liked);
 
-	const expandPlayer = () => {
-		if (!isMusicRoute) {
-			setExpandedOutsideMusic(true);
-			return;
-		}
-		if (isCompactViewport) {
-			setExpandedCompactMusic(true);
-			return;
-		}
-		setMusicCollapsed(false);
-	};
+    const youtubeVideoId = currentItem?.type === "video" ? currentItem.videoId : undefined;
+    const isMusicRoute = location.pathname.startsWith("/music");
+    const videoCollapsed =
+        currentItem?.type === "video" && (!isMusicRoute || collapsedVideoId === currentItem.id);
+    const youtubeActionsVisible =
+        videoCollapsed ||
+        youtubeControlsVisible ||
+        Boolean(speedMenuAnchor) ||
+        (currentItem?.type === "video" && !isPlaying);
+    const shouldShowPlayer = Boolean(currentItem) || isMusicRoute;
+    const isMessengerRoute = location.pathname.startsWith("/messenger");
+    const hideForComposer = isCompact && isMessengerRoute && composerInputFocused;
 
-	const collapsePlayer = () => {
-		if (!isMusicRoute) {
-			setExpandedOutsideMusic(false);
-			return;
-		}
-		if (isCompactViewport) {
-			setExpandedCompactMusic(false);
-			return;
-		}
-		setMusicCollapsed(true);
-	};
+    const currentTime = currentItem?.type === "video" ? youtubeCurrentTime : audioCurrentTime;
+    const duration =
+        currentItem?.type === "video"
+            ? youtubeDuration || currentItem?.duration || 0
+            : audioDuration || currentItem?.duration || 0;
 
-	const handlePlayerSurfaceClick = (
-		event: ReactMouseEvent<HTMLElement>,
-	) => {
-		const target = event.target as HTMLElement;
-		if (
-			target.closest(
-				"button, .MuiSlider-root, [data-player-interactive='true']",
-			)
-		) {
-			return;
-		}
-		if (compactPlayer) {
-			expandPlayer();
-		} else {
-			collapsePlayer();
-		}
-	};
+    useEffect(() => {
+        let focusCheckFrame: number | null = null;
+        const isComposerInput = (target: EventTarget | null) =>
+            target instanceof HTMLElement &&
+            target.matches('[data-messenger-composer-input="true"]');
+        const handleFocusIn = (event: FocusEvent) => {
+            if (isCompact && isMessengerRoute && isComposerInput(event.target))
+                setComposerInputFocused(true);
+        };
+        const handleFocusOut = () => {
+            if (focusCheckFrame) window.cancelAnimationFrame(focusCheckFrame);
+            focusCheckFrame = window.requestAnimationFrame(() => {
+                setComposerInputFocused(isComposerInput(document.activeElement));
+                focusCheckFrame = null;
+            });
+        };
+        document.addEventListener("focusin", handleFocusIn);
+        document.addEventListener("focusout", handleFocusOut);
+        return () => {
+            document.removeEventListener("focusin", handleFocusIn);
+            document.removeEventListener("focusout", handleFocusOut);
+            if (focusCheckFrame) window.cancelAnimationFrame(focusCheckFrame);
+        };
+    }, [isCompact, isMessengerRoute]);
 
-	useEffect(() => {
-		let focusCheckFrame: number | null = null;
-		const isComposerInput = (target: EventTarget | null) =>
-			target instanceof HTMLElement &&
-			target.matches('[data-messenger-composer-input="true"]');
+    useLayoutEffect(() => {
+        const playerElement = playerPaperRef.current;
+        const root = document.documentElement;
+        if (!playerElement || !shouldShowPlayer || hideForComposer) {
+            root.style.setProperty("--persistent-music-player-height", "0px");
+            return;
+        }
+        const updatePlayerHeight = () => {
+            root.style.setProperty(
+                "--persistent-music-player-height",
+                `${playerElement.getBoundingClientRect().height}px`,
+            );
+        };
+        updatePlayerHeight();
+        const resizeObserver = new ResizeObserver(updatePlayerHeight);
+        resizeObserver.observe(playerElement);
+        return () => {
+            resizeObserver.disconnect();
+            root.style.setProperty("--persistent-music-player-height", "0px");
+        };
+    }, [hideForComposer, shouldShowPlayer]);
 
-		const handleFocusIn = (event: FocusEvent) => {
-			if (isCompactViewport && isMessengerRoute && isComposerInput(event.target)) {
-				setComposerInputFocused(true);
-			}
-		};
-		const handleFocusOut = () => {
-			if (focusCheckFrame) window.cancelAnimationFrame(focusCheckFrame);
-			focusCheckFrame = window.requestAnimationFrame(() => {
-				setComposerInputFocused(isComposerInput(document.activeElement));
-				focusCheckFrame = null;
-			});
-		};
+    useEffect(() => {
+        youtubeStateRef.current = { isPlaying, next, pause, repeat, resume };
+    }, [isPlaying, next, pause, repeat, resume]);
 
-		document.addEventListener("focusin", handleFocusIn);
-		document.addEventListener("focusout", handleFocusOut);
-		return () => {
-			document.removeEventListener("focusin", handleFocusIn);
-			document.removeEventListener("focusout", handleFocusOut);
-			if (focusCheckFrame) window.cancelAnimationFrame(focusCheckFrame);
-		};
-	}, [isCompactViewport, isMessengerRoute]);
+    useEffect(() => {
+        volumeRef.current = volume;
+    }, [volume]);
 
-	useLayoutEffect(() => {
-		const playerElement = playerPaperRef.current;
-		const root = document.documentElement;
+    useEffect(
+        () => () => {
+            if (youtubeControlsHideTimerRef.current)
+                window.clearTimeout(youtubeControlsHideTimerRef.current);
+        },
+        [],
+    );
 
-		if (!playerElement || !shouldShowPlayer || hideForComposer) {
-			root.style.setProperty("--persistent-music-player-height", "0px");
-			return;
-		}
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        audio.volume = volume;
+    }, [volume]);
 
-		const updatePlayerHeight = () => {
-			root.style.setProperty(
-				"--persistent-music-player-height",
-				`${playerElement.getBoundingClientRect().height}px`,
-			);
-		};
-		updatePlayerHeight();
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        if (currentItem?.type !== "audio") {
+            audio.pause();
+            return;
+        }
+        if (isPlaying) {
+            void audio.play().catch(() => pause());
+        } else {
+            audio.pause();
+        }
+    }, [currentItem, isPlaying, pause]);
 
-		const resizeObserver = new ResizeObserver(updatePlayerHeight);
-		resizeObserver.observe(playerElement);
+    useEffect(() => {
+        if (!youtubeVideoId || !youtubeContainerRef.current) {
+            youtubePlayerRef.current?.destroy();
+            youtubePlayerRef.current = null;
+            return;
+        }
+        let disposed = false;
+        let progressTimer: number | null = null;
+        youtubeContainerRef.current.replaceChildren();
 
-		return () => {
-			resizeObserver.disconnect();
-			root.style.setProperty("--persistent-music-player-height", "0px");
-		};
-	}, [hideForComposer, shouldShowPlayer]);
+        void loadYouTubeIframeApi().then((YT) => {
+            if (disposed || !youtubeContainerRef.current) return;
+            new YT.Player(youtubeContainerRef.current, {
+                videoId: youtubeVideoId,
+                playerVars: {
+                    autoplay: youtubeStateRef.current.isPlaying ? 1 : 0,
+                    controls: 0,
+                    disablekb: 1,
+                    fs: 0,
+                    iv_load_policy: 3,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    rel: 0,
+                },
+                events: {
+                    onReady: (event) => {
+                        if (disposed) return;
+                        youtubePlayerRef.current = event.target;
+                        event.target.setVolume(Math.round(volumeRef.current * 100));
+                        setYoutubeDuration(event.target.getDuration() || 0);
+                        setYoutubeMuted(event.target.isMuted());
+                        setYoutubePlaybackRate(event.target.getPlaybackRate() || 1);
+                        setYoutubePlaybackRates(
+                            event.target.getAvailablePlaybackRates().length
+                                ? event.target.getAvailablePlaybackRates()
+                                : [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2],
+                        );
+                        if (youtubeStateRef.current.isPlaying) event.target.playVideo();
+                    },
+                    onStateChange: (event) => {
+                        const state = youtubeStateRef.current;
+                        if (event.data === YT.PlayerState.PLAYING && !state.isPlaying)
+                            state.resume();
+                        if (event.data === YT.PlayerState.PAUSED && state.isPlaying) state.pause();
+                        if (event.data === YT.PlayerState.ENDED) {
+                            if (state.repeat === "one") {
+                                event.target.seekTo(0, true);
+                                event.target.playVideo();
+                            } else {
+                                state.next();
+                            }
+                        }
+                    },
+                },
+            });
+            progressTimer = window.setInterval(() => {
+                if (!youtubePlayerRef.current) return;
+                setYoutubeCurrentTime(youtubePlayerRef.current.getCurrentTime() || 0);
+                setYoutubeDuration(youtubePlayerRef.current.getDuration() || 0);
+                setYoutubeMuted(youtubePlayerRef.current.isMuted());
+                setYoutubePlaybackRate(youtubePlayerRef.current.getPlaybackRate() || 1);
+            }, 500);
+        });
 
-	useEffect(() => {
-		youtubeStateRef.current = { isPlaying, next, pause, repeat, resume };
-	}, [isPlaying, next, pause, repeat, resume]);
+        return () => {
+            disposed = true;
+            if (progressTimer) window.clearInterval(progressTimer);
+            try {
+                youtubePlayerRef.current?.destroy();
+            } catch {
+                /* ignore */
+            }
+            youtubePlayerRef.current = null;
+        };
+    }, [youtubeVideoId]);
 
-	useEffect(() => {
-		volumeRef.current = volume;
-	}, [volume]);
+    useEffect(() => {
+        if (currentItem?.type !== "video" || !youtubePlayerRef.current) return;
+        if (isPlaying) {
+            youtubePlayerRef.current.playVideo();
+        } else {
+            youtubePlayerRef.current.pauseVideo();
+        }
+    }, [currentItem?.type, isPlaying]);
 
-	useEffect(
-		() => () => {
-			if (youtubeControlsHideTimerRef.current) {
-				window.clearTimeout(youtubeControlsHideTimerRef.current);
-			}
-		},
-		[],
-	);
+    const showYoutubeControlsTemporarily = useCallback((durationMs = 5000) => {
+        if (youtubeControlsHideTimerRef.current)
+            window.clearTimeout(youtubeControlsHideTimerRef.current);
+        setYoutubeControlsVisible(true);
+        youtubeControlsHideTimerRef.current = window.setTimeout(() => {
+            setYoutubeControlsVisible(false);
+            youtubeControlsHideTimerRef.current = null;
+        }, durationMs);
+    }, []);
 
-	useEffect(() => {
-		const audio = audioRef.current;
-		if (!audio) return;
-		audio.volume = volume;
-	}, [volume]);
+    useEffect(() => {
+        if (!youtubeVideoId) return;
+        const t = window.setTimeout(() => showYoutubeControlsTemporarily(4000), 0);
+        return () => window.clearTimeout(t);
+    }, [youtubeVideoId, showYoutubeControlsTemporarily]);
 
-	useEffect(() => {
-		const audio = audioRef.current;
-		if (!audio) return;
-		if (currentItem?.type !== "audio") {
-			audio.pause();
-			return;
-		}
-		if (isPlaying) {
-			void audio.play().catch(() => pause());
-		} else {
-			audio.pause();
-		}
-	}, [currentItem, isPlaying, pause]);
+    useEffect(() => {
+        if (currentItem?.type !== "video" || !isPlaying) return;
+        const t = window.setTimeout(() => showYoutubeControlsTemporarily(5000), 0);
+        return () => window.clearTimeout(t);
+    }, [currentItem?.type, isPlaying, showYoutubeControlsTemporarily]);
 
-	useEffect(() => {
-		if (!youtubeVideoId || !youtubeContainerRef.current) {
-			youtubePlayerRef.current?.destroy();
-			youtubePlayerRef.current = null;
-			return;
-		}
+    useEffect(() => {
+        youtubePlayerRef.current?.setVolume(Math.round(volume * 100));
+    }, [volume]);
 
-		let disposed = false;
-		let progressTimer: number | null = null;
-		youtubeContainerRef.current.replaceChildren();
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setYoutubeFullscreen(
+                Boolean(
+                    youtubeFrameRef.current &&
+                    document.fullscreenElement === youtubeFrameRef.current,
+                ),
+            );
+        };
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    }, []);
 
-		void loadYouTubeIframeApi().then((YT) => {
-			if (disposed || !youtubeContainerRef.current) return;
+    useEffect(() => {
+        if (!currentItem || !("mediaSession" in navigator)) return;
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: formatDisplayName(currentItem.title),
+            artist: formatDisplayName(currentItem.artist),
+            artwork: [{ src: currentItem.thumbnail }],
+        });
+        navigator.mediaSession.setActionHandler("play", resume);
+        navigator.mediaSession.setActionHandler("pause", pause);
+        navigator.mediaSession.setActionHandler("nexttrack", next);
+        navigator.mediaSession.setActionHandler("previoustrack", previous);
+    }, [currentItem, next, pause, previous, resume]);
 
-			new YT.Player(youtubeContainerRef.current, {
-				videoId: youtubeVideoId,
-				playerVars: {
-					autoplay: youtubeStateRef.current.isPlaying ? 1 : 0,
-					controls: 0,
-					disablekb: 1,
-					fs: 0,
-					iv_load_policy: 3,
-					modestbranding: 1,
-					playsinline: 1,
-					rel: 0,
-				},
-				events: {
-					onReady: (event) => {
-						if (disposed) return;
-						youtubePlayerRef.current = event.target;
-						event.target.setVolume(Math.round(volumeRef.current * 100));
-						setYoutubeDuration(event.target.getDuration() || 0);
-						setYoutubeMuted(event.target.isMuted());
-						setYoutubePlaybackRate(event.target.getPlaybackRate() || 1);
-						setYoutubePlaybackRates(
-							event.target.getAvailablePlaybackRates().length
-								? event.target.getAvailablePlaybackRates()
-								: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2],
-						);
-						if (youtubeStateRef.current.isPlaying) {
-							event.target.playVideo();
-						}
-					},
-					onStateChange: (event) => {
-						const state = youtubeStateRef.current;
-						if (event.data === YT.PlayerState.PLAYING && !state.isPlaying) {
-							state.resume();
-						}
-						if (event.data === YT.PlayerState.PAUSED && state.isPlaying) {
-							state.pause();
-						}
-						if (event.data === YT.PlayerState.ENDED) {
-							if (state.repeat === "one") {
-								event.target.seekTo(0, true);
-								event.target.playVideo();
-							} else {
-								state.next();
-							}
-						}
-					},
-				},
-			});
+    const handleAudioSeekBy = useCallback((seconds: number) => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        const nextTime = Math.min(Math.max(audio.currentTime + seconds, 0), audio.duration || 0);
+        audio.currentTime = nextTime;
+        setAudioCurrentTime(nextTime);
+    }, []);
 
-			progressTimer = window.setInterval(() => {
-				if (!youtubePlayerRef.current) return;
-				setYoutubeCurrentTime(youtubePlayerRef.current.getCurrentTime() || 0);
-				setYoutubeDuration(youtubePlayerRef.current.getDuration() || 0);
-				setYoutubeMuted(youtubePlayerRef.current.isMuted());
-				setYoutubePlaybackRate(youtubePlayerRef.current.getPlaybackRate() || 1);
-			}, 500);
-		});
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (!currentItem || !isMusicRoute) return;
+            const tag = (event.target as HTMLElement).tagName;
+            if (
+                tag === "INPUT" ||
+                tag === "TEXTAREA" ||
+                tag === "SELECT" ||
+                (event.target as HTMLElement).isContentEditable
+            )
+                return;
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                const delta = event.key === "ArrowLeft" ? -10 : 10;
+                event.preventDefault();
+                if (currentItem.type === "audio") {
+                    handleAudioSeekBy(delta);
+                } else {
+                    const player = youtubePlayerRef.current;
+                    if (player) {
+                        const nextTime = Math.min(
+                            Math.max((player.getCurrentTime() || 0) + delta, 0),
+                            player.getDuration() || Number.POSITIVE_INFINITY,
+                        );
+                        player.seekTo(nextTime, true);
+                        setYoutubeCurrentTime(nextTime);
+                        showYoutubeControlsTemporarily(4000);
+                    }
+                }
+            } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setVolume((v) => Math.min(1, Math.round((v + 0.05) * 100) / 100));
+            } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setVolume((v) => Math.max(0, Math.round((v - 0.05) * 100) / 100));
+            } else if (event.key === " ") {
+                event.preventDefault();
+                const state = youtubeStateRef.current;
+                if (state.isPlaying) {
+                    state.pause();
+                } else {
+                    state.resume();
+                }
+            }
+        };
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [currentItem, handleAudioSeekBy, isMusicRoute, showYoutubeControlsTemporarily]);
 
-		return () => {
-			disposed = true;
-			if (progressTimer) window.clearInterval(progressTimer);
-			try {
-				youtubePlayerRef.current?.destroy();
-			} catch {
-				// ignore stale DOM errors when container is replaced
-			}
-			youtubePlayerRef.current = null;
-		};
-	}, [youtubeVideoId]);
+    const handleEnded = () => {
+        const audio = audioRef.current;
+        if (repeat === "one" && audio) {
+            audio.currentTime = 0;
+            void audio.play();
+            return;
+        }
+        next();
+    };
+    const handleAudioSeek = (time: number) => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        audio.currentTime = time;
+        setAudioCurrentTime(time);
+    };
+    const handleYoutubePlayPause = () => {
+        const player = youtubePlayerRef.current;
+        if (!player) return;
+        if (isPlaying) {
+            player.pauseVideo();
+            pause();
+        } else {
+            player.playVideo();
+            resume();
+        }
+    };
+    const handleYoutubeSeek = (time: number) => {
+        youtubePlayerRef.current?.seekTo(time, true);
+        setYoutubeCurrentTime(time);
+    };
+    const handleYoutubeSeekBy = (seconds: number) => {
+        const player = youtubePlayerRef.current;
+        if (!player) return;
+        const d = player.getDuration() || youtubeDuration || 0;
+        const nextTime = Math.min(
+            Math.max((player.getCurrentTime() || 0) + seconds, 0),
+            d || Number.POSITIVE_INFINITY,
+        );
+        player.seekTo(nextTime, true);
+        setYoutubeCurrentTime(nextTime);
+    };
+    const handleYoutubeToggleMute = () => {
+        const player = youtubePlayerRef.current;
+        if (!player) return;
+        if (player.isMuted()) {
+            player.unMute();
+            setYoutubeMuted(false);
+        } else {
+            player.mute();
+            setYoutubeMuted(true);
+        }
+    };
+    const handleYoutubeFullscreen = () => {
+        const frame = youtubeFrameRef.current;
+        if (!frame) return;
+        if (document.fullscreenElement === frame) {
+            void document.exitFullscreen();
+            return;
+        }
+        void frame.requestFullscreen();
+    };
+    const handleYoutubePlaybackRate = (rate: number) => {
+        youtubePlayerRef.current?.setPlaybackRate(rate);
+        setYoutubePlaybackRate(rate);
+        setSpeedMenuAnchor(null);
+    };
 
-	useEffect(() => {
-		if (currentItem?.type !== "video" || !youtubePlayerRef.current) return;
-		if (isPlaying) {
-			youtubePlayerRef.current.playVideo();
-		} else {
-			youtubePlayerRef.current.pauseVideo();
-		}
-	}, [currentItem?.type, isPlaying]);
+    if (!shouldShowPlayer) return null;
 
-	useEffect(() => {
-		if (!youtubeVideoId) return;
-		if (youtubeControlsHideTimerRef.current)
-			window.clearTimeout(youtubeControlsHideTimerRef.current);
-		const showTimer = window.setTimeout(
-			() => setYoutubeControlsVisible(true),
-			0,
-		);
-		youtubeControlsHideTimerRef.current = window.setTimeout(() => {
-			setYoutubeControlsVisible(false);
-			youtubeControlsHideTimerRef.current = null;
-		}, 4000);
-		return () => window.clearTimeout(showTimer);
-	}, [youtubeVideoId]);
+    const volumeIcon =
+        volume === 0 ? (
+            <VolumeOffIcon sx={{ fontSize: 18 }} />
+        ) : volume < 0.5 ? (
+            <VolumeDownIcon sx={{ fontSize: 18 }} />
+        ) : (
+            <VolumeUpIcon sx={{ fontSize: 18 }} />
+        );
 
-	useEffect(() => {
-		if (currentItem?.type !== "video" || !isPlaying) return;
-		if (youtubeControlsHideTimerRef.current)
-			window.clearTimeout(youtubeControlsHideTimerRef.current);
-		const showTimer = window.setTimeout(
-			() => setYoutubeControlsVisible(true),
-			0,
-		);
-		youtubeControlsHideTimerRef.current = window.setTimeout(() => {
-			setYoutubeControlsVisible(false);
-			youtubeControlsHideTimerRef.current = null;
-		}, 5000);
-		return () => window.clearTimeout(showTimer);
-	}, [currentItem?.type, isPlaying]);
+    return (
+        <Box
+            ref={playerPaperRef}
+            sx={{
+                position: "fixed",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: (t) => t.zIndex.drawer + 1,
+                bgcolor: "#181818",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                opacity: hideForComposer ? 0 : 1,
+                pointerEvents: hideForComposer ? "none" : "auto",
+                transform: hideForComposer ? "translateY(100%)" : "translateY(0)",
+                transition: "opacity 180ms ease, transform 220ms ease",
+            }}
+        >
+            {/* YouTube video panel */}
+            {youtubeVideoId && (
+                <Box
+                    sx={{
+                        maxHeight: videoCollapsed ? 0 : 320,
+                        overflow: "hidden",
+                        transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                    }}
+                >
+                    <Box
+                        ref={youtubeFrameRef}
+                        onMouseEnter={() => {
+                            if (youtubeControlsHideTimerRef.current)
+                                window.clearTimeout(youtubeControlsHideTimerRef.current);
+                            setYoutubeControlsVisible(true);
+                        }}
+                        onMouseLeave={() => {
+                            if (youtubeControlsHideTimerRef.current)
+                                window.clearTimeout(youtubeControlsHideTimerRef.current);
+                            youtubeControlsHideTimerRef.current = window.setTimeout(() => {
+                                setYoutubeControlsVisible(false);
+                                youtubeControlsHideTimerRef.current = null;
+                            }, 3000);
+                        }}
+                        sx={{
+                            width: { xs: "100%", md: "60%", xl: "40%" },
+                            mx: "auto",
+                            aspectRatio: "16/9",
+                            bgcolor: "#000",
+                            position: "relative",
+                        }}
+                    >
+                        <Box
+                            ref={youtubeContainerRef}
+                            sx={{
+                                width: "100%",
+                                height: "100%",
+                                "& iframe": {
+                                    width: "100%",
+                                    height: "100%",
+                                    border: 0,
+                                    display: "block",
+                                },
+                            }}
+                        />
+                        {/* YouTube overlay controls */}
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                inset: 0,
+                                zIndex: 2,
+                                cursor: "pointer",
+                            }}
+                            onClick={handleYoutubePlayPause}
+                            onDoubleClick={handleYoutubeFullscreen}
+                        />
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                p: 1.5,
+                                background:
+                                    "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)",
+                                zIndex: 3,
+                                opacity: youtubeActionsVisible ? 1 : 0,
+                                pointerEvents: youtubeActionsVisible ? "auto" : "none",
+                                transition: "opacity 0.18s ease",
+                            }}
+                        >
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                                <SpotifySlider
+                                    value={youtubeCurrentTime}
+                                    max={youtubeDuration || currentItem?.duration || 1}
+                                    onChange={handleYoutubeSeek}
+                                />
+                                <Typography
+                                    sx={{
+                                        color: "rgba(255,255,255,0.7)",
+                                        fontSize: 11,
+                                        whiteSpace: "nowrap",
+                                        flexShrink: 0,
+                                        fontVariantNumeric: "tabular-nums",
+                                    }}
+                                >
+                                    {formatDuration(youtubeCurrentTime)} /{" "}
+                                    {formatDuration(youtubeDuration || currentItem?.duration)}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                <Tooltip title="-10s">
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleYoutubeSeekBy(-10)}
+                                        sx={{ color: "white" }}
+                                    >
+                                        <Replay10Icon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={handleYoutubePlayPause}
+                                        sx={{ color: "white" }}
+                                    >
+                                        {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="+10s">
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleYoutubeSeekBy(10)}
+                                        sx={{ color: "white" }}
+                                    >
+                                        <Forward10Icon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Box sx={{ flex: 1 }} />
+                                <Tooltip title={youtubeMuted ? "Bật âm" : "Tắt âm"}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={handleYoutubeToggleMute}
+                                        sx={{ color: "white" }}
+                                    >
+                                        {youtubeMuted || volume === 0 ? (
+                                            <VolumeOffIcon fontSize="small" />
+                                        ) : (
+                                            <VolumeUpIcon fontSize="small" />
+                                        )}
+                                    </IconButton>
+                                </Tooltip>
+                                <Slider
+                                    size="small"
+                                    min={0}
+                                    max={1}
+                                    step={0.05}
+                                    value={youtubeMuted ? 0 : volume}
+                                    onChange={(_, v) => setVolume(Array.isArray(v) ? v[0] : v)}
+                                    sx={{
+                                        width: 70,
+                                        color: "white",
+                                        height: 3,
+                                        "& .MuiSlider-thumb": { width: 10, height: 10 },
+                                    }}
+                                />
+                                <Tooltip title="Tốc độ">
+                                    <IconButton
+                                        size="small"
+                                        onClick={(e) => setSpeedMenuAnchor(e.currentTarget)}
+                                        sx={{
+                                            color: "white",
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            minWidth: 32,
+                                        }}
+                                    >
+                                        {youtubePlaybackRate}x
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title={youtubeFullscreen ? "Thu nhỏ" : "Phóng to"}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={handleYoutubeFullscreen}
+                                        sx={{ color: "white" }}
+                                    >
+                                        {youtubeFullscreen ? (
+                                            <FullscreenExitIcon fontSize="small" />
+                                        ) : (
+                                            <FullscreenIcon fontSize="small" />
+                                        )}
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Thu gọn video">
+                                    <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                            setCollapsedVideoId((id) =>
+                                                id === currentItem?.id
+                                                    ? null
+                                                    : (currentItem?.id ?? null),
+                                            )
+                                        }
+                                        sx={{ color: "white" }}
+                                    >
+                                        <KeyboardArrowDownIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                            </Box>
+                        </Box>
+                    </Box>
+                    <Menu
+                        anchorEl={speedMenuAnchor}
+                        open={Boolean(speedMenuAnchor)}
+                        onClose={() => setSpeedMenuAnchor(null)}
+                    >
+                        {youtubePlaybackRates.map((rate) => (
+                            <MenuItem
+                                key={rate}
+                                selected={rate === youtubePlaybackRate}
+                                onClick={() => handleYoutubePlaybackRate(rate)}
+                            >
+                                {rate}x
+                            </MenuItem>
+                        ))}
+                    </Menu>
+                </Box>
+            )}
 
-	useEffect(() => {
-		youtubePlayerRef.current?.setVolume(Math.round(volume * 100));
-	}, [volume]);
+            {/* biome-ignore lint/a11y/useMediaCaption: Music streams do not provide caption tracks through the current API. */}
+            <audio
+                ref={audioRef}
+                src={currentItem?.type === "audio" ? currentItem.streamUrl : undefined}
+                onEnded={handleEnded}
+                onTimeUpdate={(e) => {
+                    const audio = e.currentTarget;
+                    setAudioCurrentTime(audio.currentTime || 0);
+                    setAudioDuration(audio.duration || 0);
+                }}
+            />
 
-	useEffect(() => {
-		const handleFullscreenChange = () => {
-			setYoutubeFullscreen(
-				Boolean(
-					youtubeFrameRef.current &&
-						document.fullscreenElement === youtubeFrameRef.current,
-				),
-			);
-		};
-		document.addEventListener("fullscreenchange", handleFullscreenChange);
-		return () =>
-			document.removeEventListener("fullscreenchange", handleFullscreenChange);
-	}, []);
+            {/* Main player bar */}
+            {isCompact ? (
+                /* Mobile compact bar */
+                <Box
+                    sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        px: 1.5,
+                        py: 1,
+                    }}
+                >
+                    {/* Progress line */}
+                    <Box sx={{ mb: 0.5 }}>
+                        <SpotifySlider
+                            value={currentTime}
+                            max={duration}
+                            onChange={(v) =>
+                                currentItem?.type === "video"
+                                    ? handleYoutubeSeek(v)
+                                    : handleAudioSeek(v)
+                            }
+                        />
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Avatar
+                            variant="rounded"
+                            src={currentItem?.thumbnail}
+                            sx={{ width: 36, height: 36, borderRadius: 0.5, flexShrink: 0 }}
+                        />
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Typography
+                                noWrap
+                                sx={{ fontSize: 13, fontWeight: 600, color: "white" }}
+                            >
+                                {formatDisplayName(currentItem?.title) || "Chọn bài hát"}
+                            </Typography>
+                            <Typography
+                                noWrap
+                                sx={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}
+                            >
+                                {formatDisplayName(currentItem?.artist)}
+                            </Typography>
+                        </Box>
+                        <Stack
+                            direction="row"
+                            spacing={0}
+                            alignItems="center"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <IconButton
+                                size="small"
+                                onClick={previous}
+                                sx={{
+                                    color: "rgba(255,255,255,0.7)",
+                                    "&:hover": { color: "white" },
+                                }}
+                            >
+                                <SkipPreviousIcon sx={{ fontSize: 22 }} />
+                            </IconButton>
+                            <IconButton
+                                onClick={isPlaying ? pause : resume}
+                                disabled={!currentItem}
+                                sx={{
+                                    color: "black",
+                                    bgcolor: "white",
+                                    width: 32,
+                                    height: 32,
+                                    "&:hover": { bgcolor: "#e0e0e0", transform: "scale(1.05)" },
+                                    "&:disabled": { bgcolor: "rgba(255,255,255,0.2)" },
+                                }}
+                            >
+                                {isPlaying ? (
+                                    <PauseIcon sx={{ fontSize: 18 }} />
+                                ) : (
+                                    <PlayArrowIcon sx={{ fontSize: 18 }} />
+                                )}
+                            </IconButton>
+                            <IconButton
+                                size="small"
+                                onClick={next}
+                                sx={{
+                                    color: "rgba(255,255,255,0.7)",
+                                    "&:hover": { color: "white" },
+                                }}
+                            >
+                                <SkipNextIcon sx={{ fontSize: 22 }} />
+                            </IconButton>
+                            <IconButton
+                                size="small"
+                                onClick={() => setExpanded(!expanded)}
+                                sx={{
+                                    color: "rgba(255,255,255,0.5)",
+                                    "&:hover": { color: "white" },
+                                }}
+                            >
+                                {expanded ? (
+                                    <KeyboardArrowDownIcon fontSize="small" />
+                                ) : (
+                                    <KeyboardArrowUpIcon fontSize="small" />
+                                )}
+                            </IconButton>
+                        </Stack>
+                    </Box>
+                </Box>
+            ) : (
+                /* Desktop 3-zone Spotify bar */
+                <Box
+                    sx={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr minmax(0, 480px) 1fr",
+                        alignItems: "center",
+                        px: 2,
+                        py: 1.25,
+                        gap: 2,
+                    }}
+                >
+                    {/* Zone 1: Track info */}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+                        {currentItem ? (
+                            <>
+                                <Avatar
+                                    variant="rounded"
+                                    src={currentItem.thumbnail}
+                                    sx={{ width: 52, height: 52, borderRadius: 1, flexShrink: 0 }}
+                                />
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                    <Typography
+                                        noWrap
+                                        sx={{ fontSize: 14, fontWeight: 600, color: "white" }}
+                                    >
+                                        {formatDisplayName(currentItem.title)}
+                                    </Typography>
+                                    <Typography
+                                        noWrap
+                                        sx={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}
+                                    >
+                                        {formatDisplayName(currentItem.artist)}
+                                    </Typography>
+                                </Box>
+                                <TrackInfoButton item={currentItem} alwaysVisible />
+                                <Tooltip title={liked ? "Bỏ thích" : "Thích"}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                            if (currentItem) {
+                                                toggleLike(currentItem);
+                                                likeMutation.mutate();
+                                            }
+                                        }}
+                                        sx={{
+                                            color: liked ? SPOTIFY_GREEN : "rgba(255,255,255,0.5)",
+                                            "&:hover": { color: liked ? "#fb923c" : "white" },
+                                        }}
+                                    >
+                                        {liked ? (
+                                            <FavoriteIcon sx={{ fontSize: 18 }} />
+                                        ) : (
+                                            <FavoriteBorderIcon sx={{ fontSize: 18 }} />
+                                        )}
+                                    </IconButton>
+                                </Tooltip>
+                            </>
+                        ) : (
+                            <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+                                Chọn bài hát để phát
+                            </Typography>
+                        )}
+                    </Box>
 
-	useEffect(() => {
-		if (!currentItem || !("mediaSession" in navigator)) return;
-		navigator.mediaSession.metadata = new MediaMetadata({
-			title: formatDisplayName(currentItem.title),
-			artist: formatDisplayName(currentItem.artist),
-			artwork: [{ src: currentItem.thumbnail }],
-		});
-		navigator.mediaSession.setActionHandler("play", resume);
-		navigator.mediaSession.setActionHandler("pause", pause);
-		navigator.mediaSession.setActionHandler("nexttrack", next);
-		navigator.mediaSession.setActionHandler("previoustrack", previous);
-	}, [currentItem, next, pause, previous, resume]);
+                    {/* Zone 2: Controls + progress */}
+                    <Box
+                        sx={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 0.5,
+                        }}
+                    >
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Tooltip title="Trộn bài">
+                                <IconButton
+                                    size="small"
+                                    onClick={toggleShuffle}
+                                    sx={{
+                                        color: shuffle ? SPOTIFY_GREEN : "rgba(255,255,255,0.5)",
+                                        "&:hover": { color: shuffle ? "#fb923c" : "white" },
+                                    }}
+                                >
+                                    <ShuffleIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Trước">
+                                <IconButton
+                                    size="small"
+                                    onClick={previous}
+                                    sx={{
+                                        color: "rgba(255,255,255,0.7)",
+                                        "&:hover": { color: "white" },
+                                    }}
+                                >
+                                    <SkipPreviousIcon sx={{ fontSize: 22 }} />
+                                </IconButton>
+                            </Tooltip>
+                            {currentItem?.type === "audio" && !isMobile && (
+                                <Tooltip title="-5s">
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleAudioSeekBy(-5)}
+                                        sx={{
+                                            color: "rgba(255,255,255,0.6)",
+                                            "&:hover": { color: "white" },
+                                        }}
+                                    >
+                                        <Replay5Icon sx={{ fontSize: 18 }} />
+                                    </IconButton>
+                                </Tooltip>
+                            )}
+                            <Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
+                                <IconButton
+                                    onClick={isPlaying ? pause : resume}
+                                    disabled={!currentItem}
+                                    sx={{
+                                        color: "black",
+                                        bgcolor: "white",
+                                        width: 36,
+                                        height: 36,
+                                        "&:hover": { bgcolor: "#e0e0e0", transform: "scale(1.05)" },
+                                        transition: "transform 0.15s ease",
+                                        "&:disabled": {
+                                            bgcolor: "rgba(255,255,255,0.15)",
+                                            color: "rgba(255,255,255,0.3)",
+                                        },
+                                    }}
+                                >
+                                    {isPlaying ? (
+                                        <PauseIcon sx={{ fontSize: 20 }} />
+                                    ) : (
+                                        <PlayArrowIcon sx={{ fontSize: 20 }} />
+                                    )}
+                                </IconButton>
+                            </Tooltip>
+                            {currentItem?.type === "audio" && !isMobile && (
+                                <Tooltip title="+5s">
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleAudioSeekBy(5)}
+                                        sx={{
+                                            color: "rgba(255,255,255,0.6)",
+                                            "&:hover": { color: "white" },
+                                        }}
+                                    >
+                                        <Forward5Icon sx={{ fontSize: 18 }} />
+                                    </IconButton>
+                                </Tooltip>
+                            )}
+                            <Tooltip title="Tiếp">
+                                <IconButton
+                                    size="small"
+                                    onClick={next}
+                                    sx={{
+                                        color: "rgba(255,255,255,0.7)",
+                                        "&:hover": { color: "white" },
+                                    }}
+                                >
+                                    <SkipNextIcon sx={{ fontSize: 22 }} />
+                                </IconButton>
+                            </Tooltip>
+                            <Tooltip
+                                title={
+                                    repeat === "off"
+                                        ? "Lặp: Tắt"
+                                        : repeat === "all"
+                                          ? "Lặp: Tất cả"
+                                          : "Lặp: 1 bài"
+                                }
+                            >
+                                <IconButton
+                                    size="small"
+                                    onClick={toggleRepeat}
+                                    sx={{
+                                        color:
+                                            repeat !== "off"
+                                                ? SPOTIFY_GREEN
+                                                : "rgba(255,255,255,0.5)",
+                                        "&:hover": {
+                                            color: repeat !== "off" ? "#fb923c" : "white",
+                                        },
+                                    }}
+                                >
+                                    {repeat === "one" ? (
+                                        <RepeatOneIcon sx={{ fontSize: 18 }} />
+                                    ) : (
+                                        <RepeatIcon sx={{ fontSize: 18 }} />
+                                    )}
+                                </IconButton>
+                            </Tooltip>
+                        </Stack>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+                            <Typography
+                                sx={{
+                                    fontSize: 11,
+                                    color: "rgba(255,255,255,0.4)",
+                                    fontVariantNumeric: "tabular-nums",
+                                    flexShrink: 0,
+                                }}
+                            >
+                                {formatDuration(currentTime)}
+                            </Typography>
+                            <SpotifySlider
+                                value={currentTime}
+                                max={duration}
+                                onChange={(v) =>
+                                    currentItem?.type === "video"
+                                        ? handleYoutubeSeek(v)
+                                        : handleAudioSeek(v)
+                                }
+                            />
+                            <Typography
+                                sx={{
+                                    fontSize: 11,
+                                    color: "rgba(255,255,255,0.4)",
+                                    fontVariantNumeric: "tabular-nums",
+                                    flexShrink: 0,
+                                }}
+                            >
+                                {formatDuration(duration)}
+                            </Typography>
+                        </Box>
+                    </Box>
 
-	const handleAudioSeekBy = useCallback((seconds: number) => {
-		const audio = audioRef.current;
-		if (!audio) return;
-		const nextTime = Math.min(
-			Math.max(audio.currentTime + seconds, 0),
-			audio.duration || 0,
-		);
-		audio.currentTime = nextTime;
-		setAudioCurrentTime(nextTime);
-	}, []);
-
-	const showYoutubeControlsTemporarily = useCallback((durationMs = 5000) => {
-		if (youtubeControlsHideTimerRef.current)
-			window.clearTimeout(youtubeControlsHideTimerRef.current);
-		setYoutubeControlsVisible(true);
-		youtubeControlsHideTimerRef.current = window.setTimeout(() => {
-			setYoutubeControlsVisible(false);
-			youtubeControlsHideTimerRef.current = null;
-		}, durationMs);
-	}, []);
-
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (!currentItem || !isMusicRoute) return;
-			const tag = (event.target as HTMLElement).tagName;
-			if (
-				tag === "INPUT" ||
-				tag === "TEXTAREA" ||
-				tag === "SELECT" ||
-				(event.target as HTMLElement).isContentEditable
-			)
-				return;
-
-			if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-				const delta = event.key === "ArrowLeft" ? -10 : 10;
-				event.preventDefault();
-				if (currentItem.type === "audio") {
-					handleAudioSeekBy(delta);
-				} else if (currentItem.type === "video") {
-					const player = youtubePlayerRef.current;
-					if (player) {
-						const nextTime = Math.min(
-							Math.max((player.getCurrentTime() || 0) + delta, 0),
-							player.getDuration() || Number.POSITIVE_INFINITY,
-						);
-						player.seekTo(nextTime, true);
-						setYoutubeCurrentTime(nextTime);
-						showYoutubeControlsTemporarily(4000);
-					}
-				}
-			} else if (event.key === "ArrowUp") {
-				event.preventDefault();
-				setVolume((v) => Math.min(1, Math.round((v + 0.05) * 100) / 100));
-			} else if (event.key === "ArrowDown") {
-				event.preventDefault();
-				setVolume((v) => Math.max(0, Math.round((v - 0.05) * 100) / 100));
-			} else if (event.key === " ") {
-				event.preventDefault();
-				const state = youtubeStateRef.current;
-				if (state.isPlaying) {
-					state.pause();
-				} else {
-					state.resume();
-				}
-			}
-		};
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [
-		currentItem,
-		handleAudioSeekBy,
-		isMusicRoute,
-		showYoutubeControlsTemporarily,
-	]);
-
-	const handleEnded = () => {
-		const audio = audioRef.current;
-		if (repeat === "one" && audio) {
-			audio.currentTime = 0;
-			void audio.play();
-			return;
-		}
-		next();
-	};
-
-	const handleAudioSeek = (time: number) => {
-		const audio = audioRef.current;
-		if (!audio) return;
-		audio.currentTime = time;
-		setAudioCurrentTime(time);
-	};
-
-	const handleYoutubePlayPause = () => {
-		const player = youtubePlayerRef.current;
-		if (!player) return;
-		if (isPlaying) {
-			player.pauseVideo();
-			pause();
-		} else {
-			player.playVideo();
-			resume();
-		}
-	};
-
-	const handleYoutubeSeek = (time: number) => {
-		youtubePlayerRef.current?.seekTo(time, true);
-		setYoutubeCurrentTime(time);
-	};
-
-	const handleYoutubeSeekBy = (seconds: number) => {
-		const player = youtubePlayerRef.current;
-		if (!player) return;
-		const duration = player.getDuration() || youtubeDuration || 0;
-		const nextTime = Math.min(
-			Math.max((player.getCurrentTime() || 0) + seconds, 0),
-			duration || Number.POSITIVE_INFINITY,
-		);
-		player.seekTo(nextTime, true);
-		setYoutubeCurrentTime(nextTime);
-	};
-
-	const handleYoutubeToggleMute = () => {
-		const player = youtubePlayerRef.current;
-		if (!player) return;
-		if (player.isMuted()) {
-			player.unMute();
-			setYoutubeMuted(false);
-		} else {
-			player.mute();
-			setYoutubeMuted(true);
-		}
-	};
-
-	const handleCompactToggleMute = () => {
-		if (currentItem?.type === "video") {
-			handleYoutubeToggleMute();
-			return;
-		}
-		setVolume((currentVolume) => (currentVolume === 0 ? 1 : 0));
-	};
-
-	const handleYoutubeFullscreen = () => {
-		const frame = youtubeFrameRef.current;
-		if (!frame) return;
-		if (document.fullscreenElement === frame) {
-			void document.exitFullscreen();
-			return;
-		}
-		void frame.requestFullscreen();
-	};
-
-	const handleYoutubePlaybackRate = (rate: number) => {
-		youtubePlayerRef.current?.setPlaybackRate(rate);
-		setYoutubePlaybackRate(rate);
-		setSpeedMenuAnchor(null);
-	};
-
-	const handleYoutubePointerEnter = () => {
-		if (youtubeControlsHideTimerRef.current) {
-			window.clearTimeout(youtubeControlsHideTimerRef.current);
-			youtubeControlsHideTimerRef.current = null;
-		}
-		setYoutubeControlsVisible(true);
-	};
-
-	const handleYoutubePointerLeave = () => {
-		if (youtubeControlsHideTimerRef.current)
-			window.clearTimeout(youtubeControlsHideTimerRef.current);
-		youtubeControlsHideTimerRef.current = window.setTimeout(() => {
-			setYoutubeControlsVisible(false);
-			youtubeControlsHideTimerRef.current = null;
-		}, 4000);
-	};
-
-	if (!shouldShowPlayer) return null;
-
-	return (
-		<Paper
-			ref={playerPaperRef}
-			elevation={8}
-			onClick={handlePlayerSurfaceClick}
-			sx={{
-				position: "fixed",
-				left: 0,
-				right: 0,
-				bottom: 0,
-				zIndex: (theme) => theme.zIndex.drawer + 1,
-				p: compactPlayer ? 0.75 : 1.25,
-				pt: compactPlayer
-					? 0.75
-					: currentItem?.type === "video"
-						? 1.75
-						: 1.25,
-				borderRadius: 0,
-				borderTop: 1,
-				borderColor: "divider",
-				overflow: "hidden",
-				cursor: "pointer",
-				opacity: hideForComposer ? 0 : 1,
-				pointerEvents: hideForComposer ? "none" : "auto",
-				transform: hideForComposer
-					? "translateY(calc(100% + 8px))"
-					: "translateY(0)",
-				transition:
-					"padding 200ms cubic-bezier(0.4, 0, 0.2, 1), opacity 180ms ease, transform 220ms cubic-bezier(0.4, 0, 0.2, 1)",
-				"@keyframes playerModeEnter": {
-					from: {
-						opacity: 0,
-						transform: "translateY(6px) scale(0.99)",
-					},
-					to: {
-						opacity: 1,
-						transform: "translateY(0) scale(1)",
-					},
-				},
-			}}
-		>
-			{currentItem?.type === "video" && currentItem.thumbnail && (
-				<>
-					<Box
-						component="img"
-						src={currentItem.thumbnail}
-						sx={{
-							position: "absolute",
-							inset: 0,
-							width: "100%",
-							height: "100%",
-							objectFit: "cover",
-							zIndex: 0,
-							pointerEvents: "none",
-							filter: "blur(6px)",
-							transform: "scale(1.08)",
-							opacity: isPlaying ? 0 : 1,
-							transition: "opacity 0.35s ease",
-						}}
-					/>
-					<Box
-						sx={{
-							position: "absolute",
-							inset: 0,
-							zIndex: 0,
-							bgcolor: "rgba(0,0,0,0.6)",
-							pointerEvents: "none",
-							opacity: isPlaying ? 0 : 1,
-							transition: "opacity 0.35s ease",
-						}}
-					/>
-				</>
-			)}
-			<Box sx={{ position: "relative", zIndex: 1 }}>
-					{youtubeVideoId && (
-						<Box sx={{ mb: compactPlayer ? 0 : 1 }}>
-						<Box sx={{ position: "relative" }}>
-							<Box
-								ref={youtubeFrameRef}
-								data-player-interactive="true"
-								onMouseEnter={handleYoutubePointerEnter}
-								onMouseLeave={handleYoutubePointerLeave}
-								sx={{
-									width: { sm: "100%", md: "65%", xl: "40%" },
-									mx: "auto",
-									aspectRatio: "16 / 9",
-									bgcolor: "grey.950",
-									overflow: "hidden",
-									borderRadius: 1,
-									position: "relative",
-									transition:
-										"max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease",
-									maxHeight: videoCollapsed ? 0 : 400,
-									opacity: videoCollapsed ? 0 : 1,
-									pointerEvents: videoCollapsed ? "none" : "auto",
-								}}
-							>
-								<Box
-									ref={youtubeContainerRef}
-									aria-label={formatDisplayName(currentItem?.title)}
-									sx={{
-										width: "100%",
-										height: "100%",
-										display: "block",
-										"& iframe": {
-											width: "100%",
-											height: "100%",
-											border: 0,
-											display: "block",
-										},
-									}}
-								/>
-								{!videoCollapsed && (
-									<Box
-										sx={{
-											position: "absolute",
-											inset: 0,
-											zIndex: 2,
-											cursor: "pointer",
-										}}
-										onClick={handleYoutubePlayPause}
-										onDoubleClick={handleYoutubeFullscreen}
-									/>
-								)}
-								{!videoCollapsed && (
-									<Box
-										sx={{
-											position: "absolute",
-											left: 12,
-											right: 12,
-											bottom: 15,
-											zIndex: 3,
-											display: "flex",
-											flexDirection: "column",
-											gap: 0.25,
-											px: 1,
-											py: 0.75,
-											borderRadius: 1,
-											bgcolor: "rgba(0,0,0,0.62)",
-											backdropFilter: "blur(10px)",
-											opacity: youtubeActionsVisible ? 1 : 0,
-											pointerEvents: youtubeActionsVisible ? "auto" : "none",
-											transform: youtubeActionsVisible
-												? "translateY(0)"
-												: "translateY(8px)",
-											transition: "opacity 0.18s ease, transform 0.18s ease",
-										}}
-									>
-										<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-											<Slider
-												size="small"
-												min={0}
-												max={youtubeDuration || currentItem?.duration || 1}
-												value={Math.min(
-													youtubeCurrentTime,
-													youtubeDuration || currentItem?.duration || 1,
-												)}
-												onChange={(_, value) =>
-													handleYoutubeSeek(
-														Array.isArray(value) ? value[0] : value,
-													)
-												}
-												sx={{
-													flex: 1,
-													color: "white",
-													height: 3,
-													py: 0.25,
-													"& .MuiSlider-thumb": { width: 10, height: 10 },
-													"& .MuiSlider-rail": { opacity: 0.35 },
-												}}
-											/>
-											<Typography
-												sx={{
-													color: "rgba(255,255,255,0.86)",
-													fontSize: 11,
-													fontVariantNumeric: "tabular-nums",
-													whiteSpace: "nowrap",
-													flexShrink: 0,
-												}}
-											>
-												{formatDuration(youtubeCurrentTime)} /{" "}
-												{formatDuration(
-													youtubeDuration || currentItem?.duration,
-												)}
-											</Typography>
-										</Box>
-										<Box
-											sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-										>
-											<Tooltip title="- 10 giây">
-												<IconButton
-													size="small"
-													onClick={() => handleYoutubeSeekBy(-10)}
-													sx={{ color: "white" }}
-												>
-													<Replay10Icon fontSize="small" />
-												</IconButton>
-											</Tooltip>
-											<Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
-												<IconButton
-													size="small"
-													onClick={handleYoutubePlayPause}
-													sx={{ color: "white" }}
-												>
-													{isPlaying ? (
-														<PauseIcon fontSize="small" />
-													) : (
-														<PlayArrowIcon fontSize="small" />
-													)}
-												</IconButton>
-											</Tooltip>
-											<Tooltip title="+ 10 giây">
-												<IconButton
-													size="small"
-													onClick={() => handleYoutubeSeekBy(10)}
-													sx={{ color: "white" }}
-												>
-													<Forward10Icon fontSize="small" />
-												</IconButton>
-											</Tooltip>
-											<Tooltip title={youtubeMuted ? "Bật âm" : "Tắt âm"}>
-												<IconButton
-													size="small"
-													onClick={handleYoutubeToggleMute}
-													sx={{ color: "white", ml: "auto" }}
-												>
-													{youtubeMuted || volume === 0 ? (
-														<VolumeOffIcon fontSize="small" />
-													) : (
-														<VolumeUpIcon fontSize="small" />
-													)}
-												</IconButton>
-											</Tooltip>
-											<Slider
-												size="small"
-												min={0}
-												max={1}
-												step={0.05}
-												value={youtubeMuted ? 0 : volume}
-												onChange={(_, value) =>
-													setVolume(Array.isArray(value) ? value[0] : value)
-												}
-												sx={{
-													width: 76,
-													color: "white",
-													height: 3,
-													"& .MuiSlider-thumb": { width: 10, height: 10 },
-													"& .MuiSlider-rail": { opacity: 0.35 },
-												}}
-											/>
-											<Tooltip title="Tốc độ">
-												<IconButton
-													size="small"
-													onClick={(event) =>
-														setSpeedMenuAnchor(event.currentTarget)
-													}
-													sx={{
-														color: "white",
-														borderRadius: 1,
-														fontSize: 12,
-														fontWeight: 800,
-														minWidth: 34,
-													}}
-												>
-													{youtubePlaybackRate}x
-												</IconButton>
-											</Tooltip>
-											<Tooltip
-												title={youtubeFullscreen ? "Thu nhỏ" : "Phóng to"}
-											>
-												<IconButton
-													size="small"
-													onClick={handleYoutubeFullscreen}
-													sx={{ color: "white" }}
-												>
-													{youtubeFullscreen ? (
-														<FullscreenExitIcon fontSize="small" />
-													) : (
-														<FullscreenIcon fontSize="small" />
-													)}
-												</IconButton>
-											</Tooltip>
-										</Box>
-									</Box>
-								)}
-							</Box>
-							<Stack
-								direction="row"
-								spacing={0.5}
-								sx={{
-									position: "absolute",
-									top: 0,
-									right: 0,
-									display: compactPlayer ? "none" : "flex",
-								}}
-							>
-								<Tooltip
-									title={
-										collapseWholePlayerFromVideo
-											? "Thu gọn trình phát"
-											: videoCollapsed
-												? "Mở rộng"
-												: "Thu gọn"
-									}
-								>
-									<IconButton
-										size="small"
-										onClick={() => {
-											if (collapseWholePlayerFromVideo) {
-												collapsePlayer();
-												return;
-											}
-											setCollapsedVideoId((currentId) =>
-												currentId === currentItem?.id
-													? null
-													: (currentItem?.id ?? null),
-											);
-										}}
-										sx={{
-											transition: "transform 0.2s ease",
-											"&:hover": {
-												transform: videoCollapsed
-													? "translateY(-3px)"
-													: "translateY(3px)",
-											},
-											"&:active": {
-												transform: videoCollapsed
-													? "translateY(-1px)"
-													: "translateY(1px)",
-											},
-										}}
-									>
-										{videoCollapsed && !collapseWholePlayerFromVideo ? (
-											<KeyboardArrowUpIcon fontSize="small" />
-										) : (
-											<KeyboardArrowDownIcon fontSize="small" />
-										)}
-									</IconButton>
-								</Tooltip>
-								<Tooltip title="Đóng">
-									<IconButton
-										size="small"
-										onClick={() => {
-											pause();
-											clearQueue();
-										}}
-										sx={{
-											transition: "transform 0.2s ease",
-											"&:hover": { transform: "translateY(-3px)" },
-											"&:active": { transform: "translateY(-1px)" },
-										}}
-									>
-										<CloseIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-							</Stack>
-						</Box>
-						<Menu
-							anchorEl={speedMenuAnchor}
-							open={Boolean(speedMenuAnchor)}
-							onClose={() => setSpeedMenuAnchor(null)}
-						>
-							{youtubePlaybackRates.map((rate) => (
-								<MenuItem
-									key={rate}
-									selected={rate === youtubePlaybackRate}
-									onClick={() => handleYoutubePlaybackRate(rate)}
-								>
-									{rate}x
-								</MenuItem>
-							))}
-						</Menu>
-					</Box>
-				)}
-				{/* biome-ignore lint/a11y/useMediaCaption: Music streams do not provide caption tracks through the current API. */}
-				<audio
-					ref={audioRef}
-					src={
-						currentItem?.type === "audio" ? currentItem.streamUrl : undefined
-					}
-					onEnded={handleEnded}
-					onTimeUpdate={(event) => {
-						const audio = event.currentTarget;
-						setAudioCurrentTime(audio.currentTime || 0);
-						setAudioDuration(audio.duration || 0);
-					}}
-					/>
-					{compactPlayer ? (
-						<Stack
-							key="compact-player"
-							direction="row"
-							spacing={1}
-							alignItems="center"
-							sx={{
-								cursor: "pointer",
-								animation:
-									"playerModeEnter 200ms cubic-bezier(0.4, 0, 0.2, 1)",
-							}}
-						>
-							<Avatar
-								variant="rounded"
-								src={currentItem?.thumbnail}
-								sx={{ width: 40, height: 40, borderRadius: 1, flexShrink: 0 }}
-							/>
-							<Box sx={{ minWidth: 0, flex: 1 }}>
-								<Typography noWrap sx={{ fontWeight: 800, fontSize: 14 }}>
-									{formatDisplayName(currentItem?.title) ||
-										"Chọn bài hát hoặc video"}
-								</Typography>
-								<Typography
-									noWrap
-									color="text.secondary"
-									sx={{ fontSize: 12 }}
-								>
-									{formatDisplayName(currentItem?.artist) ||
-										"Playlist cho MP3 và YouTube"}
-								</Typography>
-							</Box>
-							<Stack
-								direction="row"
-								spacing={0}
-								alignItems="center"
-								onClick={(event) => event.stopPropagation()}
-								sx={{ flexShrink: 0 }}
-							>
-								<Tooltip title="Trước">
-									<IconButton size="small" onClick={previous}>
-										<SkipPreviousIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-								<Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
-									<IconButton
-										size="small"
-										color="primary"
-										onClick={isPlaying ? pause : resume}
-										disabled={!currentItem}
-									>
-										{isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-									</IconButton>
-								</Tooltip>
-								<Tooltip title="Tiếp">
-									<IconButton size="small" onClick={next}>
-										<SkipNextIcon />
-									</IconButton>
-								</Tooltip>
-								<Tooltip title="Mở rộng">
-									<IconButton size="small" onClick={expandPlayer}>
-										<KeyboardArrowUpIcon />
-									</IconButton>
-								</Tooltip>
-								<Tooltip title="Đóng">
-									<IconButton
-										size="small"
-										onClick={() => {
-											pause();
-											clearQueue();
-										}}
-									>
-										<CloseIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-							</Stack>
-						</Stack>
-					) : isCompactViewport ? (
-						<Box
-							key="expanded-compact-player"
-							sx={{
-								display: "grid",
-								position: "relative",
-								gridTemplateColumns: "64px minmax(0, 1fr)",
-								gridTemplateRows: "20px 20px 28px",
-								columnGap: 1,
-								rowGap: 0.25,
-								alignItems: "center",
-								animation:
-									"playerModeEnter 200ms cubic-bezier(0.4, 0, 0.2, 1)",
-							}}
-						>
-							<Avatar
-								variant="rounded"
-								src={currentItem?.thumbnail}
-								sx={{
-									gridColumn: 1,
-									gridRow: "1 / 4",
-									width: 64,
-									height: 64,
-									borderRadius: 1,
-								}}
-							/>
-							<Typography
-								noWrap
-								sx={{
-									gridColumn: 2,
-									gridRow: 1,
-									minWidth: 0,
-									fontWeight: 800,
-									fontSize: 13,
-									pr: 7,
-								}}
-							>
-								{formatDisplayName(currentItem?.title) ||
-									"Chọn bài hát hoặc video"}
-								{currentItem?.artist
-									? ` • ${formatDisplayName(currentItem.artist)}`
-									: ""}
-							</Typography>
-							<Box
-								sx={{
-									gridColumn: 2,
-									gridRow: 2,
-									minWidth: 0,
-									display: "flex",
-									alignItems: "center",
-									gap: 0.75,
-								}}
-							>
-								<Slider
-									size="small"
-									min={0}
-									max={compactDuration || 1}
-									value={Math.min(compactCurrentTime, compactDuration || 1)}
-									disabled={!currentItem}
-									onChange={(_, value) => {
-										const nextTime = Array.isArray(value) ? value[0] : value;
-										if (currentItem?.type === "video") {
-											handleYoutubeSeek(nextTime);
-										} else {
-											handleAudioSeek(nextTime);
-										}
-									}}
-									sx={{
-										flex: 1,
-										minWidth: 0,
-										height: 3,
-										py: 0.25,
-										"& .MuiSlider-thumb": { width: 9, height: 9 },
-										"& .MuiSlider-rail": { opacity: 0.3 },
-									}}
-								/>
-								<Typography
-									sx={{
-										flexShrink: 0,
-										fontSize: 10,
-										fontVariantNumeric: "tabular-nums",
-										color: "text.secondary",
-									}}
-								>
-									{formatDuration(compactCurrentTime)} /{" "}
-									{formatDuration(compactDuration)}
-								</Typography>
-							</Box>
-							<Stack
-								direction="row"
-								spacing={0}
-								alignItems="center"
-								sx={{
-									gridColumn: 2,
-									gridRow: 3,
-									minWidth: 0,
-									"& .MuiIconButton-root": {
-										flexShrink: 0,
-										p: 0.4,
-									},
-								}}
-							>
-								<Tooltip title="Trộn bài">
-									<IconButton
-										size="small"
-										color={shuffle ? "primary" : "default"}
-										onClick={toggleShuffle}
-									>
-										<ShuffleIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-								<Tooltip title={`Lặp: ${capitalize(repeat)}`}>
-									<IconButton
-										size="small"
-										color={repeat !== "off" ? "primary" : "default"}
-										onClick={toggleRepeat}
-									>
-										<RepeatIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-								<Tooltip
-									title={compactMuted ? "Bật âm" : "Tắt âm"}
-								>
-									<IconButton size="small" onClick={handleCompactToggleMute}>
-										{compactMuted ? (
-											<VolumeOffIcon fontSize="small" />
-										) : (
-											<VolumeUpIcon fontSize="small" />
-										)}
-									</IconButton>
-								</Tooltip>
-								<Box sx={{ flex: 1 }} />
-								<Stack
-									direction="row"
-									spacing={0}
-									alignItems="center"
-									sx={{ flexShrink: 0 }}
-								>
-									<Tooltip title="Trước">
-										<IconButton size="small" onClick={previous}>
-											<SkipPreviousIcon fontSize="small" />
-										</IconButton>
-									</Tooltip>
-									{!isMobileViewport && (
-										<Tooltip
-											title={
-												currentItem?.type === "video"
-													? "- 10 giây"
-													: "- 5 giây"
-											}
-										>
-											<IconButton
-												size="small"
-												onClick={() =>
-													currentItem?.type === "video"
-														? handleYoutubeSeekBy(-10)
-														: handleAudioSeekBy(-5)
-												}
-											>
-												{currentItem?.type === "video" ? (
-													<Replay10Icon fontSize="small" />
-												) : (
-													<Replay5Icon fontSize="small" />
-												)}
-											</IconButton>
-										</Tooltip>
-									)}
-									<Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
-										<IconButton
-											size="small"
-											color="primary"
-											onClick={isPlaying ? pause : resume}
-											disabled={!currentItem}
-										>
-											{isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-										</IconButton>
-									</Tooltip>
-									{!isMobileViewport && (
-										<Tooltip
-											title={
-												currentItem?.type === "video"
-													? "+ 10 giây"
-													: "+ 5 giây"
-											}
-										>
-											<IconButton
-												size="small"
-												onClick={() =>
-													currentItem?.type === "video"
-														? handleYoutubeSeekBy(10)
-														: handleAudioSeekBy(5)
-												}
-											>
-												{currentItem?.type === "video" ? (
-													<Forward10Icon fontSize="small" />
-												) : (
-													<Forward5Icon fontSize="small" />
-												)}
-											</IconButton>
-										</Tooltip>
-									)}
-									<Tooltip title="Tiếp">
-										<IconButton size="small" onClick={next}>
-											<SkipNextIcon fontSize="small" />
-										</IconButton>
-									</Tooltip>
-								</Stack>
-							</Stack>
-							<Stack
-								direction="row"
-								spacing={0}
-								sx={{
-									position: "absolute",
-									top: -4,
-									right: -4,
-									"& .MuiIconButton-root": { p: 0.4 },
-								}}
-							>
-								<Tooltip title="Thu gọn">
-									<IconButton size="small" onClick={collapsePlayer}>
-										<KeyboardArrowDownIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-								<Tooltip title="Đóng">
-									<IconButton
-										size="small"
-										onClick={() => {
-											pause();
-											clearQueue();
-										}}
-									>
-										<CloseIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-							</Stack>
-						</Box>
-				) : (
-						<Stack
-							key="expanded-desktop-player"
-							direction="row"
-							spacing={1.5}
-							alignItems="center"
-							sx={{
-								animation:
-									"playerModeEnter 200ms cubic-bezier(0.4, 0, 0.2, 1)",
-							}}
-						>
-					<Avatar
-						variant="rounded"
-						src={currentItem?.thumbnail}
-						sx={{ width: 52, height: 52, borderRadius: 1 }}
-					/>
-					<Box sx={{ minWidth: 0, flex: 1 }}>
-						<Typography noWrap sx={{ fontWeight: 800 }}>
-							{formatDisplayName(currentItem?.title) ||
-								"Chọn bài hát hoặc video"}
-						</Typography>
-						<Typography noWrap variant="body2" color="text.secondary">
-							{formatDisplayName(currentItem?.artist) ||
-								"Playlist cho MP3 và YouTube"}
-						</Typography>
-						{currentItem?.type === "video" && (
-							<Box
-								sx={{
-									display: "flex",
-									alignItems: "center",
-									gap: 0.75,
-									mt: 0.5,
-								}}
-							>
-								<Slider
-									size="small"
-									min={0}
-									max={youtubeDuration || currentItem?.duration || 1}
-									value={Math.min(
-										youtubeCurrentTime,
-										youtubeDuration || currentItem?.duration || 1,
-									)}
-									onChange={(_, value) => {
-										handleYoutubeSeek(Array.isArray(value) ? value[0] : value);
-										showYoutubeControlsTemporarily();
-									}}
-									sx={{
-										flex: 1,
-										height: 3,
-										py: 0.5,
-										"& .MuiSlider-thumb": { width: 10, height: 10 },
-										"& .MuiSlider-rail": { opacity: 0.3 },
-									}}
-								/>
-								<Typography
-									sx={{
-										fontVariantNumeric: "tabular-nums",
-										fontSize: 10,
-										color: "text.secondary",
-										flexShrink: 0,
-									}}
-								>
-									{formatDuration(youtubeCurrentTime)} /{" "}
-									{formatDuration(youtubeDuration || currentItem?.duration)}
-								</Typography>
-							</Box>
-						)}
-						{currentItem?.type !== "video" && (
-							<Box
-								sx={{
-									display: "flex",
-									alignItems: "center",
-									gap: 0.75,
-									mt: 0.5,
-								}}
-							>
-								<Slider
-									size="small"
-									min={0}
-									max={audioDuration || currentItem?.duration || 1}
-									value={Math.min(
-										audioCurrentTime,
-										audioDuration || currentItem?.duration || 1,
-									)}
-									onChange={(_, value) =>
-										handleAudioSeek(Array.isArray(value) ? value[0] : value)
-									}
-									sx={{
-										flex: 1,
-										height: 3,
-										py: 0.5,
-										"& .MuiSlider-thumb": { width: 10, height: 10 },
-										"& .MuiSlider-rail": { opacity: 0.3 },
-									}}
-								/>
-								<Typography
-									sx={{
-										fontVariantNumeric: "tabular-nums",
-										fontSize: 10,
-										color: "text.secondary",
-										flexShrink: 0,
-									}}
-								>
-									{formatDuration(audioCurrentTime)} /{" "}
-									{formatDuration(audioDuration || currentItem?.duration)}
-								</Typography>
-							</Box>
-						)}
-					</Box>
-					<Stack direction="row" spacing={0.5} alignItems="center">
-						<Box sx={{ display: { xs: "none", sm: "flex" } }}>
-							<Tooltip title="Trộn bài">
-								<IconButton
-									color={shuffle ? "primary" : "default"}
-									onClick={toggleShuffle}
-								>
-									<ShuffleIcon />
-								</IconButton>
-							</Tooltip>
-						</Box>
-						<Tooltip title="Trước">
-							<IconButton onClick={previous}>
-								<SkipPreviousIcon />
-							</IconButton>
-						</Tooltip>
-						{currentItem?.type === "audio" && (
-							<Box sx={{ display: { xs: "none", sm: "flex" } }}>
-								<Tooltip title="- 5 giây">
-									<IconButton onClick={() => handleAudioSeekBy(-5)}>
-										<Replay5Icon />
-									</IconButton>
-								</Tooltip>
-							</Box>
-						)}
-						<Tooltip title={isPlaying ? "Tạm dừng" : "Phát"}>
-							<IconButton
-								color="primary"
-								onClick={isPlaying ? pause : resume}
-								disabled={!currentItem}
-							>
-								{isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-							</IconButton>
-						</Tooltip>
-						{currentItem?.type === "audio" && (
-							<Box sx={{ display: { xs: "none", sm: "flex" } }}>
-								<Tooltip title="+ 5 giây">
-									<IconButton onClick={() => handleAudioSeekBy(5)}>
-										<Forward5Icon />
-									</IconButton>
-								</Tooltip>
-							</Box>
-						)}
-						<Tooltip title="Tiếp">
-							<IconButton onClick={next}>
-								<SkipNextIcon />
-							</IconButton>
-						</Tooltip>
-						<Box sx={{ display: { xs: "none", sm: "flex" } }}>
-							<Tooltip title={`Lặp: ${capitalize(repeat)}`}>
-								<IconButton
-									color={repeat !== "off" ? "primary" : "default"}
-									onClick={toggleRepeat}
-								>
-									<RepeatIcon />
-								</IconButton>
-							</Tooltip>
-						</Box>
-					</Stack>
-						<Stack
-						direction="row"
-						spacing={1}
-						alignItems="center"
-						sx={{
-							display: { xs: "none", sm: "flex" },
-							width: { sm: 80, md: 150 },
-						}}
-					>
-						<VolumeUpIcon fontSize="small" />
-						<Slider
-							min={0}
-							max={1}
-							step={0.01}
-							value={volume}
-							onChange={(_, value) =>
-								setVolume(Array.isArray(value) ? value[0] : value)
-							}
-							aria-label="Volume"
-							/>
-						</Stack>
-						{currentItem?.type !== "video" && (
-							<Stack direction="row" spacing={0}>
-								<Tooltip title="Thu gọn">
-									<IconButton
-										size="small"
-										onClick={collapsePlayer}
-									>
-										<KeyboardArrowDownIcon />
-									</IconButton>
-								</Tooltip>
-								<Tooltip title="Đóng">
-									<IconButton
-										size="small"
-										onClick={() => {
-											pause();
-											clearQueue();
-										}}
-									>
-										<CloseIcon fontSize="small" />
-									</IconButton>
-								</Tooltip>
-							</Stack>
-						)}
-					</Stack>
-				)}
-			</Box>
-		</Paper>
-	);
+                    {/* Zone 3: Volume + extras */}
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 0.5,
+                        }}
+                    >
+                        {currentItem?.type === "video" && (
+                            <Tooltip title={videoCollapsed ? "Mở video" : "Thu gọn video"}>
+                                <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                        setCollapsedVideoId((id) =>
+                                            id === currentItem?.id
+                                                ? null
+                                                : (currentItem?.id ?? null),
+                                        )
+                                    }
+                                    sx={{
+                                        color: "rgba(255,255,255,0.5)",
+                                        "&:hover": { color: "white" },
+                                    }}
+                                >
+                                    {videoCollapsed ? (
+                                        <KeyboardArrowUpIcon sx={{ fontSize: 18 }} />
+                                    ) : (
+                                        <KeyboardArrowDownIcon sx={{ fontSize: 18 }} />
+                                    )}
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                        <Tooltip title={volume === 0 ? "Bật âm" : "Tắt âm"}>
+                            <IconButton
+                                size="small"
+                                onClick={() => setVolume((v) => (v === 0 ? 1 : 0))}
+                                sx={{
+                                    color: "rgba(255,255,255,0.5)",
+                                    "&:hover": { color: "white" },
+                                }}
+                            >
+                                {volumeIcon}
+                            </IconButton>
+                        </Tooltip>
+                        <SpotifySlider value={volume} max={1} onChange={setVolume} width={100} />
+                        <Tooltip title="Đóng">
+                            <IconButton
+                                size="small"
+                                onClick={() => {
+                                    pause();
+                                    clearQueue();
+                                }}
+                                sx={{
+                                    color: "rgba(255,255,255,0.3)",
+                                    "&:hover": { color: "white" },
+                                    ml: 0.5,
+                                }}
+                            >
+                                <CloseIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+                </Box>
+            )}
+        </Box>
+    );
 };

@@ -1,9 +1,5 @@
 import { CreateGroupDialog, UserSearchDialog } from "@components/messenger";
-import type {
-	FilePreview,
-	ImagePreview,
-	VideoPreview,
-} from "@components/messenger/composer/types";
+import type { FilePreview, ImagePreview, VideoPreview } from "@components/messenger/composer/types";
 import {
 	buildGradientFromStops,
 	isImageBackgroundValue,
@@ -36,7 +32,11 @@ import {
 	useNewMessageNotification,
 	useSendMessengerMessage,
 } from "@hooks/messenger";
-import { getConversation, getConversations } from "@/services/messengerService";
+import {
+	getConversation,
+	getConversations,
+	getMessengerApiErrorMessage,
+} from "@/services/messengerService";
 import { Box, useTheme } from "@mui/material";
 import { MessengerContent } from "@pages/messenger/components/MessengerContent";
 import { MessengerSidebar } from "@pages/messenger/components/MessengerSidebar";
@@ -63,13 +63,7 @@ import {
 import { getActiveThemes } from "@/services/themeService";
 import { speakText } from "@/services/ttsService";
 import type { IUser } from "@/types";
-import type {
-	Conversation,
-	Message,
-	PaginatedResult,
-	Participant,
-	User,
-} from "@/types/messenger";
+import type { Conversation, Message, PaginatedResult, Participant, User } from "@/types/messenger";
 
 const REACTION_SPAM_INTERVAL_MS = 300;
 
@@ -215,9 +209,7 @@ export default function MessengerPage() {
 	const actions = useMessengerConversationActions();
 	const markReadAction = actions.markRead;
 	const patchParticipantSeenSeq = actions.patchParticipantSeenSeq;
-	const messageActions = useMessengerMessageActions(
-		selectedConversationId ?? undefined,
-	);
+	const messageActions = useMessengerMessageActions(selectedConversationId ?? undefined);
 	const ws = useSharedMessengerWS();
 	const onlineUserIds = useMessengerPresence();
 	const queryClient = useQueryClient();
@@ -270,9 +262,7 @@ export default function MessengerPage() {
 
 				const areVideosEqual =
 					existingDraft?.videos?.length === videos.length &&
-					existingDraft?.videos?.every(
-						(v, i) => v.preview === videos[i]?.preview,
-					);
+					existingDraft?.videos?.every((v, i) => v.preview === videos[i]?.preview);
 
 				const areFilesEqual =
 					existingDraft?.files?.length === files.length &&
@@ -323,9 +313,7 @@ export default function MessengerPage() {
 	});
 
 	const PAGE_SIZE = 20;
-	const [extraConversations, setExtraConversations] = useState<Conversation[]>(
-		[],
-	);
+	const [extraConversations, setExtraConversations] = useState<Conversation[]>([]);
 	const [hasMoreConversations, setHasMoreConversations] = useState(true);
 	const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
 	const loadMoreConversationsInFlight = useRef(false);
@@ -420,21 +408,29 @@ export default function MessengerPage() {
 		if (isMobile) {
 			setShowConversationList(false);
 		}
-		setSearchParams((prev) => {
-			prev.delete("conversationId");
-			return prev;
-		}, { replace: true });
-	}, [searchParams, conversations, isMobile, setSelectedConversationId, setShowConversationList, setSearchParams]);
+		setSearchParams(
+			(prev) => {
+				prev.delete("conversationId");
+				return prev;
+			},
+			{ replace: true },
+		);
+	}, [
+		searchParams,
+		conversations,
+		isMobile,
+		setSelectedConversationId,
+		setShowConversationList,
+		setSearchParams,
+	]);
 
 	const conversationsWithDrafts = useMemo(
 		() =>
 			conversations.map((conversation) => ({
 				...conversation,
 				draftText: conversationDrafts[conversation.id]?.text,
-				draftImageCount:
-					conversationDrafts[conversation.id]?.images.length ?? 0,
-				draftVideoCount:
-					conversationDrafts[conversation.id]?.videos?.length ?? 0,
+				draftImageCount: conversationDrafts[conversation.id]?.images.length ?? 0,
+				draftVideoCount: conversationDrafts[conversation.id]?.videos?.length ?? 0,
 				draftFileCount: conversationDrafts[conversation.id]?.files?.length ?? 0,
 				hasSending: pendingMessages.some(
 					(m) => m.conversation_id === conversation.id && m.pending === true,
@@ -461,8 +457,7 @@ export default function MessengerPage() {
 
 	const isConversationVisible = useCallback(
 		(conversation: Conversation) =>
-			conversation.is_group ||
-			(conversation.last_message_content ?? "").trim().length > 0,
+			conversation.is_group || (conversation.last_message_content ?? "").trim().length > 0,
 		[],
 	);
 
@@ -498,8 +493,7 @@ export default function MessengerPage() {
 				? unreadConversations
 				: archivedConversations;
 	const isNotificationsEnabled = useCallback(
-		(conversation?: Conversation) =>
-			conversation?.notifications_enabled ?? false,
+		(conversation?: Conversation) => conversation?.notifications_enabled ?? false,
 		[],
 	);
 
@@ -520,11 +514,7 @@ export default function MessengerPage() {
 		}
 
 		return undefined;
-	}, [
-		selectedConversationId,
-		justCreatedConversation,
-		conversationsWithDrafts,
-	]);
+	}, [selectedConversationId, justCreatedConversation, conversationsWithDrafts]);
 
 	const selectedConversationTheme = useMemo(() => {
 		if (!selectedConversation) {
@@ -540,9 +530,7 @@ export default function MessengerPage() {
 			};
 		}
 
-		const parsed = parseConversationThemeConfig(
-			selectedConversation.background,
-		);
+		const parsed = parseConversationThemeConfig(selectedConversation.background);
 		const themeData = selectedConversation.theme;
 		const persisted = {
 			background:
@@ -561,14 +549,11 @@ export default function MessengerPage() {
 				selectedConversation.incoming_bubble_color,
 			outgoingBubbleColor:
 				themeData?.outgoing_bubble_color ||
-				(parsed.outgoingBubbleColor ??
-					selectedConversation.outgoing_bubble_color),
+				(parsed.outgoingBubbleColor ?? selectedConversation.outgoing_bubble_color),
 			incomingTextColor:
-				themeData?.incoming_text_color ||
-				selectedConversation.incoming_text_color,
+				themeData?.incoming_text_color || selectedConversation.incoming_text_color,
 			outgoingTextColor:
-				themeData?.outgoing_text_color ||
-				selectedConversation.outgoing_text_color,
+				themeData?.outgoing_text_color || selectedConversation.outgoing_text_color,
 			presetId: themeData?.preset_id || parsed.presetId,
 			themeId: selectedConversation.theme_id ?? themeData?.id,
 		};
@@ -580,9 +565,7 @@ export default function MessengerPage() {
 		return {
 			background: merged.background || undefined,
 			themeUrl: merged.themeUrl,
-			backgroundColor: hasTheme
-				? merged.backgroundColor || undefined
-				: undefined,
+			backgroundColor: hasTheme ? merged.backgroundColor || undefined : undefined,
 			incomingBubbleColor: hasTheme
 				? merged.incomingBubbleColor || DEFAULT_INCOMING_BUBBLE_COLOR
 				: undefined,
@@ -590,11 +573,9 @@ export default function MessengerPage() {
 				? merged.outgoingBubbleColor || DEFAULT_OUTGOING_BUBBLE_COLOR
 				: undefined,
 			incomingTextColor:
-				merged.incomingTextColor ??
-				(theme.palette.mode === "dark" ? "#f8fafc" : "#1e293b"),
+				merged.incomingTextColor ?? (theme.palette.mode === "dark" ? "#f8fafc" : "#1e293b"),
 			outgoingTextColor:
-				merged.outgoingTextColor ??
-				(theme.palette.mode === "dark" ? "#ffffff" : "#ffffff"),
+				merged.outgoingTextColor ?? (theme.palette.mode === "dark" ? "#ffffff" : "#ffffff"),
 			presetId: merged.presetId || "",
 			themeId: merged.themeId,
 		};
@@ -610,16 +591,9 @@ export default function MessengerPage() {
 			return currentUser?.fullname || "Bạn";
 		}
 
-		const participant = selectedConversation.participants.find(
-			(item) => item.id === senderId,
-		);
+		const participant = selectedConversation.participants.find((item) => item.id === senderId);
 		return participant?.nickname || participant?.fullname || "Người dùng";
-	}, [
-		replyingMessage,
-		selectedConversation,
-		currentUser?.id,
-		currentUser?.fullname,
-	]);
+	}, [replyingMessage, selectedConversation, currentUser?.id, currentUser?.fullname]);
 
 	const messagesQuery = useMessengerMessages(
 		selectedConversationId ?? undefined,
@@ -670,11 +644,7 @@ export default function MessengerPage() {
 		if (latestCount > 0) {
 			nextOlderOffsetRef.current = latestCount;
 		}
-	}, [
-		messagesQuery.data?.items?.length,
-		olderMessages.length,
-		nextOlderOffsetRef,
-	]);
+	}, [messagesQuery.data?.items?.length, olderMessages.length, nextOlderOffsetRef]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -779,9 +749,7 @@ export default function MessengerPage() {
 				// removing them causes a React key change (temp_id → real id) which triggers
 				// an unmount/remount and produces visible jitter.
 				(message) =>
-					!message.temp_id ||
-					!realTempIds.has(message.temp_id) ||
-					!message.pending,
+					!message.temp_id || !realTempIds.has(message.temp_id) || !message.pending,
 			),
 		);
 	}, [messagesQuery.data?.items, setPendingMessages]);
@@ -807,10 +775,7 @@ export default function MessengerPage() {
 				return latest;
 			}
 
-			if (
-				!Number.isFinite(latestCreatedAt) ||
-				currentCreatedAt > latestCreatedAt
-			) {
+			if (!Number.isFinite(latestCreatedAt) || currentCreatedAt > latestCreatedAt) {
 				return current;
 			}
 
@@ -822,8 +787,7 @@ export default function MessengerPage() {
 		}
 
 		const currentUserIdValue = String(currentUserId ?? "");
-		const isIncomingMessage =
-			String(latestMessage.sender_id) !== currentUserIdValue;
+		const isIncomingMessage = String(latestMessage.sender_id) !== currentUserIdValue;
 		const isUnread = !latestMessage.is_read;
 		if (!isIncomingMessage || !isUnread) {
 			return;
@@ -844,9 +808,7 @@ export default function MessengerPage() {
 		const lastMessageSenderId = Number(latestMessage.sender_id);
 		void markReadAction.mutateAsync({
 			conversationId: selectedConversationId,
-			lastReadSeq: Number.isFinite(messageSeq as number)
-				? (messageSeq as number)
-				: undefined,
+			lastReadSeq: Number.isFinite(messageSeq as number) ? (messageSeq as number) : undefined,
 			lastMessageAt: latestMessage.created_at,
 			lastMessageContent: latestMessage.content,
 			lastMessageSenderId: Number.isFinite(lastMessageSenderId)
@@ -905,13 +867,11 @@ export default function MessengerPage() {
 			// Merge activity messages so they appear inline with real messages.
 			const activitiesRaw = Array.isArray(raw.activities) ? raw.activities : [];
 			const activityMessages = activitiesRaw.map(toActivityMessage);
-			const mergedItems = [...parsed.items, ...activityMessages].sort(
-				(a, b) => {
-					const ta = new Date(a.created_at).getTime();
-					const tb = new Date(b.created_at).getTime();
-					return ta !== tb ? ta - tb : 0;
-				},
-			);
+			const mergedItems = [...parsed.items, ...activityMessages].sort((a, b) => {
+				const ta = new Date(a.created_at).getTime();
+				const tb = new Date(b.created_at).getTime();
+				return ta !== tb ? ta - tb : 0;
+			});
 
 			queryClient.setQueryData(
 				messengerKeys.messages(String(conversationId), MESSAGE_PAGE_SIZE, 0),
@@ -975,11 +935,8 @@ export default function MessengerPage() {
 				const exists = old.items.some(
 					(m) =>
 						(newMsg.id > 0 && m.id === newMsg.id) ||
-						(newMsg.temp_id &&
-							newMsg.temp_id !== "" &&
-							m.temp_id === newMsg.temp_id) ||
-						(messageSeq > 0 &&
-							(m.message_seq === messageSeq || m.seq === messageSeq)),
+						(newMsg.temp_id && newMsg.temp_id !== "" && m.temp_id === newMsg.temp_id) ||
+						(messageSeq > 0 && (m.message_seq === messageSeq || m.seq === messageSeq)),
 				);
 				if (exists) return old;
 				return { ...old, items: [...old.items, newMsg], total: old.total + 1 };
@@ -988,49 +945,37 @@ export default function MessengerPage() {
 			// Update conversation in-place: last_message fields + move to top.
 			// Avoids a full conversations.list WS round-trip on every new message.
 			const conversationsKey = messengerKeys.conversations(20, 0);
-			queryClient.setQueryData<PaginatedResult<Conversation>>(
-				conversationsKey,
-				(old) => {
-					if (!old) return old;
-					const idx = old.items.findIndex((c) => c.id === conversationId);
-					if (idx === -1) return old;
-					const conv = old.items[idx];
-					const isSender =
-						msg.sender_id != null &&
-						Number(msg.sender_id) === Number(currentUserId);
-					const isCurrentConversation =
-						conversationId === selectedConversationIdRef.current;
-					const updated: Conversation = {
-						...conv,
-						last_message_id: msg.id ?? conv.last_message_id,
-						last_message_content:
-							msg.content ??
-							msg.last_message_content ??
-							conv.last_message_content,
-						last_message_at:
-							msg.created_at ?? msg.last_message_at ?? conv.last_message_at,
-						last_message_sender_id:
-							msg.sender_id != null
-								? Number(msg.sender_id)
-								: conv.last_message_sender_id,
-						last_message_type: msg.message_type ?? conv.last_message_type,
-						unread_count:
-							isSender || isCurrentConversation
-								? conv.unread_count
-								: (conv.unread_count ?? 0) + 1,
-					};
-					const others = old.items.filter((_, i) => i !== idx);
-					return { ...old, items: [updated, ...others] };
-				},
-			);
+			queryClient.setQueryData<PaginatedResult<Conversation>>(conversationsKey, (old) => {
+				if (!old) return old;
+				const idx = old.items.findIndex((c) => c.id === conversationId);
+				if (idx === -1) return old;
+				const conv = old.items[idx];
+				const isSender =
+					msg.sender_id != null && Number(msg.sender_id) === Number(currentUserId);
+				const isCurrentConversation = conversationId === selectedConversationIdRef.current;
+				const updated: Conversation = {
+					...conv,
+					last_message_id: msg.id ?? conv.last_message_id,
+					last_message_content:
+						msg.content ?? msg.last_message_content ?? conv.last_message_content,
+					last_message_at: msg.created_at ?? msg.last_message_at ?? conv.last_message_at,
+					last_message_sender_id:
+						msg.sender_id != null ? Number(msg.sender_id) : conv.last_message_sender_id,
+					last_message_type: msg.message_type ?? conv.last_message_type,
+					unread_count:
+						isSender || isCurrentConversation
+							? conv.unread_count
+							: (conv.unread_count ?? 0) + 1,
+				};
+				const others = old.items.filter((_, i) => i !== idx);
+				return { ...old, items: [updated, ...others] };
+			});
 
 			// Play sound + flash title + desktop popup for incoming messages from others.
 			const isSenderCurrentUser =
-				msg.sender_id != null &&
-				Number(msg.sender_id) === Number(currentUserId);
+				msg.sender_id != null && Number(msg.sender_id) === Number(currentUserId);
 			const isViewingConversation =
-				conversationId === selectedConversationIdRef.current &&
-				document.hasFocus();
+				conversationId === selectedConversationIdRef.current && document.hasFocus();
 			if (!isSenderCurrentUser && !isViewingConversation) {
 				void (async () => {
 					const conv =
@@ -1044,7 +989,7 @@ export default function MessengerPage() {
 					notifyNewMessage({
 						senderName: senderParticipant?.fullname,
 						conversationName: conv.is_group ? conv.name : undefined,
-						content: getMessagePreviewContent(msg),
+						content: getMessagePreviewContent(toMessage(msg)),
 						senderAvatar: senderParticipant?.avatar,
 					});
 				})();
@@ -1059,8 +1004,7 @@ export default function MessengerPage() {
 						: undefined,
 					lastMessageAt: msg.created_at ?? msg.last_message_at,
 					lastMessageContent: msg.content ?? msg.last_message_content,
-					lastMessageSenderId:
-						msg.sender_id != null ? Number(msg.sender_id) : undefined,
+					lastMessageSenderId: msg.sender_id != null ? Number(msg.sender_id) : undefined,
 					currentUserId: Number(currentUserId),
 				});
 			}
@@ -1077,16 +1021,12 @@ export default function MessengerPage() {
 			const applyUpdate = (m: Message): Message =>
 				m.id === event.id
 					? {
-						...m,
-						content: event.content ?? m.content,
-						updated_at: event.updated_at ?? m.updated_at,
-					}
+							...m,
+							content: event.content ?? m.content,
+							updated_at: event.updated_at ?? m.updated_at,
+						}
 					: m;
-			const key = messengerKeys.messages(
-				String(event.conversation_id),
-				MESSAGE_PAGE_SIZE,
-				0,
-			);
+			const key = messengerKeys.messages(String(event.conversation_id), MESSAGE_PAGE_SIZE, 0);
 			queryClient.setQueryData<PaginatedResult<Message>>(key, (old) => {
 				if (!old) return old;
 				return { ...old, items: old.items.map(applyUpdate) };
@@ -1100,11 +1040,7 @@ export default function MessengerPage() {
 				conversation_id?: number;
 			};
 			if (!event.message_id || !event.conversation_id) return;
-			const key = messengerKeys.messages(
-				String(event.conversation_id),
-				MESSAGE_PAGE_SIZE,
-				0,
-			);
+			const key = messengerKeys.messages(String(event.conversation_id), MESSAGE_PAGE_SIZE, 0);
 			queryClient.setQueryData<PaginatedResult<Message>>(key, (old) => {
 				if (!old) return old;
 				const items = old.items.filter((m) => m.id !== event.message_id);
@@ -1122,13 +1058,8 @@ export default function MessengerPage() {
 			};
 			if (!event.message_id || !event.conversation_id) return;
 			const eventUserId = String(event.user_id ?? "");
-			const isCurrentUser =
-				eventUserId !== "" && eventUserId === String(currentUserId ?? "");
-			const key = messengerKeys.messages(
-				String(event.conversation_id),
-				MESSAGE_PAGE_SIZE,
-				0,
-			);
+			const isCurrentUser = eventUserId !== "" && eventUserId === String(currentUserId ?? "");
+			const key = messengerKeys.messages(String(event.conversation_id), MESSAGE_PAGE_SIZE, 0);
 			queryClient.setQueryData<PaginatedResult<Message>>(key, (old) => {
 				if (!old) return old;
 				return {
@@ -1140,18 +1071,23 @@ export default function MessengerPage() {
 						);
 						return {
 							...m,
-							my_reaction: isCurrentUser
-								? (event.reaction ?? null)
-								: m.my_reaction,
+							my_reaction: isCurrentUser ? (event.reaction ?? null) : m.my_reaction,
 							reactions: event.reaction
-								? [
-									...withoutUser,
-									{ user_id: eventUserId, emoji: event.reaction },
-								]
+								? [...withoutUser, { user_id: eventUserId, emoji: event.reaction }]
 								: withoutUser,
 						};
 					}),
 				};
+			});
+
+			// A reaction to somebody else's message creates a synthetic
+			// `reaction` last-message row for its owner. Refresh the conversation
+			// cache immediately so "ABC đã thả … tin nhắn của bạn" appears
+			// without requiring a page reload.
+			ws.listConversations({
+				requestId: crypto.randomUUID(),
+				limit: 20,
+				page: 1,
 			});
 		};
 
@@ -1163,13 +1099,8 @@ export default function MessengerPage() {
 			};
 			if (!event.message_id || !event.conversation_id) return;
 			const eventUserId = String(event.user_id ?? "");
-			const isCurrentUser =
-				eventUserId !== "" && eventUserId === String(currentUserId ?? "");
-			const key = messengerKeys.messages(
-				String(event.conversation_id),
-				MESSAGE_PAGE_SIZE,
-				0,
-			);
+			const isCurrentUser = eventUserId !== "" && eventUserId === String(currentUserId ?? "");
+			const key = messengerKeys.messages(String(event.conversation_id), MESSAGE_PAGE_SIZE, 0);
 			queryClient.setQueryData<PaginatedResult<Message>>(key, (old) => {
 				if (!old) return old;
 				return {
@@ -1219,11 +1150,7 @@ export default function MessengerPage() {
 		}) => {
 			if (!data.conversation_id || !data.user_id || !data.last_read_seq) return;
 			if (data.user_id === Number(currentUserId)) return;
-			patchParticipantSeenSeq(
-				data.conversation_id,
-				data.user_id,
-				data.last_read_seq,
-			);
+			patchParticipantSeenSeq(data.conversation_id, data.user_id, data.last_read_seq);
 		};
 
 		const handleActivityCreated = (data: unknown) => {
@@ -1348,10 +1275,7 @@ export default function MessengerPage() {
 
 	const cleanupPendingEmptyConversationIfNeeded = useCallback(
 		async (nextConversationId?: number | null) => {
-			if (
-				!pendingEmptyConversationId ||
-				pendingEmptyConversationId === nextConversationId
-			) {
+			if (!pendingEmptyConversationId || pendingEmptyConversationId === nextConversationId) {
 				return;
 			}
 
@@ -1401,14 +1325,10 @@ export default function MessengerPage() {
 			const existingConversation = conversations.find(
 				(conv) =>
 					!conv.is_group &&
-					conv.participants.some(
-						(participant) => participant.id === participantId,
-					) &&
+					conv.participants.some((participant) => participant.id === participantId) &&
 					(!Number.isFinite(currentUserId) ||
 						currentUserId <= 0 ||
-						conv.participants.some(
-							(participant) => participant.id === currentUserId,
-						)),
+						conv.participants.some((participant) => participant.id === currentUserId)),
 			);
 
 			if (existingConversation) {
@@ -1577,10 +1497,7 @@ export default function MessengerPage() {
 			setShowInfoPanel(false);
 		}
 		if (searchAllKeyword.trim().length >= 2) {
-			void loadConversationSearchDetails(
-				selectedConversation.id,
-				searchAllKeyword,
-			);
+			void loadConversationSearchDetails(selectedConversation.id, searchAllKeyword);
 		} else {
 			setSearchDetailResults([]);
 		}
@@ -1655,9 +1572,7 @@ export default function MessengerPage() {
 				setShowConversationList(false);
 			}
 
-			const conversation = conversations.find(
-				(item) => item.id === conversationId,
-			);
+			const conversation = conversations.find((item) => item.id === conversationId);
 
 			const isReactionNotify = (() => {
 				if (conversation?.last_message_type !== "reaction") return false;
@@ -1688,9 +1603,7 @@ export default function MessengerPage() {
 				(participant) => participant.id === Number(currentUserId),
 			);
 			const lastReadSeq = Number(
-				currentUserParticipant?.last_read_seq ??
-				conversation.last_read_message_id ??
-				0,
+				currentUserParticipant?.last_read_seq ?? conversation.last_read_message_id ?? 0,
 			);
 			setOpeningUnreadSnapshot({
 				conversationId,
@@ -1704,8 +1617,7 @@ export default function MessengerPage() {
 
 			if (messages.length > 0) {
 				const sortedMessages = [...messages].sort(
-					(a, b) =>
-						(a.message_seq ?? a.seq ?? 0) - (b.message_seq ?? b.seq ?? 0),
+					(a, b) => (a.message_seq ?? a.seq ?? 0) - (b.message_seq ?? b.seq ?? 0),
 				);
 				const latestMessage = sortedMessages[sortedMessages.length - 1];
 				latestMessageSeq = latestMessage?.message_seq ?? latestMessage?.seq;
@@ -1866,16 +1778,13 @@ export default function MessengerPage() {
 				themeUrl?: string | File;
 			},
 		) => {
-			if (!config.themeId) {
-				open?.({ type: "error", message: "Vui lòng chọn theme" });
-				return;
-			}
-
 			try {
 				await actions.updateBackground.mutateAsync({
 					conversationId: conversation.id,
 					themeId: config.themeId,
 					themeUrl: config.themeUrl,
+					background: config.background,
+					backgroundColor: config.backgroundColor,
 					customIncomingBubbleColor: config.incomingBubbleColor || undefined,
 					customOutgoingBubbleColor: config.outgoingBubbleColor || undefined,
 					customIncomingTextColor: config.incomingTextColor || undefined,
@@ -1886,22 +1795,19 @@ export default function MessengerPage() {
 					...prev,
 					[conversation.id]: {
 						...config,
-						themeUrl:
-							typeof config.themeUrl === "string" ? config.themeUrl : undefined,
+						themeUrl: typeof config.themeUrl === "string" ? config.themeUrl : undefined,
 					},
 				}));
 				await conversationsQuery.refetch();
 				open?.({ type: "success", message: "Đã cập nhật background" });
-			} catch {
-				open?.({ type: "error", message: "Không thể cập nhật background" });
+			} catch (error) {
+				open?.({
+					type: "error",
+					message: getMessengerApiErrorMessage(error, "Không thể cập nhật background"),
+				});
 			}
 		},
-		[
-			actions.updateBackground,
-			conversationsQuery,
-			open,
-			setConversationThemeOverrides,
-		],
+		[actions.updateBackground, conversationsQuery, open, setConversationThemeOverrides],
 	);
 
 	const handleChangeQuickReaction = useCallback(
@@ -1950,11 +1856,7 @@ export default function MessengerPage() {
 			setOpenCreateGroupDialog(true);
 			setShowInfoPanel(false);
 		},
-		[
-			setCreateGroupPreselectedParticipants,
-			setOpenCreateGroupDialog,
-			setShowInfoPanel,
-		],
+		[setCreateGroupPreselectedParticipants, setOpenCreateGroupDialog, setShowInfoPanel],
 	);
 
 	const handleCreateGroup = useCallback(
@@ -2018,13 +1920,7 @@ export default function MessengerPage() {
 				open?.({ type: "error", message: "Không thể mở trò chuyện trực tiếp" });
 			}
 		},
-		[
-			currentUser?.id,
-			createConversation,
-			handleSelectConversation,
-			open,
-			setShowInfoPanel,
-		],
+		[currentUser?.id, createConversation, handleSelectConversation, open, setShowInfoPanel],
 	);
 
 	const handleToggleNotifications = useCallback(
@@ -2093,10 +1989,7 @@ export default function MessengerPage() {
 		setSearchDetailConversationId(null);
 		setSearchDetailSource(null);
 		setSearchDetailResults([]);
-		if (
-			searchDetailSource === "global" &&
-			searchAllKeyword.trim().length >= 2
-		) {
+		if (searchDetailSource === "global" && searchAllKeyword.trim().length >= 2) {
 			setSearchAllActive(true);
 		}
 
@@ -2135,10 +2028,7 @@ export default function MessengerPage() {
 			setSearchDetailConversationId(null);
 			setSearchDetailSource(null);
 			setSearchDetailResults([]);
-			if (
-				searchDetailSource === "global" &&
-				searchAllKeyword.trim().length >= 2
-			) {
+			if (searchDetailSource === "global" && searchAllKeyword.trim().length >= 2) {
 				setSearchAllActive(true);
 			}
 		}
@@ -2215,9 +2105,7 @@ export default function MessengerPage() {
 				}
 
 				// Check if user is already selected or is already a participant
-				const isAlreadySelected = prev.selectedUsers?.some(
-					(u) => u.id === user.id,
-				);
+				const isAlreadySelected = prev.selectedUsers?.some((u) => u.id === user.id);
 				const isAlreadyParticipant = prev.conversation.participants.some(
 					(p) => p.id === Number(user.id),
 				);
@@ -2225,8 +2113,7 @@ export default function MessengerPage() {
 				if (isAlreadySelected || isAlreadyParticipant) {
 					open?.({
 						type: "error",
-						message:
-							"Người dùng này đã được chọn hoặc đã là thành viên của nhóm",
+						message: "Người dùng này đã được chọn hoặc đã là thành viên của nhóm",
 					});
 					return prev;
 				}
@@ -2250,9 +2137,7 @@ export default function MessengerPage() {
 
 				return {
 					...prev,
-					selectedUsers: (prev.selectedUsers || []).filter(
-						(u) => u.id !== userId,
-					),
+					selectedUsers: (prev.selectedUsers || []).filter((u) => u.id !== userId),
 				};
 			});
 		},
@@ -2307,12 +2192,7 @@ export default function MessengerPage() {
 				setAvatarUploadConversationId(null);
 			}
 		},
-		[
-			avatarUploadConversationId,
-			actions.updateAvatar,
-			open,
-			setAvatarUploadConversationId,
-		],
+		[avatarUploadConversationId, actions.updateAvatar, open, setAvatarUploadConversationId],
 	);
 
 	const _handleImageFileSelected = useCallback(
@@ -2388,9 +2268,7 @@ export default function MessengerPage() {
 					return;
 				}
 
-				const userIds = selectedUsers
-					.map((u) => Number(u.id))
-					.filter(Number.isFinite);
+				const userIds = selectedUsers.map((u) => Number(u.id)).filter(Number.isFinite);
 				await actions.addMembers.mutateAsync({
 					conversationId: inputDialog.conversation.id,
 					userIds,
@@ -2425,11 +2303,9 @@ export default function MessengerPage() {
 					incomingBubbleColor,
 					outgoingBubbleColor,
 					incomingTextColor:
-						inputDialog.conversation.incoming_text_color ||
-						DEFAULT_INCOMING_TEXT_COLOR,
+						inputDialog.conversation.incoming_text_color || DEFAULT_INCOMING_TEXT_COLOR,
 					outgoingTextColor:
-						inputDialog.conversation.outgoing_text_color ||
-						DEFAULT_OUTGOING_TEXT_COLOR,
+						inputDialog.conversation.outgoing_text_color || DEFAULT_OUTGOING_TEXT_COLOR,
 					presetId: themePresetId || undefined,
 					themeId: selectedTheme.id,
 				};
@@ -2572,9 +2448,7 @@ export default function MessengerPage() {
 						return;
 					}
 
-					const nextEnabled = !isNotificationsEnabled(
-						confirmDialog.conversation,
-					);
+					const nextEnabled = !isNotificationsEnabled(confirmDialog.conversation);
 					await actions.updateNotifications.mutateAsync({
 						conversationId: confirmDialog.conversation.id,
 						enabled: nextEnabled,
@@ -2659,16 +2533,11 @@ export default function MessengerPage() {
 	}, [setEditingMessage]);
 
 	const applyLocalReaction = useCallback(
-		(
-			target: Message,
-			reaction: string,
-			action: "toggle" | "remove" = "toggle",
-		): Message => {
+		(target: Message, reaction: string, action: "toggle" | "remove" = "toggle"): Message => {
 			const userId = String(currentUser?.id ?? "");
 			const currentReaction = target.my_reaction ?? null;
 			const shouldRemove =
-				action === "remove" ||
-				(Boolean(currentReaction) && currentReaction === reaction);
+				action === "remove" || (Boolean(currentReaction) && currentReaction === reaction);
 			const reactions = target.reactions ?? [];
 			const withoutMine = userId
 				? reactions.filter((item) => String(item.user_id) !== userId)
@@ -2686,11 +2555,7 @@ export default function MessengerPage() {
 	);
 
 	const handleToggleReaction = useCallback(
-		async (
-			message: Message,
-			reaction = "👍",
-			action: "toggle" | "remove" = "toggle",
-		) => {
+		async (message: Message, reaction = "👍", action: "toggle" | "remove" = "toggle") => {
 			const now = Date.now();
 			if (now - lastReactionAtRef.current < REACTION_SPAM_INTERVAL_MS) {
 				open?.({
@@ -2705,11 +2570,7 @@ export default function MessengerPage() {
 			const messageId = Number(message.id);
 			const messagesQueryKey =
 				selectedConversationId != null
-					? messengerKeys.messages(
-						String(selectedConversationId),
-						MESSAGE_PAGE_SIZE,
-						0,
-					)
+					? messengerKeys.messages(String(selectedConversationId), MESSAGE_PAGE_SIZE, 0)
 					: null;
 			const previousMessagesCache = messagesQueryKey
 				? queryClient.getQueryData<PaginatedResult<Message>>(messagesQueryKey)
@@ -2720,17 +2581,13 @@ export default function MessengerPage() {
 
 			setPendingMessages((prev) =>
 				prev.map((item) =>
-					matchesMessage(item)
-						? applyLocalReaction(item, reaction, action)
-						: item,
+					matchesMessage(item) ? applyLocalReaction(item, reaction, action) : item,
 				),
 			);
 			if (messagesQueryKey) {
-				queryClient.setQueryData<PaginatedResult<Message>>(
-					messagesQueryKey,
-					(current) =>
-						current
-							? {
+				queryClient.setQueryData<PaginatedResult<Message>>(messagesQueryKey, (current) =>
+					current
+						? {
 								...current,
 								items: current.items.map((item) =>
 									matchesMessage(item)
@@ -2738,7 +2595,7 @@ export default function MessengerPage() {
 										: item,
 								),
 							}
-							: current,
+						: current,
 				);
 			}
 
@@ -2834,10 +2691,8 @@ export default function MessengerPage() {
 		shouldRestoreConversationListAfterPanelRef,
 	]);
 
-	const showSidebar =
-		!isMobile || !selectedConversation || showConversationList;
-	const showDetail =
-		!isMobile || (!!selectedConversation && !showConversationList);
+	const showSidebar = !isMobile || !selectedConversation || showConversationList;
+	const showDetail = !isMobile || (!!selectedConversation && !showConversationList);
 	const showOverlayBackdrop = showInfoPanel || shouldShowSearchDetailPanel;
 
 	// Intercept browser swipe-back gesture on mobile so it returns to the
@@ -2861,12 +2716,8 @@ export default function MessengerPage() {
 		}
 
 		// Xác định các tin nhắn đã có trong session để tránh lặp khi query refetch
-		const sessionTempIds = new Set(
-			sessionMessages.map((m) => m.temp_id).filter(Boolean),
-		);
-		const sessionIds = new Set(
-			sessionMessages.map((m) => m.id).filter((id) => id > 0),
-		);
+		const sessionTempIds = new Set(sessionMessages.map((m) => m.temp_id).filter(Boolean));
+		const sessionIds = new Set(sessionMessages.map((m) => m.id).filter((id) => id > 0));
 
 		const filteredHistorical = Array.from(historicalMap.values()).filter(
 			(m) => !sessionTempIds.has(m.temp_id) && !sessionIds.has(m.id),
@@ -2889,23 +2740,20 @@ export default function MessengerPage() {
 			(openingUnreadSnapshot?.conversationId === selectedConversation?.id &&
 				Number(openingUnreadSnapshot?.unreadCount || 0) > 0));
 
-	const { unreadBoundaryMessageId, initialUnreadScrollMessageId } =
-		useConversationUnread({
-			selectedConversation,
-			displayedMessages,
-			messagesLoading: messagesQuery.isLoading,
-			isLoadingMoreMessages,
-			hasMoreOlderMessages,
-			handleLoadMoreMessages,
-			openingUnreadSnapshot,
-			currentUserId: currentUser?.id,
-		});
+	const { unreadBoundaryMessageId, initialUnreadScrollMessageId } = useConversationUnread({
+		selectedConversation,
+		displayedMessages,
+		messagesLoading: messagesQuery.isLoading,
+		isLoadingMoreMessages,
+		hasMoreOlderMessages,
+		handleLoadMoreMessages,
+		openingUnreadSnapshot,
+		currentUserId: currentUser?.id,
+	});
 
 	const shouldShowSearchAllResults = searchAllActive;
 	const isSidebarSearching = Boolean(
-		searchAllKeyword.trim() ||
-		shouldShowSearchAllResults ||
-		searchDetailConversationId,
+		searchAllKeyword.trim() || shouldShowSearchAllResults || searchDetailConversationId,
 	);
 
 	const _renderHighlightedText = (text: string, keyword: string): ReactNode => {
@@ -2914,10 +2762,7 @@ export default function MessengerPage() {
 			return text;
 		}
 
-		const escapedKeyword = normalizedKeyword.replace(
-			/[.*+?^${}()|[\]\\]/g,
-			"\\$&",
-		);
+		const escapedKeyword = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 		const parts = text.split(new RegExp(`(${escapedKeyword})`, "ig"));
 		let offset = 0;
 		return parts.map((part) => {
@@ -2955,8 +2800,7 @@ export default function MessengerPage() {
 		return Array.from(groups.entries())
 			.map(([conversationId, messages]) => {
 				const sorted = [...messages].sort(
-					(a, b) =>
-						new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+					(a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
 				);
 				return {
 					conversationId,
@@ -3022,8 +2866,7 @@ export default function MessengerPage() {
 							: "";
 	const _isImageUploadMode = inputDialog?.mode === "background";
 	const previewBackgroundRaw = inputDialog?.value || "";
-	const _shouldShowBackgroundOverlay =
-		isImageBackgroundValue(previewBackgroundRaw);
+	const _shouldShowBackgroundOverlay = isImageBackgroundValue(previewBackgroundRaw);
 	const previewConversation =
 		inputDialog?.mode === "background" ? inputDialog.conversation : undefined;
 	const _previewConversationName = previewConversation
@@ -3040,9 +2883,7 @@ export default function MessengerPage() {
 					top: isMobile ? `${mobileViewport?.offsetTop ?? 0}px` : undefined,
 					left: isMobile ? 0 : undefined,
 					right: isMobile ? 0 : undefined,
-					bottom: isMobile
-						? undefined
-						: "var(--persistent-music-player-height, 0px)",
+					bottom: isMobile ? undefined : "var(--persistent-music-player-height, 0px)",
 					height: isMobile
 						? mobileViewport?.height
 							? `calc(${mobileViewport.height}px - var(--persistent-music-player-height, 0px))`

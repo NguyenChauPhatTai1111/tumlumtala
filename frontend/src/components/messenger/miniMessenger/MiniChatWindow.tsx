@@ -151,7 +151,7 @@ export function MiniChatWindow({
 				onOpenCreateGroup={() => setCreateGroupOpen(true)}
 				onAudioCall={() => startConversationCall(conversation, "audio")}
 				onVideoCall={() => startConversationCall(conversation, "video")}
-				callDisabled={conversation.is_group}
+				callDisabled={false}
 			/>
 
 			<MessageList
@@ -204,6 +204,8 @@ export function MiniChatWindow({
 					onSend={handleSend}
 					quickReaction={conversation.quick_reaction}
 					ws={ws}
+					participants={conversation.participants}
+					currentUserId={Number(currentUserId ?? 0)}
 					useDefaultTheme
 				/>
 			</Box>

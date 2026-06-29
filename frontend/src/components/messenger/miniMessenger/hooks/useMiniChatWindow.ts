@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import {
 	createConversation,
 	getMessages,
+	getMessengerApiErrorMessage,
 	sendMessage,
 	setQuickReaction,
 	uploadMessageAttachment,
@@ -25,6 +26,7 @@ import {
 import { getActiveThemes } from "@/services/themeService";
 import type {
 	Conversation,
+	MentionItem,
 	Message,
 	PaginatedResult,
 	SendMessagePayloadItem,
@@ -316,10 +318,12 @@ export function useMiniChatWindow({
 			text: string | SendMessagePayloadItem[],
 			type?: string,
 			itemId?: number,
+			options?: { tempId?: string; skipOptimistic?: boolean; mentions?: MentionItem[] },
 		) => {
-			// Spam detection: block if sent less than SPAM_INTERVAL_MS ago
+			// Spam detection: skip for attachment messages (file/image/video)
 			const now = Date.now();
-			if (now - lastSentAtRef.current < SPAM_INTERVAL_MS) {
+			const hasAttachment = Array.isArray(text) && text.some((item) => item.file);
+			if (!hasAttachment && now - lastSentAtRef.current < SPAM_INTERVAL_MS) {
 				open?.({
 					type: "error",
 					message: "Bạn đang gửi tin nhắn quá nhanh. Vui lòng chờ một chút.",
@@ -423,6 +427,7 @@ export function useMiniChatWindow({
 						replyingMessage && Number.isFinite(Number(replyingMessage.id))
 							? Number(replyingMessage.id)
 							: undefined,
+					mentions: options?.mentions,
 				});
 
 				updateMessageInCache(
@@ -847,26 +852,39 @@ export function useMiniChatWindow({
 			themeUrl?: string | File;
 		},
 	) => {
-		if (!config.themeId) return;
-		await conversationActions.updateBackground.mutateAsync({
-			conversationId: targetConversation.id,
-			themeId: config.themeId,
-			themeUrl: config.themeUrl,
-			customIncomingBubbleColor: config.incomingBubbleColor,
-			customOutgoingBubbleColor: config.outgoingBubbleColor,
-			customIncomingTextColor: config.incomingTextColor,
-			customOutgoingTextColor: config.outgoingTextColor,
-		});
-		patchConversationCache((item) => ({
-			...item,
-			theme_id: config.themeId,
-			background: config.background,
-			background_color: config.backgroundColor,
-			incoming_bubble_color: config.incomingBubbleColor,
-			outgoing_bubble_color: config.outgoingBubbleColor,
-			incoming_text_color: config.incomingTextColor,
-			outgoing_text_color: config.outgoingTextColor,
-		}));
+		try {
+			await conversationActions.updateBackground.mutateAsync({
+				conversationId: targetConversation.id,
+				themeId: config.themeId,
+				themeUrl: config.themeUrl,
+				background: config.background,
+				backgroundColor: config.backgroundColor,
+				customIncomingBubbleColor: config.incomingBubbleColor,
+				customOutgoingBubbleColor: config.outgoingBubbleColor,
+				customIncomingTextColor: config.incomingTextColor,
+				customOutgoingTextColor: config.outgoingTextColor,
+			});
+			patchConversationCache((item) => ({
+				...item,
+				theme_id: config.themeId,
+				theme: config.themeId === item.theme?.id ? item.theme : undefined,
+				background: config.background,
+				background_color: config.backgroundColor,
+				incoming_bubble_color: config.incomingBubbleColor,
+				outgoing_bubble_color: config.outgoingBubbleColor,
+				incoming_text_color: config.incomingTextColor,
+				outgoing_text_color: config.outgoingTextColor,
+			}));
+		} catch (error) {
+			open?.({
+				type: "error",
+				message: getMessengerApiErrorMessage(
+					error,
+					"Không thể cập nhật giao diện",
+				),
+			});
+			throw error;
+		}
 	};
 
 	const handleChangeQuickReaction = async (

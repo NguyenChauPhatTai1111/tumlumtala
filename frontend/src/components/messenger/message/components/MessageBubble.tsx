@@ -5,6 +5,7 @@ import {
 } from "@components/messenger/dialogs/FilePreviewModal";
 import type { MessageBubbleProps } from "@components/messenger/types/messages";
 import { getReadableTextColor } from "@components/messenger/utils/color";
+import { stripMentionSyntax } from "@/utils/mentionUtils";
 import { isMessageEdited } from "@components/messenger/utils/message";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
@@ -177,7 +178,7 @@ const BubbleReplyText = ({
 			noWrap
 			sx={{ color, opacity: 0.8, maxWidth: 180, display: "block" }}
 		>
-			{replyMessage.content}
+			{stripMentionSyntax(replyMessage.content)}
 		</Typography>
 	);
 };

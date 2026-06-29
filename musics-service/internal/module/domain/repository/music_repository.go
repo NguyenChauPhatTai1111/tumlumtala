@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/history"
+	"github.com/tumlumtala/musics-service/internal/module/domain/entity/library"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/liked"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/media"
 	"github.com/tumlumtala/musics-service/internal/module/domain/entity/playlist"
@@ -21,5 +22,9 @@ type MusicRepository interface {
 	ListSearchHistory(ctx context.Context, userUUID string) ([]search.SearchHistory, error)
 	CreatePlaylist(ctx context.Context, p playlist.Playlist) (*playlist.Playlist, error)
 	ListPlaylists(ctx context.Context, userUUID string) ([]playlist.Playlist, error)
+	DeletePlaylist(ctx context.Context, userUUID string, playlistID uint64) error
 	AddPlaylistTrack(ctx context.Context, userUUID string, playlistID uint64, item media.MediaItem, position int) (*playlist.PlaylistTrack, error)
+	ListLibraryItems(ctx context.Context, userUUID string) ([]library.Item, error)
+	AddLibraryItem(ctx context.Context, item library.Item) (*library.Item, error)
+	RemoveLibraryItem(ctx context.Context, userUUID string, itemID uint64) error
 }

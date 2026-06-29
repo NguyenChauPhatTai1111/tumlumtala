@@ -20,7 +20,7 @@ import {
 	Typography,
 } from "@mui/material";
 import MessengerCustomizeDialog from "@pages/messenger/dialogs/MessengerCustomizeDialog";
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { MessengerWebSocketService } from "@/services/messengerWebSocketService";
 import type { IUser } from "@/types";
 import type {
@@ -36,6 +36,7 @@ import {
 	MessengerSearchDetailPanel,
 } from "./MessengerPanels";
 import { useGlobalCall } from "@/features/calls";
+import { OngoingCallBanner } from "@/features/calls/components/OngoingCallBanner";
 import { useSwipeBack } from "@/hooks/ui/useSwipeBack";
 
 export type MessengerContentProps = {
@@ -238,7 +239,7 @@ export const MessengerContent = memo(
 			useState<HTMLElement | null>(null);
 		const [avatarMenuParticipant, setAvatarMenuParticipant] =
 			useState<Participant | null>(null);
-		const { startConversationCall, callState } = useGlobalCall();
+		const { startConversationCall, callState, activeGroupCalls, joinGroupCall } = useGlobalCall();
 
 		const swipeBack = useSwipeBack({
 			onSwipe: onBack,
@@ -252,13 +253,34 @@ export const MessengerContent = memo(
 			"connected",
 			"reconnecting",
 		].includes(callState);
-		const callDisabled =
+
+		// For 1-on-1 conversations, disable call if not exactly 2 participants
+		const isDirectCallDisabled =
 			isInActiveCall ||
 			!selectedConversation ||
-			selectedConversation.is_group ||
-			selectedConversation.participants.filter(
-				(participant) => Number(participant.id) !== Number(currentUser?.id),
-			).length !== 1;
+			(!selectedConversation.is_group &&
+				selectedConversation.participants.filter(
+					(participant) => Number(participant.id) !== Number(currentUser?.id),
+				).length !== 1);
+		const callDisabled = isDirectCallDisabled;
+
+		// Active group call in this conversation
+			const ongoingGroupCall = selectedConversation?.is_group
+				? activeGroupCalls.get(selectedConversation.id)
+				: undefined;
+
+			useEffect(() => {
+				if (!selectedConversation?.is_group || !ws) return;
+				const requestActiveCall = () => {
+					ws.sendCall("call:group-status", {
+						conversation_id: selectedConversation.id,
+					});
+				};
+				const handlers = { onConnected: requestActiveCall };
+				ws.addHandlers(handlers);
+				if (ws.isConnected()) requestActiveCall();
+				return () => ws.removeHandlers(handlers);
+			}, [selectedConversation?.id, selectedConversation?.is_group, ws]);
 
 		const handleAvatarClick = useCallback(
 			(anchor: HTMLElement, senderId: string) => {
@@ -450,11 +472,17 @@ export const MessengerContent = memo(
 								callDisabledReason={
 									isInActiveCall
 										? "Bạn đang trong một cuộc gọi khác"
-										: "Chỉ hỗ trợ cuộc trò chuyện 1-1"
+										: undefined
 								}
 								showBackButton={isMobile}
 								onBack={onBack}
 							/>
+							{ongoingGroupCall && !isInActiveCall ? (
+								<OngoingCallBanner
+									info={ongoingGroupCall}
+									onJoin={() => joinGroupCall(selectedConversation)}
+								/>
+							) : null}
 							<Box
 								sx={{
 									flex: 1,
@@ -557,6 +585,8 @@ export const MessengerContent = memo(
 								draftFiles={draftFiles}
 								onDraftChange={onDraftChange}
 								ws={ws}
+								participants={selectedConversation.participants}
+								currentUserId={Number(currentUser?.id ?? 0)}
 								onCancelReply={onCancelReply}
 								onCancelEdit={onCancelEdit}
 								onSend={onSend}

@@ -7,7 +7,7 @@ import (
 )
 
 type UserConversation struct {
-	ID                        uint       `gorm:"primaryKey"`
+	ID                        uint `gorm:"primaryKey"`
 	IsGroup                   bool
 	Name                      string
 	Avatar                    string
@@ -45,6 +45,8 @@ func (m *UserConversation) ToEntity() *entity.UserConversation {
 		Avatar:                    m.Avatar,
 		ThemeID:                   m.ThemeID,
 		ThemeURL:                  m.ThemeURL,
+		Background:                m.Background,
+		BackgroundColor:           m.BackgroundColor,
 		CustomIncomingBubbleColor: m.CustomIncomingBubbleColor,
 		CustomOutgoingBubbleColor: m.CustomOutgoingBubbleColor,
 		CustomIncomingTextColor:   m.CustomIncomingTextColor,
@@ -68,6 +70,8 @@ func ConversationFromEntity(e *entity.UserConversation) *UserConversation {
 		Avatar:                    e.Avatar,
 		ThemeID:                   e.ThemeID,
 		ThemeURL:                  e.ThemeURL,
+		Background:                e.Background,
+		BackgroundColor:           e.BackgroundColor,
 		CustomIncomingBubbleColor: e.CustomIncomingBubbleColor,
 		CustomOutgoingBubbleColor: e.CustomOutgoingBubbleColor,
 		CustomIncomingTextColor:   e.CustomIncomingTextColor,

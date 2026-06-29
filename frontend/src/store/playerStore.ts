@@ -22,6 +22,8 @@ interface PlayerStore {
 	toggleRepeat: () => void;
 	toggleLike: (item: MediaItem) => void;
 	clearQueue: () => void;
+	appendToQueue: (items: MediaItem[]) => void;
+	replaceQueue: (items: MediaItem[], startIndex?: number) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({
@@ -73,7 +75,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 		}
 		const nextItem = state.queue[nextIndex];
 		if (nextItem) {
-			set((_current) => ({
+			set(() => ({
 				currentItem: nextItem,
 				currentIndex: nextIndex,
 				isPlaying: true,
@@ -87,7 +89,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 			state.currentIndex <= 0 ? state.queue.length - 1 : state.currentIndex - 1;
 		const previousItem = state.queue[previousIndex];
 		if (previousItem) {
-			set((_current) => ({
+			set(() => ({
 				currentItem: previousItem,
 				currentIndex: previousIndex,
 				isPlaying: true,
@@ -113,4 +115,20 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 			currentIndex: -1,
 			isPlaying: false,
 		}),
+	appendToQueue: (items) =>
+		set((state) => {
+			const existingIds = new Set(state.queue.map((i) => i.id));
+			const newItems = items.filter((i) => !existingIds.has(i.id));
+			return { queue: [...state.queue, ...newItems] };
+		}),
+	replaceQueue: (items, startIndex = 0) => {
+		const item = items[startIndex] ?? items[0];
+		if (!item) return;
+		set({
+			queue: items,
+			currentItem: item,
+			currentIndex: startIndex,
+			isPlaying: true,
+		});
+	},
 }));

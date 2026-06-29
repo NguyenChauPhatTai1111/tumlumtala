@@ -17,6 +17,21 @@ export type CallState =
     | "failed"
     | "busy";
 
+export const GROUP_CALL_MAX = 8;
+
+export type CallParticipantStatus = "invited" | "joined" | "left" | "declined" | "missed";
+
+export type CallParticipant = {
+    user_id: number;
+    fullname: string;
+    avatar?: string;
+    status: CallParticipantStatus;
+    /** MediaStream from this participant's WebRTC peer connection */
+    stream?: MediaStream;
+    micOn?: boolean;
+    cameraOn?: boolean;
+};
+
 export type CallSession = {
     id: string;
     conversation_id: number;
@@ -24,6 +39,9 @@ export type CallSession = {
     receiver_id: number;
     call_type: CallType;
     status: string;
+    is_group?: boolean;
+    max_participants?: number;
+    participants?: CallParticipant[];
     started_at?: string;
     ended_at?: string;
     duration_seconds?: number;
@@ -34,9 +52,12 @@ export type CallSession = {
 export type CallContext = {
     session: CallSession | null;
     conversation?: Conversation;
+    /** For 1-on-1 calls */
     peer?: Participant;
     callType?: CallType;
     isCaller: boolean;
+    /** For group calls – keyed by user_id */
+    groupParticipants: Map<number, CallParticipant>;
 };
 
 export type CallSignalPayload = Partial<CallSession> & {
@@ -44,6 +65,9 @@ export type CallSignalPayload = Partial<CallSession> & {
     sdp?: RTCSessionDescriptionInit;
     candidate?: RTCIceCandidateInit;
     sender_id?: number;
+    participant_user_id?: number;
+    target_user_id?: number;
     conversation_id?: number;
     call_type?: CallType;
+    participants?: CallParticipant[];
 };

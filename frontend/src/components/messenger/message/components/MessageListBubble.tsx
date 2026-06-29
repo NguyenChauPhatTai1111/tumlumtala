@@ -179,7 +179,7 @@ export const MessageListBubble = ({
 
 	useEffect(() => {
 		if (!actionsLocked) return;
-		const handleOutsideClick = (event: MouseEvent) => {
+		const dismiss = (event: MouseEvent | TouchEvent) => {
 			const target = event.target as Node;
 			if (bubbleRef.current?.contains(target)) return;
 			setActionsLocked(false);
@@ -187,8 +187,12 @@ export const MessageListBubble = ({
 			setReactionPickerAnchorEl(null);
 			setHovered(false);
 		};
-		document.addEventListener("mousedown", handleOutsideClick);
-		return () => document.removeEventListener("mousedown", handleOutsideClick);
+		document.addEventListener("mousedown", dismiss);
+		document.addEventListener("touchstart", dismiss, { passive: true });
+		return () => {
+			document.removeEventListener("mousedown", dismiss);
+			document.removeEventListener("touchstart", dismiss);
+		};
 	}, [actionsLocked]);
 
 	const triggerSuppressEditedLabel = () => {
@@ -262,6 +266,11 @@ export const MessageListBubble = ({
 				? { top: touch.clientY, left: touch.clientX }
 				: { top: 0, left: 0 };
 			onContextMenuOpen?.(pos, message);
+		},
+		onClick: () => {
+			if (isActivityMessage) return;
+			setActionsLocked((prev) => !prev);
+			setHovered((prev) => !prev);
 		},
 	});
 

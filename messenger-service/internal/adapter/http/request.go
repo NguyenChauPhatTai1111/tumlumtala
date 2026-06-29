@@ -47,8 +47,10 @@ type AddMembersRequest struct {
 }
 
 type ChangeBackgroundRequest struct {
-	ThemeID                   uint    `json:"theme_id" form:"theme_id" binding:"required"`
+	ThemeID                   *uint   `json:"theme_id" form:"theme_id"`
 	ThemeURL                  *string `json:"theme_url" form:"theme_url"`
+	Background                string  `json:"background" form:"background"`
+	BackgroundColor           string  `json:"background_color" form:"background_color"`
 	CustomIncomingBubbleColor string  `json:"custom_incoming_bubble_color" form:"custom_incoming_bubble_color"`
 	CustomOutgoingBubbleColor string  `json:"custom_outgoing_bubble_color" form:"custom_outgoing_bubble_color"`
 	CustomIncomingTextColor   string  `json:"custom_incoming_text_color" form:"custom_incoming_text_color"`

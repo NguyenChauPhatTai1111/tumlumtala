@@ -8,6 +8,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { Box, IconButton, Typography } from "@mui/material";
 import type { Message } from "@/types/messenger";
 import { resolveCdnUrl } from "@/utils/urlUtils";
+import { stripMentionSyntax } from "@/utils/mentionUtils";
 
 type ComposerReplyBannerProps = {
 	editingMessage?: Message | null;
@@ -153,7 +154,7 @@ const ReplyMessagePreview = ({ message }: { message: Message }) => {
 				color: "text.secondary",
 			}}
 		>
-			{message.content}
+			{stripMentionSyntax(message.content)}
 		</Typography>
 	);
 };
@@ -204,7 +205,7 @@ export const ComposerReplyBanner = ({
 							color: "text.secondary",
 						}}
 					>
-						{editingMessage.content}
+						{stripMentionSyntax(editingMessage.content)}
 					</Typography>
 				</Box>
 

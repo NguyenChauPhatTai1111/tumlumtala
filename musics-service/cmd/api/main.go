@@ -17,10 +17,12 @@ import (
 	database "github.com/tumlumtala/musics-service/internal/infrastructure/db"
 	kafkainfra "github.com/tumlumtala/musics-service/internal/infrastructure/kafka"
 	historyquery "github.com/tumlumtala/musics-service/internal/module/application/query/history"
+	libraryquery "github.com/tumlumtala/musics-service/internal/module/application/query/library"
 	likedquery "github.com/tumlumtala/musics-service/internal/module/application/query/liked"
 	playlistquery "github.com/tumlumtala/musics-service/internal/module/application/query/playlist"
 	searchquery "github.com/tumlumtala/musics-service/internal/module/application/query/search"
 	historyuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/history"
+	libraryuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/library"
 	likeduc "github.com/tumlumtala/musics-service/internal/module/application/usecase/liked"
 	playlistuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/playlist"
 	searchuc "github.com/tumlumtala/musics-service/internal/module/application/usecase/search"
@@ -60,6 +62,8 @@ func main() {
 		searchuc.NewUseCase(repo),
 		playlistquery.NewQueryService(repo),
 		playlistuc.NewUseCase(repo),
+		libraryquery.NewQueryService(repo),
+		libraryuc.NewUseCase(repo),
 	)
 
 	r := gin.New()

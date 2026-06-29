@@ -1,5 +1,6 @@
 import type { Conversation, Message } from "@/types/messenger";
 import { resolveCdnUrl } from "@/utils/urlUtils";
+import { stripMentionSyntax } from "@/utils/mentionUtils";
 import {
 	getConversationCallPreview,
 	getMessageCallPreview,
@@ -100,7 +101,7 @@ export function getLastMessagePreviewContent(conversation: Conversation) {
 	if (messageType === "sticker") return "Sticker";
 	if (!content) return "Chưa có tin nhắn";
 
-	return content;
+	return stripMentionSyntax(content);
 }
 
 export function getMessagePreviewContent(message: Message) {

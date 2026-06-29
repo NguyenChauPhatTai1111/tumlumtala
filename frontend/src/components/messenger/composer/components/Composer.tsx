@@ -17,6 +17,7 @@ import { addRecentItem } from "@/services/recentItemService";
 import { Box, Typography } from "@mui/material";
 import {
 	type DragEvent,
+	type KeyboardEvent,
 	type MouseEvent,
 	useCallback,
 	useEffect,
@@ -26,9 +27,12 @@ import {
 } from "react";
 import type { IEmoji } from "@/types/emoji";
 import type { ISticker } from "@/types/sticker";
+import type { Participant } from "@/types/messenger";
+import { parseMentions } from "@/utils/mentionUtils";
 import { ComposerImagePreview } from "./ComposerImagePreview";
 import { ComposerInput } from "./ComposerInput";
 import { ComposerReplyBanner } from "./ComposerReplyBanner";
+import { MentionSuggestion } from "./MentionSuggestion";
 import { PickerPopover } from "./PickerPopover";
 
 const EMPTY_IMAGE_PREVIEWS: ImagePreview[] = [];
@@ -52,11 +56,30 @@ export const MessengerComposer = ({
 	onDraftChange,
 	quickReaction,
 	ws,
+	participants,
+	currentUserId,
 	onCancelReply,
 	onCancelEdit,
 	onSend,
 }: MessengerComposerProps) => {
 	const [text, setText] = useState(() => editingMessage?.content ?? draftText);
+
+	// ── Mention state ──────────────────────────────────────────────────────────
+	const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+	const [mentionHighlight, setMentionHighlight] = useState(0);
+	const mentionStartRef = useRef<number>(-1); // caret position where @ was typed
+	// Track confirmed mentions: displayName → { id, fullname }
+	const mentionsMapRef = useRef<Map<string, { id: number; fullname: string }>>(new Map());
+
+	const mentionCandidates: Participant[] = useMemo(() => {
+		if (mentionQuery === null || !participants?.length) return [];
+		const q = mentionQuery.toLowerCase();
+		return participants.filter(
+			(p) =>
+				p.id !== currentUserId &&
+				(p.nickname || p.fullname).toLowerCase().includes(q),
+		);
+	}, [mentionQuery, participants, currentUserId]);
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [pickerAnchorEl, setPickerAnchorEl] = useState<HTMLElement | null>(
 		null,
@@ -176,9 +199,73 @@ export const MessengerComposer = ({
 		null,
 	);
 
+	const selectMention = useCallback(
+		(participant: Participant) => {
+			const start = mentionStartRef.current;
+			if (start < 0) return;
+			const displayName = participant.nickname || participant.fullname;
+			// Store in map: displayName → id (for encoding at send time)
+			mentionsMapRef.current.set(displayName, {
+				id: participant.id,
+				fullname: participant.fullname,
+			});
+			// Insert only "@Name " into the textarea (no syntax brackets)
+			const insert = `@${displayName} `;
+			const before = text.slice(0, start);
+			const afterCursor = text.slice(inputRef.current?.selectionStart ?? text.length);
+			const newText = `${before}${insert}${afterCursor}`;
+			setText(newText);
+			textRef.current = newText;
+			setMentionQuery(null);
+			mentionStartRef.current = -1;
+			setMentionHighlight(0);
+			requestAnimationFrame(() => {
+				const el = inputRef.current;
+				if (!el) return;
+				const pos = before.length + insert.length;
+				el.setSelectionRange(pos, pos);
+				el.focus();
+			});
+		},
+		[text],
+	);
+
+	// Encode display text → storage syntax before sending
+	const encodeContent = useCallback((displayText: string): string => {
+		if (mentionsMapRef.current.size === 0) return displayText;
+		// Replace each @Name with @[Name](id), longest names first to avoid partial matches
+		const names = [...mentionsMapRef.current.keys()].sort((a, b) => b.length - a.length);
+		let encoded = displayText;
+		for (const name of names) {
+			const mention = mentionsMapRef.current.get(name);
+			if (!mention) continue;
+			// Only replace @Name that appears as a word boundary (followed by space, newline, or end)
+			const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			encoded = encoded.replace(
+				new RegExp(`@${escaped}(?=\\s|$)`, "g"),
+				`@[${name}](${mention.id})`,
+			);
+		}
+		return encoded;
+	}, []);
+
 	const handleComposerTextChange = useCallback(
 		(value: string) => {
 			handleTextChange(value, setText);
+
+			// ── Detect @mention trigger ──────────────────────────────────────
+			const el = inputRef.current;
+			const cursor = el?.selectionStart ?? value.length;
+			const textBeforeCursor = value.slice(0, cursor);
+			const atMatch = /@([^@\n]*)$/.exec(textBeforeCursor);
+			if (atMatch) {
+				mentionStartRef.current = atMatch.index;
+				setMentionQuery(atMatch[1]);
+				setMentionHighlight(0);
+			} else {
+				setMentionQuery(null);
+				mentionStartRef.current = -1;
+			}
 
 			if (!editingMessage && onDraftChange) {
 				if (draftChangeTimeoutRef.current) {
@@ -196,6 +283,28 @@ export const MessengerComposer = ({
 			}
 		},
 		[editingMessage, handleTextChange, onDraftChange],
+	);
+
+	const handleComposerKeyDown = useCallback(
+		(e: KeyboardEvent<HTMLDivElement>) => {
+			if (mentionCandidates.length === 0) return;
+			if (e.key === "ArrowDown") {
+				e.preventDefault();
+				setMentionHighlight((h) => (h + 1) % mentionCandidates.length);
+			} else if (e.key === "ArrowUp") {
+				e.preventDefault();
+				setMentionHighlight((h) => (h - 1 + mentionCandidates.length) % mentionCandidates.length);
+			} else if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				selectMention(mentionCandidates[mentionHighlight]);
+			} else if (e.key === "Tab") {
+				e.preventDefault();
+				selectMention(mentionCandidates[mentionHighlight]);
+			} else if (e.key === "Escape") {
+				setMentionQuery(null);
+			}
+		},
+		[mentionCandidates, mentionHighlight, selectMention],
 	);
 
 	const handlePaste = useCallback(
@@ -355,6 +464,7 @@ export const MessengerComposer = ({
 		}
 
 		clearTypingState();
+		setMentionQuery(null);
 
 		const imagesToSend = [...selectedImages];
 		const videosToSend = [...selectedVideos];
@@ -362,7 +472,12 @@ export const MessengerComposer = ({
 		let result: boolean | undefined = true;
 
 		if (trimmed) {
-			const sendTextResult = await onSend(trimmed);
+			const encoded = encodeContent(trimmed);
+			mentionsMapRef.current.clear();
+			const mentions = parseMentions(encoded);
+			const sendTextResult = await onSend(encoded, undefined, undefined, {
+				mentions: mentions.length ? mentions : undefined,
+			});
 			if (sendTextResult === false) return;
 		}
 
@@ -611,40 +726,49 @@ export const MessengerComposer = ({
 					</Typography>
 				) : null}
 
-				<ComposerInput
-					disabled={disabled}
-					text={text}
-					inputRef={inputRef}
-					onTextChange={handleComposerTextChange}
-					outgoingTextColor={outgoingTextColor}
-					onSend={handleSend}
-					onPaste={handlePaste}
-					onOpenEmoji={handleOpenEmoji}
-					onSelectImages={(event) =>
-						handleSelectImages(event, () => {
-							inputRef.current?.focus();
-						})
-					}
-					onSelectVideo={(event) =>
-						handleSelectVideo(event, () => {
-							inputRef.current?.focus();
-						})
-					}
-					onSelectFile={(event) =>
-						handleSelectFile(event, () => {
-							inputRef.current?.focus();
-						})
-					}
-					isCanSend={isCanSend}
-					quickReaction={quickReaction}
-					onQuickEmoji={async () => {
-						if (disabled) return;
-						const reaction = quickReaction?.trim() || "👍";
-						clearTypingState();
-						const result = await onSend(reaction, "emoji");
-						if (result !== false) inputRef.current?.focus();
-					}}
-				/>
+				<Box sx={{ position: "relative" }}>
+					<MentionSuggestion
+						suggestions={mentionCandidates}
+						highlightIndex={mentionHighlight}
+						onSelect={selectMention}
+						anchorEl={inputRef.current?.closest("div") ?? inputRef.current?.parentElement ?? null}
+					/>
+					<ComposerInput
+						disabled={disabled}
+						text={text}
+						inputRef={inputRef}
+						onTextChange={handleComposerTextChange}
+						onKeyDown={handleComposerKeyDown}
+						outgoingTextColor={outgoingTextColor}
+						onSend={handleSend}
+						onPaste={handlePaste}
+						onOpenEmoji={handleOpenEmoji}
+						onSelectImages={(event) =>
+							handleSelectImages(event, () => {
+								inputRef.current?.focus();
+							})
+						}
+						onSelectVideo={(event) =>
+							handleSelectVideo(event, () => {
+								inputRef.current?.focus();
+							})
+						}
+						onSelectFile={(event) =>
+							handleSelectFile(event, () => {
+								inputRef.current?.focus();
+							})
+						}
+						isCanSend={isCanSend}
+						quickReaction={quickReaction}
+						onQuickEmoji={async () => {
+							if (disabled) return;
+							const reaction = quickReaction?.trim() || "👍";
+							clearTypingState();
+							const result = await onSend(reaction, "emoji");
+							if (result !== false) inputRef.current?.focus();
+						}}
+					/>
+				</Box>
 			</Box>
 
 			<PickerPopover

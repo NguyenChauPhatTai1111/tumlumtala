@@ -3,6 +3,7 @@ import {
 	addConversationMembers,
 	archiveConversation,
 	deleteConversation,
+	getConversationMembers,
 	leaveConversation,
 	markAsRead,
 	removeConversationMember,
@@ -18,6 +19,42 @@ import type { Conversation, PaginatedResult } from "@/types/messenger";
 
 export const useMessengerConversationActions = () => {
 	const queryClient = useQueryClient();
+
+	const syncConversationParticipants = async (conversationId: number) => {
+		try {
+			const participants = await getConversationMembers(conversationId);
+
+			queryClient.setQueriesData<PaginatedResult<Conversation>>(
+				{ queryKey: messengerKeys.conversationsRoot() },
+				(oldData) => {
+					if (!oldData || !Array.isArray(oldData.items)) {
+						return oldData;
+					}
+
+					return {
+						...oldData,
+						items: oldData.items.map((conversation) =>
+							conversation.id === conversationId
+								? { ...conversation, participants }
+								: conversation,
+						),
+					};
+				},
+			);
+
+			queryClient.setQueryData<Conversation>(
+				messengerKeys.conversation(String(conversationId)),
+				(oldConversation) =>
+					oldConversation
+						? { ...oldConversation, participants }
+						: oldConversation,
+			);
+		} catch {
+			await queryClient.invalidateQueries({
+				queryKey: messengerKeys.conversationsRoot(),
+			});
+		}
+	};
 
 	const patchConversationReadState = (
 		conversationId: number,
@@ -177,8 +214,8 @@ export const useMessengerConversationActions = () => {
 			conversationId: number;
 			userIds: number[];
 		}) => addConversationMembers(conversationId, userIds),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: messengerKeys.all });
+		onSuccess: async (_result, variables) => {
+			await syncConversationParticipants(variables.conversationId);
 		},
 	});
 
@@ -190,8 +227,8 @@ export const useMessengerConversationActions = () => {
 			conversationId: number;
 			userId: number;
 		}) => removeConversationMember(conversationId, userId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: messengerKeys.all });
+		onSuccess: async (_result, variables) => {
+			await syncConversationParticipants(variables.conversationId);
 		},
 	});
 
@@ -204,10 +241,14 @@ export const useMessengerConversationActions = () => {
 			customOutgoingBubbleColor,
 			customIncomingTextColor,
 			customOutgoingTextColor,
+			background,
+			backgroundColor,
 		}: {
 			conversationId: number;
-			themeId: number;
+			themeId?: number;
 			themeUrl?: string | File;
+			background?: string;
+			backgroundColor?: string;
 			customIncomingBubbleColor?: string;
 			customOutgoingBubbleColor?: string;
 			customIncomingTextColor?: string;
@@ -216,6 +257,8 @@ export const useMessengerConversationActions = () => {
 			updateConversationBackground(conversationId, {
 				theme_id: themeId,
 				theme_url: themeUrl,
+				background,
+				background_color: backgroundColor,
 				custom_incoming_bubble_color: customIncomingBubbleColor,
 				custom_outgoing_bubble_color: customOutgoingBubbleColor,
 				custom_incoming_text_color: customIncomingTextColor,

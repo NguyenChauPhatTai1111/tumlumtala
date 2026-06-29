@@ -200,6 +200,8 @@ export default function MessengerCustomizeDialog({
 			const result = typeof reader.result === "string" ? reader.result : "";
 			setSelectedBackgroundFile(file);
 			setSelectedBackgroundPreview(result);
+			setThemePresetId("");
+			setSelectedThemeId(undefined);
 		};
 		reader.readAsDataURL(file);
 	};
@@ -354,6 +356,7 @@ export default function MessengerCustomizeDialog({
 
 	const clearSelectedTheme = React.useCallback(() => {
 		setThemePresetId("");
+		setSelectedThemeId(undefined);
 	}, []);
 
 	const handleIncomingBubbleColorChange = React.useCallback(

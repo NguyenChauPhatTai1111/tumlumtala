@@ -30,3 +30,7 @@ func (u *UseCase) Create(ctx context.Context, userUUID string, req playlistdto.C
 func (u *UseCase) AddTrack(ctx context.Context, userUUID string, playlistID uint64, req playlistdto.AddPlaylistTrackRequest) (*playlist.PlaylistTrack, error) {
 	return u.repo.AddPlaylistTrack(ctx, userUUID, playlistID, mediauc.FromRequest(userUUID, req.MediaItem), req.Position)
 }
+
+func (u *UseCase) Delete(ctx context.Context, userUUID string, playlistID uint64) error {
+	return u.repo.DeletePlaylist(ctx, userUUID, playlistID)
+}
