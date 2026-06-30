@@ -44,6 +44,34 @@ import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
 import { TrackInfoButton } from "./TrackInfoDialog";
 
 const SPOTIFY_GREEN = "#f97316";
+const PLAYBACK_POSITION_STORAGE_KEY = "music-player-position-v1";
+
+const getSavedPlaybackPosition = (itemId: string) => {
+    try {
+        const saved = JSON.parse(localStorage.getItem(PLAYBACK_POSITION_STORAGE_KEY) ?? "null") as {
+            itemId?: string;
+            position?: number;
+        } | null;
+        return saved?.itemId === itemId && Number.isFinite(saved.position)
+            ? Math.max(saved.position ?? 0, 0)
+            : 0;
+    } catch {
+        return 0;
+    }
+};
+
+const savePlaybackPosition = (itemId: string, position: number) => {
+    if (!Number.isFinite(position)) return;
+    try {
+        localStorage.setItem(
+            PLAYBACK_POSITION_STORAGE_KEY,
+            JSON.stringify({ itemId, position: Math.max(position, 0) }),
+        );
+    } catch {
+        // Playback must continue even when browser storage is unavailable.
+    }
+};
+
 const MUSIC_SHELL_PLAYER_SX = {
     background: (theme: import("@mui/material").Theme) =>
         theme.palette.mode === "light"
@@ -178,7 +206,12 @@ export const BottomPlayer = () => {
         likedItems,
         toggleLike,
         clearQueue,
+        _restoredFromStorage,
     } = usePlayerStore();
+    const restoredPlaybackRef = useRef({
+        itemId: currentItem?.id,
+        shouldRestore: _restoredFromStorage,
+    });
 
     const liked = likedItems.some((entry) => entry.id === currentItem?.id);
     const likeMutation = useLikeMusicMutation(currentItem ?? ({} as never), liked);
@@ -254,6 +287,13 @@ export const BottomPlayer = () => {
     }, [isPlaying, next, pause, repeat, resume]);
 
     useEffect(() => {
+        restoredPlaybackRef.current = {
+            itemId: currentItem?.id,
+            shouldRestore: _restoredFromStorage,
+        };
+    }, [_restoredFromStorage, currentItem?.id]);
+
+    useEffect(() => {
         reportProgressRef.current = usePlayerStore.getState().reportProgress;
     });
 
@@ -317,6 +357,14 @@ export const BottomPlayer = () => {
                     onReady: (event) => {
                         if (disposed) return;
                         youtubePlayerRef.current = event.target;
+                        const restored = restoredPlaybackRef.current;
+                        if (restored.shouldRestore && restored.itemId) {
+                            const savedPosition = getSavedPlaybackPosition(restored.itemId);
+                            if (savedPosition > 0) {
+                                event.target.seekTo(savedPosition, true);
+                                setYoutubeCurrentTime(savedPosition);
+                            }
+                        }
                         event.target.setVolume(Math.round(volumeRef.current * 100));
                         setYoutubeDuration(event.target.getDuration() || 0);
                         setYoutubeMuted(event.target.isMuted());
@@ -351,6 +399,8 @@ export const BottomPlayer = () => {
                 setYoutubeDuration(youtubePlayerRef.current.getDuration() || 0);
                 setYoutubeMuted(youtubePlayerRef.current.isMuted());
                 setYoutubePlaybackRate(youtubePlayerRef.current.getPlaybackRate() || 1);
+                const itemId = restoredPlaybackRef.current.itemId;
+                if (itemId) savePlaybackPosition(itemId, ct);
                 reportProgressRef.current(ct);
             }, 500);
         });
@@ -794,10 +844,21 @@ export const BottomPlayer = () => {
                 ref={audioRef}
                 src={currentItem?.type === "audio" ? currentItem.streamUrl : undefined}
                 onEnded={handleEnded}
+                onLoadedMetadata={(e) => {
+                    const audio = e.currentTarget;
+                    const savedPosition =
+                        _restoredFromStorage && currentItem
+                            ? getSavedPlaybackPosition(currentItem.id)
+                            : 0;
+                    if (savedPosition > 0) audio.currentTime = savedPosition;
+                    setAudioCurrentTime(savedPosition);
+                    setAudioDuration(audio.duration || 0);
+                }}
                 onTimeUpdate={(e) => {
                     const audio = e.currentTarget;
                     setAudioCurrentTime(audio.currentTime || 0);
                     setAudioDuration(audio.duration || 0);
+                    if (currentItem) savePlaybackPosition(currentItem.id, audio.currentTime || 0);
                     reportProgressRef.current(audio.currentTime || 0);
                 }}
             />

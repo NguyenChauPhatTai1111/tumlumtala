@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { MediaItem } from "@pages/music/types";
 import {
     mediaItemToEventPayload,
@@ -25,6 +26,7 @@ interface PlayerStore {
     // internal tracking — not exposed to consumers
     _playStartTime: number | null;
     _completedItemId: string | null;
+    _restoredFromStorage: boolean;
     playbackContext: PlaybackContext;
     hydrateLibrary: (likedItems: MediaItem[], recentItems: MediaItem[]) => void;
     setRecentItems: (recentItems: MediaItem[]) => void;
@@ -104,7 +106,7 @@ function fireTransitionEvent(
     });
 }
 
-export const usePlayerStore = create<PlayerStore>((set, get) => ({
+export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
     currentItem: null,
     queue: [],
     currentIndex: -1,
@@ -115,6 +117,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     likedItems: [],
     _playStartTime: null,
     _completedItemId: null,
+    _restoredFromStorage: false,
     playbackContext: { context: "organic" },
 
     hydrateLibrary: (likedItems, recentItems) => set({ likedItems, recentItems }),
@@ -150,6 +153,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
                 isPlaying: true,
                 _playStartTime: Date.now(),
                 _completedItemId: null,
+                _restoredFromStorage: false,
                 playbackContext: nextContext,
             };
         }),
@@ -184,7 +188,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
             const first = state.queue[0];
             if (first) {
                 firePlayEvent(first, state.playbackContext, state.currentItem?.sourceId);
-                set({ currentItem: first, currentIndex: 0, isPlaying: true, _playStartTime: Date.now(), _completedItemId: null });
+                set({ currentItem: first, currentIndex: 0, isPlaying: true, _playStartTime: Date.now(), _completedItemId: null, _restoredFromStorage: false });
             }
             return;
         }
@@ -192,7 +196,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         const nextItem = state.queue[nextIndex];
         if (nextItem) {
             firePlayEvent(nextItem, state.playbackContext, state.currentItem?.sourceId);
-            set({ currentItem: nextItem, currentIndex: nextIndex, isPlaying: true, _playStartTime: Date.now(), _completedItemId: null });
+            set({ currentItem: nextItem, currentIndex: nextIndex, isPlaying: true, _playStartTime: Date.now(), _completedItemId: null, _restoredFromStorage: false });
         }
     },
 
@@ -221,6 +225,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
                 isPlaying: true,
                 _playStartTime: Date.now(),
                 _completedItemId: null,
+                _restoredFromStorage: false,
             });
         }
     },
@@ -256,6 +261,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
             isPlaying: false,
             _playStartTime: null,
             _completedItemId: null,
+            _restoredFromStorage: false,
             playbackContext: { context: "organic" },
         }),
 
@@ -288,6 +294,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
             isPlaying: true,
             _playStartTime: Date.now(),
             _completedItemId: null,
+            _restoredFromStorage: false,
             playbackContext: nextContext,
         });
     },
@@ -325,4 +332,16 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
             set({ _completedItemId: state.currentItem.id });
         }
     },
+}), {
+    name: "music-player-state-v1",
+    storage: createJSONStorage(() => localStorage),
+    partialize: (state) => ({
+        currentItem: state.currentItem,
+        queue: state.queue,
+        currentIndex: state.currentIndex,
+        shuffle: state.shuffle,
+        repeat: state.repeat,
+        // On reload, restore the player without recording a duplicate playback.
+        _restoredFromStorage: Boolean(state.currentItem),
+    }),
 }));

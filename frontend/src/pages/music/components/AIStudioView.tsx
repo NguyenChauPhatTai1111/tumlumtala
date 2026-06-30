@@ -122,9 +122,7 @@ export function AIStudioView() {
     const [comparison, setComparison] = useState<SongComparison | null>(null);
     const [albumReview, setAlbumReview] = useState<AlbumReview | null>(null);
     const [remixItems, setRemixItems] = useState<MediaItem[]>(restored?.remixItems ?? []);
-    const [syncRoom, setSyncRoom] = useState<MusicSyncRoom | null>(
-        restored?.syncRoom ?? null,
-    );
+    const [syncRoom, setSyncRoom] = useState<MusicSyncRoom | null>(restored?.syncRoom ?? null);
     const [inviteCode, setInviteCode] = useState(restored?.inviteCode ?? "");
     const [syncItems, setSyncItems] = useState<MediaItem[]>(restored?.syncItems ?? []);
 
@@ -178,7 +176,7 @@ export function AIStudioView() {
 
     const collectCandidates = async (queries: string[]) => {
         const pages = await Promise.all(
-            queries.slice(0, 6).map((query) => searchTracks(query, { limit: 35 })),
+            queries.slice(0, 10).map((query) => searchTracks(query, { limit: 50 })),
         );
         const seen = new Set<string>();
         return pages
@@ -194,7 +192,24 @@ export function AIStudioView() {
     const finalizeSession = async (planned: MusicAISessionResponse) => {
         const candidates = await collectCandidates(planned.plan.search_queries);
         if (!candidates.length) throw new Error("Audius chưa trả về ứng viên phù hợp.");
-        return addMusicAICandidates(planned.session.id, candidates);
+        let result = await addMusicAICandidates(planned.session.id, candidates);
+
+        const targetSeconds = planned.plan.duration_minutes * 60;
+        const actualSeconds = (result.tracks ?? []).reduce(
+            (sum, t) => sum + (t.media_item.duration ?? 0),
+            0,
+        );
+        if (actualSeconds < targetSeconds * 0.85) {
+            const extraCandidates = await collectCandidates(
+                planned.plan.search_queries.slice().reverse(),
+            );
+            const existingIds = new Set((result.tracks ?? []).map((t) => t.media_item.source_id));
+            const fresh = extraCandidates.filter((c) => !existingIds.has(c.sourceId));
+            if (fresh.length > 0) {
+                result = await addMusicAICandidates(planned.session.id, fresh, true);
+            }
+        }
+        return result;
     };
 
     const generate = async (mode: "dj" | "radio" | "dynamic") => {
@@ -266,7 +281,9 @@ export function AIStudioView() {
 
     const compareCurrent = async () => {
         if (!currentItem) return;
-        const other = recentItems.find((item) => item.id !== currentItem.id) ?? queue.find((item) => item.id !== currentItem.id);
+        const other =
+            recentItems.find((item) => item.id !== currentItem.id) ??
+            queue.find((item) => item.id !== currentItem.id);
         if (!other) {
             setError("Cần ít nhất hai bài trong lịch sử hoặc queue để so sánh.");
             return;
@@ -290,7 +307,7 @@ export function AIStudioView() {
         try {
             setAlbumReview(
                 await reviewMusicAlbum(
-                    currentItem.album?.name ?? "Queue hiện tại",
+                    currentItem.album?.name ?? "Danh sách chờ",
                     currentItem.artist,
                     tracks,
                 ),
@@ -367,19 +384,45 @@ export function AIStudioView() {
                     variant="scrollable"
                     sx={{ mt: 2, minHeight: 38 }}
                 >
-                    <Tab value="dj" icon={<AutoAwesomeIcon />} iconPosition="start" label="AI DJ & Radio" />
-                    <Tab value="discover" icon={<ExploreIcon />} iconPosition="start" label="Discover" />
-                    <Tab value="insights" icon={<InsightsIcon />} iconPosition="start" label="Journey" />
-                    <Tab value="labs" icon={<LightbulbIcon />} iconPosition="start" label="AI Labs" />
+                    <Tab
+                        value="dj"
+                        icon={<AutoAwesomeIcon />}
+                        iconPosition="start"
+                        label="AI DJ & Radio"
+                    />
+                    <Tab
+                        value="discover"
+                        icon={<ExploreIcon />}
+                        iconPosition="start"
+                        label="Discover"
+                    />
+                    <Tab
+                        value="insights"
+                        icon={<InsightsIcon />}
+                        iconPosition="start"
+                        label="Journey"
+                    />
+                    <Tab
+                        value="labs"
+                        icon={<LightbulbIcon />}
+                        iconPosition="start"
+                        label="AI Labs"
+                    />
                 </Tabs>
             </Paper>
 
-            {error && <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>{error}</Alert>}
+            {error && (
+                <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+            )}
 
             {tab === "dj" && (
                 <Stack spacing={2}>
                     <Paper sx={{ ...studioSurfaceSx, p: { xs: 2, md: 3 }, borderRadius: 3 }}>
-                        <Typography fontWeight={800} mb={1}>Bạn muốn nghe gì?</Typography>
+                        <Typography fontWeight={800} mb={1}>
+                            Bạn muốn nghe gì?
+                        </Typography>
                         <TextField
                             value={prompt}
                             onChange={(event) => setPrompt(event.target.value)}
@@ -390,17 +433,36 @@ export function AIStudioView() {
                         />
                         <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
                             {PRESETS.map((preset, index) => (
-                                <Chip key={preset} label={`Gợi ý ${index + 1}`} onClick={() => setPrompt(preset)} />
+                                <Chip
+                                    key={preset}
+                                    label={`Gợi ý ${index + 1}`}
+                                    onClick={() => setPrompt(preset)}
+                                />
                             ))}
                         </Stack>
                         <Stack direction={{ xs: "column", sm: "row" }} gap={1} mt={2}>
-                            <Button variant="contained" startIcon={<AutoAwesomeIcon />} onClick={() => generate("dj")} disabled={loading || prompt.trim().length < 2}>
+                            <Button
+                                variant="contained"
+                                startIcon={<AutoAwesomeIcon />}
+                                onClick={() => generate("dj")}
+                                disabled={loading || prompt.trim().length < 2}
+                            >
                                 AI DJ
                             </Button>
-                            <Button variant="outlined" startIcon={<RadioIcon />} onClick={() => generate("radio")} disabled={loading}>
+                            <Button
+                                variant="outlined"
+                                startIcon={<RadioIcon />}
+                                onClick={() => generate("radio")}
+                                disabled={loading}
+                            >
                                 Personal Radio 24/7
                             </Button>
-                            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => generate("dynamic")} disabled={loading}>
+                            <Button
+                                variant="outlined"
+                                startIcon={<RefreshIcon />}
+                                onClick={() => generate("dynamic")}
+                                disabled={loading}
+                            >
                                 Dynamic Playlist
                             </Button>
                             {loading && <CircularProgress size={24} sx={{ alignSelf: "center" }} />}
@@ -409,11 +471,21 @@ export function AIStudioView() {
 
                     {session && (
                         <>
-                            <Paper sx={{ ...studioSurfaceSx, p: { xs: 2, md: 3 }, borderRadius: 3 }}>
-                                <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" gap={2}>
+                            <Paper
+                                sx={{ ...studioSurfaceSx, p: { xs: 2, md: 3 }, borderRadius: 3 }}
+                            >
+                                <Stack
+                                    direction={{ xs: "column", md: "row" }}
+                                    justifyContent="space-between"
+                                    gap={2}
+                                >
                                     <Box>
-                                        <Typography variant="h6" fontWeight={900}>{session.session.title}</Typography>
-                                        <Typography color="text.secondary" mt={0.5}>{session.session.assistant_message}</Typography>
+                                        <Typography variant="h6" fontWeight={900}>
+                                            {session.session.title}
+                                        </Typography>
+                                        <Typography color="text.secondary" mt={0.5}>
+                                            {session.session.assistant_message}
+                                        </Typography>
                                     </Box>
                                     <Button
                                         variant="contained"
@@ -434,22 +506,46 @@ export function AIStudioView() {
                                     </Button>
                                 </Stack>
                                 <Stack direction="row" gap={1} flexWrap="wrap" mt={2}>
-                                    {session.plan.moods.map((mood) => <Chip key={mood} label={mood} color="primary" variant="outlined" />)}
-                                    {session.plan.genres.map((genre) => <Chip key={genre} label={genre} />)}
-                                    <Chip label={`${session.plan.duration_minutes} phút`} />
-                                    <Chip label={`${Math.round(session.plan.discovery_level * 100)}% khám phá`} />
+                                    {session.plan.moods.map((mood) => (
+                                        <Chip
+                                            key={mood}
+                                            label={mood}
+                                            color="primary"
+                                            variant="outlined"
+                                        />
+                                    ))}
+                                    {session.plan.genres.map((genre) => (
+                                        <Chip key={genre} label={genre} />
+                                    ))}
+                                    <Chip
+                                        label={`${Math.round((session.tracks ?? []).reduce((sum, t) => sum + (t.media_item.duration ?? 0), 0) / 60)} phút`}
+                                    />
+                                    <Chip
+                                        label={`${Math.round(session.plan.discovery_level * 100)}% khám phá`}
+                                    />
                                 </Stack>
                             </Paper>
-                            <TimelineView session={session} onPlay={(item) => {
-                                const index = timelineItems.findIndex((entry) => entry.id === item.id);
-                                replaceQueue(timelineItems, Math.max(index, 0), {
-                                    context: session.session.mode === "radio" ? "radio" : "ai_dj",
-                                    sessionId: session.session.id,
-                                    searchQueries: session.plan.search_queries,
-                                    reasons: Object.fromEntries((session.tracks ?? []).map((track) => [track.media_item.source_id, track.reason])),
-                                    startedAt: Date.now(),
-                                });
-                            }} />
+                            <TimelineView
+                                session={session}
+                                onPlay={(item) => {
+                                    const index = timelineItems.findIndex(
+                                        (entry) => entry.id === item.id,
+                                    );
+                                    replaceQueue(timelineItems, Math.max(index, 0), {
+                                        context:
+                                            session.session.mode === "radio" ? "radio" : "ai_dj",
+                                        sessionId: session.session.id,
+                                        searchQueries: session.plan.search_queries,
+                                        reasons: Object.fromEntries(
+                                            (session.tracks ?? []).map((track) => [
+                                                track.media_item.source_id,
+                                                track.reason,
+                                            ]),
+                                        ),
+                                        startedAt: Date.now(),
+                                    });
+                                }}
+                            />
                             <Paper sx={{ ...studioSurfaceSx, p: 2, borderRadius: 3 }}>
                                 <Stack direction="row" gap={1}>
                                     <TextField
@@ -465,7 +561,11 @@ export function AIStudioView() {
                                         size="small"
                                         placeholder='Nói tiếp: "vui hơn", "thêm vocal nữ", "ít bài nổi hơn"...'
                                     />
-                                    <IconButton color="primary" onClick={adjustJourney} disabled={loading || !followUp.trim()}>
+                                    <IconButton
+                                        color="primary"
+                                        onClick={adjustJourney}
+                                        disabled={loading || !followUp.trim()}
+                                    >
                                         <SendIcon />
                                     </IconButton>
                                 </Stack>
@@ -489,49 +589,134 @@ export function AIStudioView() {
                     journey={journeyQuery.data}
                     heatmap={heatmapQuery.data}
                     challenges={challengesQuery.data}
-                    loading={journeyQuery.isLoading || heatmapQuery.isLoading || challengesQuery.isLoading}
+                    loading={
+                        journeyQuery.isLoading ||
+                        heatmapQuery.isLoading ||
+                        challengesQuery.isLoading
+                    }
                 />
             )}
 
             {tab === "labs" && (
                 <Stack spacing={2}>
                     <Paper sx={{ ...studioSurfaceSx, p: 2.5, borderRadius: 3 }}>
-                        <Typography variant="h6" fontWeight={850}>AI Music Explain & Compare</Typography>
+                        <Typography variant="h6" fontWeight={850}>
+                            AI Music Explain & Compare
+                        </Typography>
                         <Typography color="text.secondary" fontSize={13} mb={2}>
-                            {currentItem ? `Đang phân tích: ${currentItem.title}` : "Hãy phát một bài trước."}
+                            {currentItem
+                                ? `Đang phân tích: ${currentItem.title}`
+                                : "Hãy phát một bài trước."}
                         </Typography>
                         <Stack direction="row" gap={1} flexWrap="wrap">
-                            <Button startIcon={<LightbulbIcon />} variant="outlined" onClick={explainCurrent} disabled={!currentItem || loading}>Giải thích bài</Button>
-                            <Button startIcon={<CompareArrowsIcon />} variant="outlined" onClick={compareCurrent} disabled={!currentItem || loading}>So sánh</Button>
-                            <Button startIcon={<GraphicEqIcon />} variant="outlined" onClick={reviewCurrentAlbum} disabled={!currentItem || loading}>Review album/queue</Button>
-                            <Button startIcon={<RefreshIcon />} variant="outlined" onClick={findRemixes} disabled={!currentItem || loading}>Tìm remix</Button>
+                            <Button
+                                startIcon={<LightbulbIcon />}
+                                variant="outlined"
+                                onClick={explainCurrent}
+                                disabled={!currentItem || loading}
+                            >
+                                Giải thích bài
+                            </Button>
+                            <Button
+                                startIcon={<CompareArrowsIcon />}
+                                variant="outlined"
+                                onClick={compareCurrent}
+                                disabled={!currentItem || loading}
+                            >
+                                So sánh
+                            </Button>
+                            <Button
+                                startIcon={<GraphicEqIcon />}
+                                variant="outlined"
+                                onClick={reviewCurrentAlbum}
+                                disabled={!currentItem || loading}
+                            >
+                                Review album/queue
+                            </Button>
+                            <Button
+                                startIcon={<RefreshIcon />}
+                                variant="outlined"
+                                onClick={findRemixes}
+                                disabled={!currentItem || loading}
+                            >
+                                Tìm remix
+                            </Button>
                         </Stack>
-                        {explanation && <ResultCard title={explanation.summary} lines={[...explanation.highlights, explanation.listening_tip]} />}
-                        {comparison && <ResultCard title={`${comparison.similarity}% giống nhau`} lines={[...comparison.shared_traits, ...comparison.differences, comparison.transition_note]} />}
-                        {albumReview && <ResultCard title={albumReview.summary} lines={[...albumReview.strengths, `Nên nghe: ${albumReview.must_listen.join(", ")}`, albumReview.energy_journey]} />}
+                        {explanation && (
+                            <ResultCard
+                                title={explanation.summary}
+                                lines={[...explanation.highlights, explanation.listening_tip]}
+                            />
+                        )}
+                        {comparison && (
+                            <ResultCard
+                                title={`${comparison.similarity}% giống nhau`}
+                                lines={[
+                                    ...comparison.shared_traits,
+                                    ...comparison.differences,
+                                    comparison.transition_note,
+                                ]}
+                            />
+                        )}
+                        {albumReview && (
+                            <ResultCard
+                                title={albumReview.summary}
+                                lines={[
+                                    ...albumReview.strengths,
+                                    `Nên nghe: ${albumReview.must_listen.join(", ")}`,
+                                    albumReview.energy_journey,
+                                ]}
+                            />
+                        )}
                     </Paper>
                     {remixItems.length > 0 && (
-                        <TrackGrid title="Remix · Cover · Live · Acoustic" items={remixItems} onPlay={(items) => playItems(items, "smart_queue", null)} />
+                        <TrackGrid
+                            title="Remix · Cover · Live · Acoustic"
+                            items={remixItems}
+                            onPlay={(items) => playItems(items, "smart_queue", null)}
+                        />
                     )}
                     <Paper sx={{ ...studioSurfaceSx, p: 2.5, borderRadius: 3 }}>
                         <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
                             <GroupsIcon color="primary" />
-                            <Typography variant="h6" fontWeight={850}>Friend Sync</Typography>
+                            <Typography variant="h6" fontWeight={850}>
+                                Friend Sync
+                            </Typography>
                         </Stack>
                         <Stack direction={{ xs: "column", sm: "row" }} gap={1}>
-                            <Button variant="outlined" onClick={createRoom}>Tạo phòng</Button>
-                            <TextField value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} size="small" placeholder="Mã mời" />
-                            <Button variant="outlined" onClick={joinRoom}>Tham gia</Button>
-                            {syncRoom && <Button variant="contained" onClick={buildFriendMix}>Tìm giao điểm</Button>}
+                            <Button variant="outlined" onClick={createRoom}>
+                                Tạo phòng
+                            </Button>
+                            <TextField
+                                value={inviteCode}
+                                onChange={(event) =>
+                                    setInviteCode(event.target.value.toUpperCase())
+                                }
+                                size="small"
+                                placeholder="Mã mời"
+                            />
+                            <Button variant="outlined" onClick={joinRoom}>
+                                Tham gia
+                            </Button>
+                            {syncRoom && (
+                                <Button variant="contained" onClick={buildFriendMix}>
+                                    Tìm giao điểm
+                                </Button>
+                            )}
                         </Stack>
                         {syncRoom && (
                             <Alert severity="info" sx={{ mt: 1.5 }}>
-                                Mã phòng: <strong>{syncRoom.invite_code}</strong> · {syncRoom.status === "active" ? "Đã kết nối" : "Đang chờ bạn bè"}
+                                Mã phòng: <strong>{syncRoom.invite_code}</strong> ·{" "}
+                                {syncRoom.status === "active" ? "Đã kết nối" : "Đang chờ bạn bè"}
                             </Alert>
                         )}
                     </Paper>
                     {syncItems.length > 0 && (
-                        <TrackGrid title="Playlist hợp gu cả hai" items={syncItems} onPlay={(items) => playItems(items, "friend_sync", null)} />
+                        <TrackGrid
+                            title="Playlist hợp gu cả hai"
+                            items={syncItems}
+                            onPlay={(items) => playItems(items, "friend_sync", null)}
+                        />
                     )}
                 </Stack>
             )}
@@ -548,35 +733,75 @@ function TimelineView({
 }) {
     const theme = useTheme();
     const currentItem = usePlayerStore((state) => state.currentItem);
+
+    const actualPhases = useMemo(() => {
+        const tracks = session.tracks ?? [];
+        let elapsedSeconds = 0;
+        const phaseSeconds: Record<string, { from: number; to: number }> = {};
+        for (const track of tracks) {
+            const key = track.phase;
+            const dur = track.media_item.duration ?? 0;
+            if (!phaseSeconds[key])
+                phaseSeconds[key] = { from: elapsedSeconds, to: elapsedSeconds };
+            elapsedSeconds += dur;
+            phaseSeconds[key].to = elapsedSeconds;
+        }
+        return session.plan.timeline.map((phase) => ({
+            ...phase,
+            from_minute:
+                phaseSeconds[phase.key] != null
+                    ? Math.floor(phaseSeconds[phase.key].from / 60)
+                    : phase.from_minute,
+            to_minute:
+                phaseSeconds[phase.key] != null
+                    ? Math.floor(phaseSeconds[phase.key].to / 60)
+                    : phase.to_minute,
+        }));
+    }, [session.tracks, session.plan.timeline]);
+
     return (
         <Paper sx={{ ...studioSurfaceSx, p: { xs: 2, md: 3 }, borderRadius: 3 }}>
             <Stack direction="row" spacing={1} alignItems="center" mb={2}>
                 <TimelineIcon color="primary" />
-                <Typography variant="h6" fontWeight={850}>Playlist Timeline</Typography>
+                <Typography variant="h6" fontWeight={850}>
+                    Playlist Timeline
+                </Typography>
             </Stack>
             <Stack direction={{ xs: "column", md: "row" }} gap={1} mb={3}>
-                {session.plan.timeline.map((phase) => (
+                {actualPhases.map((phase) => (
                     <Box
                         key={phase.key}
                         sx={{
-                            flex: Math.max(phase.to_minute - phase.from_minute, 1),
+                            flex: 1,
+                            minWidth: 0,
                             p: 1.5,
                             borderRadius: 2,
-                            bgcolor: alpha(theme.palette.primary.main, 0.08 + phase.target_energy * 0.12),
+                            bgcolor: alpha(
+                                theme.palette.primary.main,
+                                0.08 + phase.target_energy * 0.12,
+                            ),
                             borderTop: `3px solid ${alpha(theme.palette.primary.main, 0.35 + phase.target_energy * 0.65)}`,
                         }}
                     >
-                        <Typography fontWeight={800} fontSize={13}>{phase.description}</Typography>
-                        <Typography color="text.secondary" fontSize={11}>{phase.from_minute}–{phase.to_minute}' · {Math.round(phase.target_energy * 100)}%</Typography>
+                        <Typography fontWeight={800} fontSize={13} noWrap>
+                            {phase.description}
+                        </Typography>
+                        <Typography color="text.secondary" fontSize={11} noWrap>
+                            {phase.from_minute}–{phase.to_minute}' ·{" "}
+                            {Math.round(phase.target_energy * 100)}%
+                        </Typography>
                     </Box>
                 ))}
             </Stack>
             <Stack divider={<Divider flexItem />}>
-                {(session.tracks ?? []).map((track) => {
+                {(session.tracks ?? []).map((track, index) => {
                     const item = fromBackendMediaItem(track.media_item);
                     const active =
-                        currentItem?.sourceId === item.sourceId &&
-                        currentItem.type === item.type;
+                        currentItem?.sourceId === item.sourceId && currentItem.type === item.type;
+                    const elapsedSeconds = (session.tracks ?? [])
+                        .slice(0, index)
+                        .reduce((sum, t) => sum + (t.media_item.duration ?? 0), 0);
+                    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
                     return (
                         <Stack
                             key={`${track.position}:${item.id}`}
@@ -604,10 +829,14 @@ function TimelineView({
                                     fontWeight={active ? 800 : 400}
                                     fontSize={12}
                                 >
-                                    {track.scheduled_minute}'
+                                    {elapsedMinutes}'
                                 </Typography>
                             </Stack>
-                            <Avatar src={item.thumbnail} variant="rounded" sx={{ width: 42, height: 42 }} />
+                            <Avatar
+                                src={item.thumbnail}
+                                variant="rounded"
+                                sx={{ width: 42, height: 42 }}
+                            />
                             <Box sx={{ minWidth: 0, flex: 1 }}>
                                 <Typography
                                     noWrap
@@ -617,13 +846,11 @@ function TimelineView({
                                 >
                                     {item.title}
                                 </Typography>
-                                <Typography noWrap color="text.secondary" fontSize={11}>{item.artist} · {track.reason}</Typography>
+                                <Typography noWrap color="text.secondary" fontSize={11}>
+                                    {item.artist} · {track.reason}
+                                </Typography>
                             </Box>
-                            <AddToPlaylistButton
-                                item={item}
-                                alwaysVisible
-                                iconVariant="circle"
-                            />
+                            <AddToPlaylistButton item={item} alwaysVisible iconVariant="circle" />
                             <Typography
                                 color="text.secondary"
                                 fontSize={12}
@@ -676,23 +903,49 @@ function DiscoveryPanel({
     return (
         <Stack spacing={2}>
             <Paper sx={{ ...studioSurfaceSx, p: 2.5, borderRadius: 3 }}>
-                <Typography variant="h6" fontWeight={850}>AI Discover</Typography>
+                <Typography variant="h6" fontWeight={850}>
+                    AI Discover
+                </Typography>
                 <Typography color="text.secondary" fontSize={13}>
-                    Khám phá dựa trên DNA, không chỉ genre. Mức exploration: {Math.round((discovery?.exploration_target ?? 0) * 100)}%.
+                    Khám phá dựa trên DNA, không chỉ genre. Mức exploration:{" "}
+                    {Math.round((discovery?.exploration_target ?? 0) * 100)}%.
                 </Typography>
                 <Typography color="text.secondary" fontSize={13} mt={0.5}>
-                    Có {discovery?.similar_listener_count ?? 0} người nghe gần đây có giao điểm gu với bạn.
+                    Có {discovery?.similar_listener_count ?? 0} người nghe gần đây có giao điểm gu
+                    với bạn.
                 </Typography>
                 <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
-                    {discovery?.because.map((value) => <Chip key={value} label={`Vì bạn nghe ${value}`} />)}
+                    {discovery?.because.map((value) => (
+                        <Chip key={value} label={`Vì bạn nghe ${value}`} />
+                    ))}
                 </Stack>
-                <Button sx={{ mt: 2 }} variant="contained" startIcon={fetching ? <CircularProgress size={16} /> : <ExploreIcon />} onClick={fetchDiscoveries} disabled={fetching || !discovery}>
+                <Button
+                    sx={{ mt: 2 }}
+                    variant="contained"
+                    startIcon={fetching ? <CircularProgress size={16} /> : <ExploreIcon />}
+                    onClick={fetchDiscoveries}
+                    disabled={fetching || !discovery}
+                >
                     Tìm khám phá mới trên Audius
                 </Button>
             </Paper>
-            {queryItems.length > 0 && <TrackGrid title="Dành riêng cho DNA của bạn" items={queryItems} onPlay={onPlay} />}
-            {hidden.length > 0 && <TrackGrid title="Hidden Gems · dưới 1.000 lượt nghe" items={hidden} onPlay={onPlay} />}
-            {community.length > 0 && <TrackGrid title="Người nghe bài này thường nghe tiếp" items={community} onPlay={onPlay} />}
+            {queryItems.length > 0 && (
+                <TrackGrid title="Dành riêng cho DNA của bạn" items={queryItems} onPlay={onPlay} />
+            )}
+            {hidden.length > 0 && (
+                <TrackGrid
+                    title="Hidden Gems · dưới 1.000 lượt nghe"
+                    items={hidden}
+                    onPlay={onPlay}
+                />
+            )}
+            {community.length > 0 && (
+                <TrackGrid
+                    title="Người nghe bài này thường nghe tiếp"
+                    items={community}
+                    onPlay={onPlay}
+                />
+            )}
         </Stack>
     );
 }
@@ -710,14 +963,20 @@ function InsightsPanel({
 }) {
     const theme = useTheme();
     if (loading) return <CenteredLoader />;
-    const heatByDayHour = new Map(heatmap?.cells.map((cell) => [`${cell.day}:${cell.hour}`, cell.play_count]));
+    const heatByDayHour = new Map(
+        heatmap?.cells.map((cell) => [`${cell.day}:${cell.hour}`, cell.play_count]),
+    );
     const maxHeat = Math.max(...(heatmap?.cells.map((cell) => cell.play_count) ?? [1]), 1);
     return (
         <Stack spacing={2}>
             <Paper sx={{ ...studioSurfaceSx, p: 2.5, borderRadius: 3 }}>
-                <Typography variant="h6" fontWeight={850}>Music Journey · 7 ngày</Typography>
+                <Typography variant="h6" fontWeight={850}>
+                    Music Journey · 7 ngày
+                </Typography>
                 <Typography mt={0.5}>{journey?.recent_trend}</Typography>
-                <Alert severity="info" icon={<AutoAwesomeIcon />} sx={{ mt: 1.5 }}>{journey?.suggestion}</Alert>
+                <Alert severity="info" icon={<AutoAwesomeIcon />} sx={{ mt: 1.5 }}>
+                    {journey?.suggestion}
+                </Alert>
                 <Stack direction="row" gap={1.5} flexWrap="wrap" mt={2}>
                     <Metric label="Phiên nghe" value={journey?.total_sessions ?? 0} />
                     <Metric label="Phút nghe" value={journey?.total_minutes ?? 0} />
@@ -726,22 +985,55 @@ function InsightsPanel({
                 </Stack>
                 <Stack direction="row" gap={1} flexWrap="wrap" mt={2}>
                     {Object.entries(journey?.top_dimensions ?? {}).flatMap(([type, values]) =>
-                        values.slice(0, 3).map((item) => (
-                            <Chip key={`${type}:${item.value}`} label={`${type}: ${item.value} · ${item.affinity}`} variant="outlined" />
-                        )),
+                        values
+                            .slice(0, 3)
+                            .map((item) => (
+                                <Chip
+                                    key={`${type}:${item.value}`}
+                                    label={`${type}: ${item.value} · ${item.affinity}`}
+                                    variant="outlined"
+                                />
+                            )),
                     )}
                 </Stack>
             </Paper>
             <Paper sx={{ ...studioSurfaceSx, p: 2.5, borderRadius: 3, overflowX: "auto" }}>
-                <Typography variant="h6" fontWeight={850}>Heatmap Listening</Typography>
-                <Typography color="text.secondary" fontSize={13} mb={2}>{heatmap?.insight}</Typography>
-                <Box sx={{ display: "grid", gridTemplateColumns: "70px repeat(24, 14px)", gap: "3px", minWidth: 500 }}>
+                <Typography variant="h6" fontWeight={850}>
+                    Heatmap Listening
+                </Typography>
+                <Typography color="text.secondary" fontSize={13} mb={2}>
+                    {heatmap?.insight}
+                </Typography>
+                <Box
+                    sx={{
+                        display: "grid",
+                        gridTemplateColumns: "70px repeat(24, 14px)",
+                        gap: "3px",
+                        minWidth: 500,
+                    }}
+                >
                     {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((day, dayIndex) => (
                         <Box key={day} sx={{ display: "contents" }}>
                             <Typography fontSize={11}>{day}</Typography>
                             {Array.from({ length: 24 }, (_, hour) => {
                                 const count = heatByDayHour.get(`${dayIndex}:${hour}`) ?? 0;
-                                return <Tooltip key={hour} title={`${day} ${hour}:00 · ${count} lượt`}><Box sx={{ width: 14, height: 14, borderRadius: 0.5, bgcolor: count ? alpha(theme.palette.primary.main, 0.15 + (count / maxHeat) * 0.85) : alpha(theme.palette.text.primary, 0.06) }} /></Tooltip>;
+                                return (
+                                    <Tooltip key={hour} title={`${day} ${hour}:00 · ${count} lượt`}>
+                                        <Box
+                                            sx={{
+                                                width: 14,
+                                                height: 14,
+                                                borderRadius: 0.5,
+                                                bgcolor: count
+                                                    ? alpha(
+                                                          theme.palette.primary.main,
+                                                          0.15 + (count / maxHeat) * 0.85,
+                                                      )
+                                                    : alpha(theme.palette.text.primary, 0.06),
+                                            }}
+                                        />
+                                    </Tooltip>
+                                );
                             })}
                         </Box>
                     ))}
@@ -750,17 +1042,29 @@ function InsightsPanel({
             <Paper sx={{ ...studioSurfaceSx, p: 2.5, borderRadius: 3 }}>
                 <Stack direction="row" spacing={1} alignItems="center" mb={2}>
                     <EmojiEventsIcon color="primary" />
-                    <Typography variant="h6" fontWeight={850}>Listening Challenges</Typography>
+                    <Typography variant="h6" fontWeight={850}>
+                        Listening Challenges
+                    </Typography>
                 </Stack>
                 <Stack spacing={1.5}>
                     {challenges?.map((challenge) => (
                         <Box key={challenge.key}>
                             <Stack direction="row" justifyContent="space-between">
-                                <Typography fontWeight={750}>{challenge.badge} {challenge.title}</Typography>
-                                <Typography color="text.secondary" fontSize={12}>{challenge.progress}/{challenge.target}</Typography>
+                                <Typography fontWeight={750}>
+                                    {challenge.badge} {challenge.title}
+                                </Typography>
+                                <Typography color="text.secondary" fontSize={12}>
+                                    {challenge.progress}/{challenge.target}
+                                </Typography>
                             </Stack>
-                            <Typography color="text.secondary" fontSize={11}>{challenge.description}</Typography>
-                            <LinearProgress value={Math.min((challenge.progress / challenge.target) * 100, 100)} variant="determinate" sx={{ mt: 0.75, borderRadius: 2 }} />
+                            <Typography color="text.secondary" fontSize={11}>
+                                {challenge.description}
+                            </Typography>
+                            <LinearProgress
+                                value={Math.min((challenge.progress / challenge.target) * 100, 100)}
+                                variant="determinate"
+                                sx={{ mt: 0.75, borderRadius: 2 }}
+                            />
                         </Box>
                     ))}
                 </Stack>
@@ -781,15 +1085,45 @@ function TrackGrid({
     return (
         <Paper sx={{ ...studioSurfaceSx, p: 2.5, borderRadius: 3 }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-                <Typography variant="h6" fontWeight={850}>{title}</Typography>
-                <Button size="small" startIcon={<PlayArrowIcon />} onClick={() => onPlay(items)}>Phát tất cả</Button>
+                <Typography variant="h6" fontWeight={850}>
+                    {title}
+                </Typography>
+                <Button size="small" startIcon={<PlayArrowIcon />} onClick={() => onPlay(items)}>
+                    Phát tất cả
+                </Button>
             </Stack>
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 1.5 }}>
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+                    gap: 1.5,
+                }}
+            >
                 {items.slice(0, 30).map((item) => (
-                    <Box key={item.id} onClick={() => onPlay([item, ...items.filter((other) => other.id !== item.id)])} sx={{ cursor: "pointer", minWidth: 0 }}>
-                        <Box component="img" src={item.thumbnail} alt="" sx={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 2 }} />
-                        <Typography noWrap fontWeight={750} fontSize={12} mt={0.75}>{item.title}</Typography>
-                        <Typography noWrap color="text.secondary" fontSize={11}>{item.artist}</Typography>
+                    <Box
+                        key={item.id}
+                        onClick={() =>
+                            onPlay([item, ...items.filter((other) => other.id !== item.id)])
+                        }
+                        sx={{ cursor: "pointer", minWidth: 0 }}
+                    >
+                        <Box
+                            component="img"
+                            src={item.thumbnail}
+                            alt=""
+                            sx={{
+                                width: "100%",
+                                aspectRatio: "1",
+                                objectFit: "cover",
+                                borderRadius: 2,
+                            }}
+                        />
+                        <Typography noWrap fontWeight={750} fontSize={12} mt={0.75}>
+                            {item.title}
+                        </Typography>
+                        <Typography noWrap color="text.secondary" fontSize={11}>
+                            {item.artist}
+                        </Typography>
                     </Box>
                 ))}
             </Box>
@@ -800,8 +1134,12 @@ function TrackGrid({
 function Metric({ label, value }: { label: string; value: string | number }) {
     return (
         <Box sx={{ minWidth: 120 }}>
-            <Typography color="text.secondary" fontSize={11}>{label}</Typography>
-            <Typography fontSize={24} fontWeight={900}>{value}</Typography>
+            <Typography color="text.secondary" fontSize={11}>
+                {label}
+            </Typography>
+            <Typography fontSize={24} fontWeight={900}>
+                {value}
+            </Typography>
         </Box>
     );
 }
@@ -810,13 +1148,21 @@ function ResultCard({ title, lines }: { title: string; lines: string[] }) {
     return (
         <Alert severity="info" icon={<BoltIcon />} sx={{ mt: 2 }}>
             <Typography fontWeight={800}>{title}</Typography>
-            {lines.filter(Boolean).map((line) => <Typography key={line} fontSize={12}>• {line}</Typography>)}
+            {lines.filter(Boolean).map((line) => (
+                <Typography key={line} fontSize={12}>
+                    • {line}
+                </Typography>
+            ))}
         </Alert>
     );
 }
 
 function CenteredLoader() {
-    return <Box sx={{ display: "grid", placeItems: "center", py: 10 }}><CircularProgress /></Box>;
+    return (
+        <Box sx={{ display: "grid", placeItems: "center", py: 10 }}>
+            <CircularProgress />
+        </Box>
+    );
 }
 
 function errorMessage(reason: unknown) {

@@ -17,6 +17,7 @@ FROM alpine:latest
 WORKDIR /app
 
 COPY --from=builder /app/bin/gateway .
+COPY gateway/words /app/words
 
 EXPOSE 8080
 

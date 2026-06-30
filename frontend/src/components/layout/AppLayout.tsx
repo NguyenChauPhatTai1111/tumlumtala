@@ -26,11 +26,13 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import MovieIcon from "@mui/icons-material/Movie";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import ChatIcon from "@mui/icons-material/Chat";
+import ExtensionIcon from "@mui/icons-material/Extension";
 import PeopleIcon from "@mui/icons-material/People";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
+import BoltIcon from "@mui/icons-material/Bolt";
 import { Suspense, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import PersonIcon from "@mui/icons-material/Person";
@@ -51,6 +53,8 @@ const PUBLIC_NAV_ITEMS = [
   { label: "Phim", icon: <MovieIcon />, path: "/movie" },
   { label: "Âm nhạc", icon: <MusicNoteIcon />, path: "/music" },
   { label: "Tin nhắn", icon: <ChatIcon />, path: "/messenger" },
+  { label: "Đoán từ", icon: <ExtensionIcon />, path: "/wordmatch" },
+  { label: "Nối từ", icon: <BoltIcon />, path: "/word-chain" },
 ];
 
 // Items gated by permission

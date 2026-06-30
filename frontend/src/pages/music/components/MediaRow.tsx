@@ -1,5 +1,5 @@
-import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
@@ -53,10 +53,10 @@ export const MediaRow = ({
                 display: "grid",
                 gridTemplateColumns: showCollectionColumn
                     ? {
-                          xs: "16px 48px minmax(0, 1fr) 32px 42px 34px",
-                          md: "16px 48px minmax(0, 1fr) minmax(140px, .6fr) 32px 42px 34px",
+                          xs: "16px 48px minmax(0, 1fr) 34px 32px 42px",
+                          md: "16px 48px minmax(0, 1fr) minmax(140px, .6fr) 34px 32px 42px",
                       }
-                    : "16px 48px minmax(0, 1fr) 32px 42px 34px",
+                    : "16px 48px minmax(0, 1fr) 34px 32px 42px",
                 gap: 1.5,
                 alignItems: "center",
                 px: 2,
@@ -177,7 +177,11 @@ export const MediaRow = ({
                 </Typography>
             )}
 
-            <Tooltip title={liked ? "Xóa khỏi Bài hát đã thích" : "Thêm vào Bài hát đã thích"}>
+            <Box sx={{ width: 34 }}>
+                <TrackOptionsButton item={item} alwaysVisible={hovered} />
+            </Box>
+
+            <Tooltip title={liked ? "Bỏ thích" : "Thích"}>
                 <IconButton
                     size="small"
                     aria-label={liked ? "Xóa khỏi Bài hát đã thích" : "Thêm vào Bài hát đã thích"}
@@ -189,14 +193,13 @@ export const MediaRow = ({
                     sx={{
                         width: 32,
                         height: 32,
-                        color: liked
-                            ? SPOTIFY_GREEN
-                            : hovered
-                              ? "text.primary"
-                              : "text.disabled",
-                        transition: "color 160ms ease, transform 160ms ease",
+                        color: liked ? SPOTIFY_GREEN : hovered ? "text.primary" : "text.disabled",
+                        bgcolor: liked ? "action.selected" : "transparent",
+                        transition:
+                            "color 160ms ease, background-color 160ms ease, transform 160ms ease",
                         "&:hover": {
                             color: liked ? "#fb923c" : "text.primary",
+                            bgcolor: "action.hover",
                             transform: "scale(1.06)",
                         },
                         "&:active": { transform: "scale(0.96)" },
@@ -207,9 +210,9 @@ export const MediaRow = ({
                     }}
                 >
                     {liked ? (
-                        <CheckCircleIcon sx={{ fontSize: 18 }} />
+                        <FavoriteIcon sx={{ fontSize: 18 }} />
                     ) : (
-                        <AddCircleOutlineIcon sx={{ fontSize: 18 }} />
+                        <FavoriteBorderIcon sx={{ fontSize: 18 }} />
                     )}
                 </IconButton>
             </Tooltip>
@@ -226,10 +229,6 @@ export const MediaRow = ({
             >
                 {item.duration ? formatDuration(item.duration) : ""}
             </Typography>
-
-            <Box sx={{ width: 34 }}>
-                <TrackOptionsButton item={item} alwaysVisible={hovered} />
-            </Box>
         </Box>
     );
 };

@@ -190,10 +190,11 @@ export const PlaylistTracksDialog = ({
                                     {playlist.description}
                                 </Typography>
                             )}
-                            <Typography
-                                sx={{ mt: 1.25, fontSize: 13, color: "text.secondary" }}
-                            >
-                                <Box component="span" sx={{ color: "text.primary", fontWeight: 750 }}>
+                            <Typography sx={{ mt: 1.25, fontSize: 13, color: "text.secondary" }}>
+                                <Box
+                                    component="span"
+                                    sx={{ color: "text.primary", fontWeight: 750 }}
+                                >
                                     {formatDisplayName(playlist?.user.name)}
                                 </Box>
                                 {" · "}
@@ -209,7 +210,8 @@ export const PlaylistTracksDialog = ({
                         minHeight: "50%",
                         px: { xs: 1, sm: 2.5, md: 4 },
                         pb: 5,
-                        background: (theme: import("@mui/material").Theme) => `linear-gradient(180deg, rgba(54,31,20,0.56) 0%, ${theme.palette.background.default} 170px)`,
+                        background: (theme: import("@mui/material").Theme) =>
+                            `linear-gradient(180deg, rgba(54,31,20,0.56) 0%, ${theme.palette.background.default} 170px)`,
                     }}
                 >
                     <Stack direction="row" alignItems="center" spacing={1.25} sx={{ py: 2.5 }}>
@@ -252,7 +254,7 @@ export const PlaylistTracksDialog = ({
                         sx={{
                             display: { xs: "none", md: "grid" },
                             gridTemplateColumns:
-                                "16px 48px minmax(0,1fr) minmax(140px,.6fr) 32px 42px 34px",
+                                "16px 48px minmax(0,1fr) minmax(140px,.6fr) 34px 32px 42px",
                             gap: 1.5,
                             alignItems: "center",
                             px: 2,
@@ -270,8 +272,8 @@ export const PlaylistTracksDialog = ({
                         <Typography variant="caption">Tiêu đề</Typography>
                         <Typography variant="caption">Album</Typography>
                         <Box />
-                        <AccessTimeIcon sx={{ fontSize: 16, justifySelf: "end" }} />
                         <Box />
+                        <AccessTimeIcon sx={{ fontSize: 16, justifySelf: "end" }} />
                     </Box>
 
                     {loading && !queue.length ? (

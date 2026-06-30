@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -97,6 +98,7 @@ func (h *Handler) AddAICandidates(c *gin.Context) {
 	}
 	var req intelligencedto.AddCandidatesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		slog.Error("AddAICandidates: bind failed", "err", err)
 		responses.ResponseError(c, responses.ErrBadRequest(err.Error()))
 		return
 	}

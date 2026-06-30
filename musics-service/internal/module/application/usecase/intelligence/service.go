@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand/v2"
 	"regexp"
@@ -54,12 +55,24 @@ func (s *Service) CreateSession(ctx context.Context, userUUID string, req intell
 		planningPrompt += ". " + dynamicTimeHint(s.now())
 	}
 	plan := s.buildPlan(planningPrompt, mode, req.DurationMinutes, dna)
-	if s.planner != nil {
+	if s.planner == nil {
+		slog.Warn("music AI planner is nil — using keyword matching only; set MUSIC_AI_ENDPOINT and MUSIC_AI_API_KEY to enable LLM planning")
+	} else {
 		if planned, plannerErr := s.planner.Plan(ctx, planningPrompt, dna, plan); plannerErr == nil {
 			plan = planned
+		} else {
+			slog.Error("music AI planner failed — using keyword matching fallback", "err", plannerErr)
 		}
 	}
 	plan = normalizePlan(plan, s.buildPlan(planningPrompt, mode, req.DurationMinutes, dna))
+	msg := assistantMessage(plan, mode)
+	if s.planner != nil {
+		if generated, msgErr := s.planner.GenerateMessage(ctx, req.Prompt, plan); msgErr == nil && generated != "" {
+			msg = generated
+		} else if msgErr != nil {
+			slog.Error("music AI planner: GenerateMessage failed", "err", msgErr)
+		}
+	}
 	planJSON, _ := json.Marshal(plan)
 	session := intelligenceentity.AISession{
 		ID:               uuid.NewString(),
@@ -67,7 +80,7 @@ func (s *Service) CreateSession(ctx context.Context, userUUID string, req intell
 		Mode:             mode,
 		Prompt:           strings.TrimSpace(req.Prompt),
 		Title:            sessionTitle(plan, mode),
-		AssistantMessage: assistantMessage(plan, mode),
+		AssistantMessage: msg,
 		Status:           "planning",
 		Plan:             planJSON,
 		Context:          json.RawMessage(`{}`),
@@ -157,16 +170,26 @@ func (s *Service) Chat(ctx context.Context, userUUID, sessionID string, req inte
 	var oldPlan intelligencedto.JourneyPlan
 	_ = json.Unmarshal(session.Plan, &oldPlan)
 	plan := s.buildPlan(combinedPrompt, session.Mode, oldPlan.DurationMinutes, dna)
-	if s.planner != nil {
+	if s.planner == nil {
+		slog.Warn("music AI planner is nil — using keyword matching only")
+	} else {
 		if planned, plannerErr := s.planner.Plan(ctx, combinedPrompt, dna, plan); plannerErr == nil {
 			plan = planned
+		} else {
+			slog.Error("music AI planner failed — using keyword matching fallback", "err", plannerErr)
+		}
+	}
+	chatMsg := assistantMessage(plan, session.Mode)
+	if s.planner != nil {
+		if generated, msgErr := s.planner.GenerateMessage(ctx, req.Message, plan); msgErr == nil && generated != "" {
+			chatMsg = generated
 		}
 	}
 	planJSON, _ := json.Marshal(plan)
 	session.Prompt = combinedPrompt
 	session.Plan = planJSON
 	session.Title = sessionTitle(plan, session.Mode)
-	session.AssistantMessage = assistantMessage(plan, session.Mode)
+	session.AssistantMessage = chatMsg
 	session.Status = "planning"
 	if err := s.repo.UpdateAISession(ctx, *session); err != nil {
 		return nil, err
@@ -523,6 +546,8 @@ func (s *Service) buildPlan(prompt, mode string, explicitDuration int, dna []int
 	activity := detectActivity(normalized)
 	moods := detectMoods(normalized)
 	genres := detectGenres(normalized)
+	era := detectEra(normalized)
+	country := detectCountry(normalized)
 	instrumental, vocalGender := detectVocalConstraints(normalized)
 	if len(genres) == 0 {
 		for _, dimension := range topPositiveDimensions(dna, 4) {
@@ -561,7 +586,7 @@ func (s *Service) buildPlan(prompt, mode string, explicitDuration int, dna []int
 	duration = min(max(duration, 10), 480)
 	startEnergy, peakEnergy, endEnergy := energyArc(activity, moods, mode)
 	timeline := buildTimeline(duration, startEnergy, peakEnergy, endEnergy)
-	queries := buildSearchQueries(genres, moods, activity, instrumental, vocalGender)
+	queries := buildSearchQueries(genres, moods, activity, era, country, instrumental, vocalGender)
 	discovery := explorationLevel(dna)
 	if strings.Contains(normalized, "hidden gem") || strings.Contains(normalized, "ít người") || strings.Contains(normalized, "underground") {
 		discovery = .9
@@ -927,23 +952,86 @@ func buildTimeline(duration int, start, peak, end float64) []intelligencedto.Tim
 	}
 }
 
-func buildSearchQueries(genres, moods []string, activity string, instrumental *bool, vocalGender string) []string {
+func buildSearchQueries(genres, moods []string, activity, era, country string, instrumental *bool, vocalGender string) []string {
 	queries := []string{}
-	suffix := strings.ReplaceAll(activity, "_", " ")
+
+	// Only use activity as suffix when it carries real meaning.
+	suffix := ""
+	if activity != "free_listening" {
+		suffix = strings.ReplaceAll(activity, "_", " ")
+	}
+
+	// Build modifiers appended to every query.
+	modifiers := ""
+	if era != "" {
+		modifiers += " " + era
+	}
+	if country != "" {
+		modifiers += " " + country
+	}
+	if instrumental != nil && *instrumental {
+		modifiers += " instrumental"
+	}
+	if vocalGender != "" {
+		modifiers += " " + vocalGender + " vocal"
+	}
+
 	for _, genre := range genres[:min(3, len(genres))] {
 		for _, mood := range moods[:min(2, len(moods))] {
-			query := strings.TrimSpace(genre + " " + mood + " " + suffix)
-			if instrumental != nil && *instrumental {
-				query += " instrumental"
-			}
-			if vocalGender != "" {
-				query += " " + vocalGender + " vocal"
-			}
+			query := strings.TrimSpace(genre + " " + mood + " " + suffix + modifiers)
 			queries = appendUnique(queries, query)
 		}
+		// One query per genre without mood, keeps results broad.
+		queries = appendUnique(queries, strings.TrimSpace(genre+modifiers))
 	}
-	queries = appendUnique(queries, strings.Join(genres[:min(2, len(genres))], " "))
-	return queries[:min(6, len(queries))]
+	if len(queries) < 4 && era != "" {
+		queries = appendUnique(queries, strings.TrimSpace(strings.Join(genres[:min(2, len(genres))], " ")+modifiers))
+	}
+	return queries[:min(10, len(queries))]
+}
+
+func detectEra(value string) string {
+	patterns := []struct {
+		era   string
+		words []string
+	}{
+		{"80s", []string{"80s", "thap nien 80", "thập niên 80", "nam 80", "năm 80", "1980"}},
+		{"90s", []string{"90s", "thap nien 90", "thập niên 90", "nam 90", "năm 90", "1990"}},
+		{"70s", []string{"70s", "thap nien 70", "thập niên 70", "nam 70", "năm 70", "1970"}},
+		{"2000s", []string{"2000s", "thap nien 2000", "thập niên 2000", "nam 2000", "năm 2000"}},
+		{"2010s", []string{"2010s", "thap nien 2010", "thập niên 2010"}},
+		{"classic", []string{"classic", "co dien", "cổ điển", "xua", "xưa", "cu", "cũ"}},
+		{"retro", []string{"retro", "vintage"}},
+	}
+	for _, p := range patterns {
+		for _, w := range p.words {
+			if strings.Contains(value, w) {
+				return p.era
+			}
+		}
+	}
+	return ""
+}
+
+func detectCountry(value string) string {
+	patterns := []struct {
+		country string
+		words   []string
+	}{
+		{"vietnamese", []string{"viet nam", "việt nam", "vpop", "v-pop", "nhac viet", "nhạc việt", "bolero", "nhac vang", "nhạc vàng", "tru tinh", "trữ tình"}},
+		{"korean", []string{"kpop", "k-pop", "korean", "han quoc", "hàn quốc"}},
+		{"japanese", []string{"jpop", "j-pop", "japanese", "nhat ban", "nhật bản", "anime"}},
+		{"chinese", []string{"cpop", "c-pop", "chinese", "trung quoc", "trung quốc", "mandarin", "cantonese"}},
+		{"latin", []string{"latin", "latino", "spanish", "tay ban nha"}},
+	}
+	for _, p := range patterns {
+		for _, w := range p.words {
+			if strings.Contains(value, w) {
+				return p.country
+			}
+		}
+	}
+	return ""
 }
 
 func dnaAffinityMap(dna []intelligenceentity.DNADimension) map[string]float64 {
@@ -1054,10 +1142,18 @@ func sessionTitle(plan intelligencedto.JourneyPlan, mode string) string {
 }
 
 func assistantMessage(plan intelligencedto.JourneyPlan, mode string) string {
-	return fmt.Sprintf("Mình đã dựng một hành trình %d phút gồm khoảng %d bài %s. Năng lượng sẽ đi từ %.0f%% lên peak %.0f%% rồi kết ở %.0f%%.",
-		plan.DurationMinutes, plan.TargetTrackCount, strings.Join(plan.Genres, ", "),
-		plan.EnergyCurve[0].Energy*100, plan.EnergyCurve[min(1, len(plan.EnergyCurve)-1)].Energy*100,
-		plan.EnergyCurve[len(plan.EnergyCurve)-1].Energy*100)
+	genres := strings.Join(plan.Genres, " & ")
+	moods := ""
+	if len(plan.Moods) > 0 {
+		moods = strings.Join(plan.Moods[:min(2, len(plan.Moods))], " + ")
+	}
+	peakE := plan.EnergyCurve[min(1, len(plan.EnergyCurve)-1)].Energy * 100
+	templates := []string{
+		fmt.Sprintf("Sẵn rồi — nhạc %s, mood %s, năng lượng leo dần lên peak %.0f%%.", genres, moods, peakE),
+		fmt.Sprintf("Mình đã dựng hành trình %s cho bạn — bắt đầu nhẹ rồi leo lên %.0f%% năng lượng.", genres, peakE),
+		fmt.Sprintf("Xong! Playlist %s mood %s đang chờ bạn.", genres, moods),
+	}
+	return templates[plan.TargetTrackCount%len(templates)]
 }
 
 func defaultMoodForActivity(activity string) string {

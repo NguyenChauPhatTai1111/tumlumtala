@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@components/layout/AppLayout";
 import { LoginPage } from "@pages/auth/Login";
@@ -16,6 +16,8 @@ import { RouteErrorPage } from "@components/common/RouteErrorPage";
 import { PermissionRoute } from "@components/common/PermissionRoute";
 
 const MoviePage = lazy(() => import("@pages/movie/MoviePage"));
+const WordMatchPage = lazy(() => import("@pages/wordmatch/WordMatchPage").then((m) => ({ default: m.WordMatchPage })));
+const WordChainPage = lazy(() => import("@pages/wordchain/WordChainPage"));
 
 export const router = createBrowserRouter([
   {
@@ -36,6 +38,8 @@ export const router = createBrowserRouter([
         errorElement: <RouteErrorPage />,
         children: [
           { path: "/", element: <LandingPage /> },
+          { path: "/wordmatch", element: <Suspense fallback={null}><WordMatchPage /></Suspense> },
+          { path: "/word-chain", element: <Suspense fallback={null}><WordChainPage /></Suspense> },
           {
             path: "/dashboard",
             element: (

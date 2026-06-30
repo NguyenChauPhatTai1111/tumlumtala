@@ -41,6 +41,10 @@ type Config struct {
 	Redis                    RedisConfig
 	LocalUploadDir           string
 	LocalUploadBaseURL       string
+	WordMatchDictDir         string
+	LLMBaseURL               string
+	LLMAPIKey                string
+	LLMModel                 string
 }
 
 func Load() Config {
@@ -75,6 +79,10 @@ func Load() Config {
 		},
 		LocalUploadDir:     getEnv("LOCAL_UPLOAD_DIR", "/app/uploads"),
 		LocalUploadBaseURL: getEnv("LOCAL_UPLOAD_BASE_URL", "/uploads"),
+		WordMatchDictDir:   getEnv("WORDMATCH_DICT_DIR", "/app/words"),
+		LLMBaseURL:         getEnv("LLM_BASE_URL", ""),
+		LLMAPIKey:          getEnv("LLM_API_KEY", ""),
+		LLMModel:           getEnv("LLM_MODEL", "llama3"),
 	}
 }
 

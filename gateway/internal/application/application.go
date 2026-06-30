@@ -29,6 +29,8 @@ import (
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
+	wordchainhttp "github.com/tumlumtala/gateway/internal/modules/wordchain/http"
+	wordmatchhttp "github.com/tumlumtala/gateway/internal/modules/wordmatch/http"
 	"github.com/tumlumtala/gateway/internal/shared/logger"
 	"github.com/tumlumtala/gateway/internal/shared/metrics"
 	"github.com/tumlumtala/gateway/internal/shared/observability"
@@ -174,6 +176,19 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		return nil, err
 	}
 
+	wordMatchHandler := wordmatchhttp.NewHandler(cfg.WordMatchDictDir, cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
+	wordMatchRoutes := wordmatchhttp.NewRoutes(wordMatchHandler)
+	wordChainRoutes, err := wordchainhttp.NewRoutes(
+		redisClient,
+		cfg.WordMatchDictDir,
+		cfg.LLMBaseURL,
+		cfg.LLMAPIKey,
+		cfg.LLMModel,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Static(cfg.LocalUploadBaseURL, cfg.LocalUploadDir)
@@ -191,6 +206,8 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		messengerhttp.NewMessengerRoutes(messengerProxy),
 		movieshttp.NewMoviesRoutes(moviesProxy),
 		musicshttp.NewMusicsRoutes(musicsProxy),
+		wordMatchRoutes,
+		wordChainRoutes,
 		httproutes.NewHealthRoutes(healthHandler),
 		httproutes.NewMetricsRoutes(),
 	)

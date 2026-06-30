@@ -31,6 +31,7 @@ func Auth(verifier *jwtinfra.Verifier, users ActiveUserChecker) gin.HandlerFunc 
 			c.Abort()
 			return
 		}
+		userName := ""
 		if users != nil {
 			user, err := users.GetUser(c.Request.Context(), claims.UserID)
 			status := strings.ToLower(strings.TrimSpace(user.Status))
@@ -45,12 +46,14 @@ func Auth(verifier *jwtinfra.Verifier, users ActiveUserChecker) gin.HandlerFunc 
 				c.Abort()
 				return
 			}
+			userName = user.Fullname
 		}
 
 		ctx := contextx.WithClaims(c.Request.Context(), claims)
 		c.Request = c.Request.WithContext(ctx)
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
+		c.Set("user_name", userName)
 		c.Set("role", claims.Role)
 		c.Next()
 	}

@@ -128,9 +128,7 @@ const MUSIC_CARD_SURFACE_SX = {
             : theme.palette.background.paper,
     border: "1px solid",
     borderColor: (theme: import("@mui/material").Theme) =>
-        theme.palette.mode === "light"
-            ? alpha(theme.palette.primary.main, 0.12)
-            : "transparent",
+        theme.palette.mode === "light" ? alpha(theme.palette.primary.main, 0.12) : "transparent",
     boxShadow: (theme: import("@mui/material").Theme) =>
         theme.palette.mode === "light"
             ? `0 10px 24px ${alpha(theme.palette.primary.main, 0.05)}`
@@ -151,9 +149,7 @@ const MUSIC_CONTROL_OVERLAY_SX = {
             : "rgba(12,12,12,0.72)",
     border: "1px solid",
     borderColor: (theme: import("@mui/material").Theme) =>
-        theme.palette.mode === "light"
-            ? alpha(theme.palette.primary.main, 0.14)
-            : "transparent",
+        theme.palette.mode === "light" ? alpha(theme.palette.primary.main, 0.14) : "transparent",
     boxShadow: (theme: import("@mui/material").Theme) =>
         theme.palette.mode === "light"
             ? `0 10px 24px ${alpha(theme.palette.primary.main, 0.12)}`
@@ -247,8 +243,7 @@ const MUSIC_MENU_BACKGROUND_SX = {
             )} 0%, transparent 22%)`,
         pointerEvents: "none",
         zIndex: 0,
-        transform:
-            "perspective(1400px) rotateX(72deg) rotateZ(-10deg) translate3d(-4%, 8%, 0)",
+        transform: "perspective(1400px) rotateX(72deg) rotateZ(-10deg) translate3d(-4%, 8%, 0)",
         transformOrigin: "center center",
         animation: "musicAmbientDepth 28s ease-in-out infinite",
         opacity: 0.92,
@@ -273,13 +268,11 @@ const MUSIC_MENU_BACKGROUND_SX = {
     "@keyframes musicAmbientDepth": {
         "0%, 100%": {
             opacity: 0.82,
-            transform:
-                "perspective(1400px) rotateX(72deg) rotateZ(-10deg) translate3d(-4%, 8%, 0)",
+            transform: "perspective(1400px) rotateX(72deg) rotateZ(-10deg) translate3d(-4%, 8%, 0)",
         },
         "50%": {
             opacity: 1,
-            transform:
-                "perspective(1400px) rotateX(66deg) rotateZ(6deg) translate3d(4%, -6%, 0)",
+            transform: "perspective(1400px) rotateX(66deg) rotateZ(6deg) translate3d(4%, -6%, 0)",
         },
     },
     "& > *": {
@@ -474,7 +467,10 @@ function TrackCard({
                     "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
                 }}
             >
-                <Box className="card-bg" sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}>
+                <Box
+                    className="card-bg"
+                    sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}
+                >
                     <Box sx={{ position: "relative", mb: 1.5 }}>
                         <Box
                             component="button"
@@ -588,7 +584,11 @@ function TrackCard({
                     >
                         {formatDisplayName(track.title)}
                     </Typography>
-                    <Typography className="card-subtitle" noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                    <Typography
+                        className="card-subtitle"
+                        noWrap
+                        sx={{ fontSize: 12, color: "text.secondary" }}
+                    >
                         {formatDisplayName(track.user.name)}
                     </Typography>
                     {recommendationReason && (
@@ -654,10 +654,18 @@ function ArtistCard({ artist, onClick }: { artist: AudiusUser; onClick: () => vo
                         boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
                     }}
                 />
-                <Typography className="card-title" noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
+                <Typography
+                    className="card-title"
+                    noWrap
+                    sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}
+                >
                     {formatDisplayName(artist.name)}
                 </Typography>
-                <Typography className="card-subtitle" noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                <Typography
+                    className="card-subtitle"
+                    noWrap
+                    sx={{ fontSize: 12, color: "text.secondary" }}
+                >
                     Nghệ sĩ
                 </Typography>
             </Box>
@@ -736,10 +744,18 @@ function PlaylistCard({ playlist, onClick }: { playlist: AudiusPlaylist; onClick
                         />
                     </Box>
                 </Box>
-                <Typography className="card-title" noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}>
+                <Typography
+                    className="card-title"
+                    noWrap
+                    sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", mb: 0.25 }}
+                >
                     {formatDisplayName(playlist.playlist_name)}
                 </Typography>
-                <Typography className="card-subtitle" noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                <Typography
+                    className="card-subtitle"
+                    noWrap
+                    sx={{ fontSize: 12, color: "text.secondary" }}
+                >
                     {formatDisplayName(playlist.user.name)}
                 </Typography>
             </Box>
@@ -807,7 +823,11 @@ function QueueItem({ item, queue }: { item: MediaItem; queue: MediaItem[] }) {
             <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography
                     noWrap
-                    sx={{ fontSize: 13, fontWeight: 500, color: active ? SP_GREEN : "text.primary" }}
+                    sx={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: active ? SP_GREEN : "text.primary",
+                    }}
                 >
                     {formatDisplayName(item.title)}
                 </Typography>
@@ -854,7 +874,7 @@ function QueuePanelContent({
                 <Stack direction="row" spacing={1} alignItems="center">
                     <QueueMusicIcon sx={{ color: spGreen, fontSize: 20 }} />
                     <Typography sx={{ fontWeight: 700, color: "text.primary", fontSize: 15 }}>
-                        Queue · {queue.length}
+                        Danh sách chờ · {queue.length}
                     </Typography>
                 </Stack>
                 <Stack direction="row" spacing={0.5}>
@@ -894,9 +914,7 @@ function QueuePanelContent({
             >
                 {queue.length === 0 ? (
                     <Box sx={{ p: 3, textAlign: "center" }}>
-                        <QueueMusicIcon
-                            sx={{ fontSize: 40, color: "text.disabled", mb: 1 }}
-                        />
+                        <QueueMusicIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
                         <Typography sx={{ color: "text.disabled", fontSize: 13 }}>
                             Queue trống. Phát một bài để bắt đầu.
                         </Typography>
@@ -964,7 +982,12 @@ function SidebarInner({
                     {!collapsed && (
                         <Typography
                             className="music-brand-text"
-                            sx={{ fontWeight: 900, fontSize: 18, color: "text.primary", letterSpacing: -0.5 }}
+                            sx={{
+                                fontWeight: 900,
+                                fontSize: 18,
+                                color: "text.primary",
+                                letterSpacing: -0.5,
+                            }}
                         >
                             TÙM LUM NHẠC
                         </Typography>
@@ -976,9 +999,16 @@ function SidebarInner({
                             <IconButton
                                 size="small"
                                 onClick={onToggleCollapse}
-                                sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
+                                sx={{
+                                    color: "text.secondary",
+                                    "&:hover": { color: "text.primary" },
+                                }}
                             >
-                                {collapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+                                {collapsed ? (
+                                    <ChevronRightIcon fontSize="small" />
+                                ) : (
+                                    <ChevronLeftIcon fontSize="small" />
+                                )}
                             </IconButton>
                         </Tooltip>
                     )}
@@ -1076,12 +1106,19 @@ function SidebarInner({
                                 "&:hover": { color: "text.primary", bgcolor: "action.hover" },
                             }}
                         >
-                            <Box sx={{ display: "flex", "& svg": { fontSize: 20 } }}>{item.icon}</Box>
+                            <Box sx={{ display: "flex", "& svg": { fontSize: 20 } }}>
+                                {item.icon}
+                            </Box>
                             {!collapsed && (
                                 <>
                                     <Typography
                                         noWrap
-                                        sx={{ fontSize: 13, fontWeight: 500, color: "inherit", flex: 1 }}
+                                        sx={{
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            color: "inherit",
+                                            flex: 1,
+                                        }}
                                     >
                                         {item.label}
                                     </Typography>
@@ -1111,16 +1148,10 @@ function SidebarInner({
                                     "&:hover": { bgcolor: "action.hover" },
                                 }}
                             >
-                                <Typography
-                                    noWrap
-                                    sx={{ fontSize: 13, color: "text.secondary" }}
-                                >
+                                <Typography noWrap sx={{ fontSize: 13, color: "text.secondary" }}>
                                     {formatDisplayName(playlist.name)}
                                 </Typography>
-                                <Typography
-                                    noWrap
-                                    sx={{ fontSize: 11, color: "text.disabled" }}
-                                >
+                                <Typography noWrap sx={{ fontSize: 11, color: "text.disabled" }}>
                                     {playlist.tracks?.length ?? 0} bài
                                 </Typography>
                             </Box>
@@ -1168,6 +1199,7 @@ export default function MusicPage() {
         currentItem,
         recentItems,
         likedItems,
+        _restoredFromStorage,
         clearQueue,
         hydrateLibrary,
         appendToQueue,
@@ -1246,6 +1278,7 @@ export default function MusicPage() {
     useEffect(() => {
         if (!currentItem || lastRecordedItemRef.current === currentItem.id) return;
         lastRecordedItemRef.current = currentItem.id;
+        if (_restoredFromStorage) return;
         void import("@services/musicBackendService")
             .then(({ recordMusicPlayback }) => recordMusicPlayback(currentItem))
             .then(
@@ -1257,7 +1290,7 @@ export default function MusicPage() {
             .catch(() => {
                 lastRecordedItemRef.current = null;
             });
-    }, [currentItem, queryClient]);
+    }, [_restoredFromStorage, currentItem, queryClient]);
 
     useEffect(() => {
         if (!hasSearchKeyword || lastSavedKeywordRef.current === searchKeyword) return;
@@ -1482,14 +1515,11 @@ export default function MusicPage() {
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon
-                                        sx={{ color: "text.secondary", fontSize: 18 }}
-                                    />
+                                    <SearchIcon sx={{ color: "text.secondary", fontSize: 18 }} />
                                 </InputAdornment>
                             ),
                         }}
                     />
-
 
                     <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
                         <Tooltip title={mode === "light" ? "Chuyển sang tối" : "Chuyển sang sáng"}>
@@ -1517,7 +1547,7 @@ export default function MusicPage() {
                                 <LyricsOutlinedIcon />
                             </IconButton>
                         </Tooltip>
-                        <Tooltip title="Queue">
+                        <Tooltip title="Danh sách chờ">
                             <IconButton
                                 onClick={() => {
                                     setShowQueue((p) => !p);
@@ -1586,13 +1616,8 @@ export default function MusicPage() {
                                         onClick={() => setTrendingGenre(g)}
                                         sx={{
                                             bgcolor:
-                                                trendingGenre === g
-                                                    ? SP_GREEN
-                                                    : "action.hover",
-                                            color:
-                                                trendingGenre === g
-                                                    ? "black"
-                                                    : "text.secondary",
+                                                trendingGenre === g ? SP_GREEN : "action.hover",
+                                            color: trendingGenre === g ? "black" : "text.secondary",
                                             fontWeight: trendingGenre === g ? 700 : 400,
                                             "&:hover": {
                                                 bgcolor:
@@ -1793,17 +1818,23 @@ export default function MusicPage() {
                                                         icon={<SearchIcon />}
                                                         onClick={() => setKeyword(row.keyword)}
                                                         onDelete={() =>
-                                                            deleteSearchHistoryMutation.mutate(row.id)
+                                                            deleteSearchHistoryMutation.mutate(
+                                                                row.id,
+                                                            )
                                                         }
                                                         sx={{
                                                             bgcolor: "action.hover",
                                                             color: "text.primary",
-                                                            "& .MuiChip-icon": { color: "text.secondary" },
+                                                            "& .MuiChip-icon": {
+                                                                color: "text.secondary",
+                                                            },
                                                             "& .MuiChip-deleteIcon": {
                                                                 color: "text.disabled",
                                                                 "&:hover": { color: "error.main" },
                                                             },
-                                                            "&:hover": { bgcolor: "action.selected" },
+                                                            "&:hover": {
+                                                                bgcolor: "action.selected",
+                                                            },
                                                         }}
                                                     />
                                                 ))}
@@ -2176,7 +2207,9 @@ export default function MusicPage() {
                             p: { xs: 2, md: 3 },
                         }}
                     >
-                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
+                        <Typography
+                            sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
+                        >
                             {hasSearchKeyword ? "Kết quả tìm kiếm" : "Playlists nổi bật hôm nay"}
                         </Typography>
                         <PlaylistGrid
@@ -2216,7 +2249,8 @@ export default function MusicPage() {
                         <Box
                             sx={{
                                 p: { xs: 2, md: 3 },
-                                background: (theme) => `linear-gradient(135deg, #4B0082 0%, ${theme.palette.background.default} 100%)`,
+                                background: (theme) =>
+                                    `linear-gradient(135deg, #4B0082 0%, ${theme.palette.background.default} 100%)`,
                                 display: "flex",
                                 alignItems: "flex-end",
                                 gap: 3,
@@ -2260,9 +2294,7 @@ export default function MusicPage() {
                                 >
                                     Liked Songs
                                 </Typography>
-                                <Typography
-                                    sx={{ color: "text.secondary", fontSize: 14, mt: 1 }}
-                                >
+                                <Typography sx={{ color: "text.secondary", fontSize: 14, mt: 1 }}>
                                     {likedItems.length} bài hát
                                 </Typography>
                             </Box>
@@ -2295,7 +2327,9 @@ export default function MusicPage() {
                             p: { xs: 2, md: 3 },
                         }}
                     >
-                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
+                        <Typography
+                            sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
+                        >
                             Nghe gần đây
                         </Typography>
                         {recentItems.length ? (
@@ -2324,7 +2358,9 @@ export default function MusicPage() {
                             p: { xs: 2, md: 3 },
                         }}
                     >
-                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
+                        <Typography
+                            sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
+                        >
                             Playlists cá nhân
                         </Typography>
                         <Stack
@@ -2424,7 +2460,11 @@ export default function MusicPage() {
                                         </Box>
                                         <Typography
                                             noWrap
-                                            sx={{ fontWeight: 700, color: "text.primary", fontSize: 14 }}
+                                            sx={{
+                                                fontWeight: 700,
+                                                color: "text.primary",
+                                                fontSize: 14,
+                                            }}
                                         >
                                             {formatDisplayName(playlist.name)}
                                         </Typography>
@@ -2528,7 +2568,11 @@ export default function MusicPage() {
                 ModalProps={{ keepMounted: true }}
                 sx={{
                     display: { xs: "block", xl: "none" },
-                    "& .MuiDrawer-paper": { width: QUEUE_W, bgcolor: "background.default", border: "none" },
+                    "& .MuiDrawer-paper": {
+                        width: QUEUE_W,
+                        bgcolor: "background.default",
+                        border: "none",
+                    },
                 }}
             >
                 <QueuePanelContent
@@ -2571,13 +2615,14 @@ export default function MusicPage() {
                 ModalProps={{ keepMounted: true }}
                 sx={{
                     display: { xs: "block", xl: "none" },
-                    "& .MuiDrawer-paper": { width: LYRICS_W, bgcolor: "background.default", border: "none" },
+                    "& .MuiDrawer-paper": {
+                        width: LYRICS_W,
+                        bgcolor: "background.default",
+                        border: "none",
+                    },
                 }}
             >
-                <LyricsPanelContent
-                    item={currentItem}
-                    onClose={() => setShowLyrics(false)}
-                />
+                <LyricsPanelContent item={currentItem} onClose={() => setShowLyrics(false)} />
             </Drawer>
 
             {/* Desktop: inline lyrics panel */}
@@ -2594,10 +2639,7 @@ export default function MusicPage() {
                         overflow: "hidden",
                     }}
                 >
-                    <LyricsPanelContent
-                        item={currentItem}
-                        onClose={() => setShowLyrics(false)}
-                    />
+                    <LyricsPanelContent item={currentItem} onClose={() => setShowLyrics(false)} />
                 </Box>
             )}
 
