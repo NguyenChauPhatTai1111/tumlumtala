@@ -1,5 +1,12 @@
 import { apiClient } from "@api/client";
-import type { MediaItem } from "@pages/music/types";
+import type {
+    AudiusPlaylist,
+    AudiusTrack,
+    AudiusUser,
+    MediaItem,
+    TrendingGenre,
+    TrendingTimeFilter,
+} from "@pages/music/types";
 
 const PREFIX = "/music";
 
@@ -137,9 +144,355 @@ interface SpotifyTrackResponse {
     duration: number;
     created_at?: string;
     user: { id: string; name: string };
+    artists?: Array<{ id: string; name: string }>;
     artwork: { "150x150"?: string; "480x480"?: string; "1000x1000"?: string };
+    album?: { id: string; name: string };
     external_url: string;
 }
+
+export interface SpotifyArtistSummary {
+    id: string;
+    name: string;
+    images: string[];
+    external_url: string;
+}
+
+export interface SpotifyCategory {
+    id: string;
+    name: string;
+    icon: string;
+}
+
+export interface SpotifyCollectionSummary {
+    id: string;
+    name: string;
+    description?: string;
+    type: "album" | "playlist";
+    images: string[];
+    owner: SpotifyArtist;
+    total_items?: number;
+    release_date?: string;
+    external_url: string;
+}
+
+export interface SpotifyArtist {
+    id: string;
+    name: string;
+}
+
+export interface SpotifyTrackDetail {
+    id: string;
+    provider: string;
+    title: string;
+    duration: number;
+    created_at?: string;
+    user: SpotifyArtist;
+    artists?: SpotifyArtist[];
+    artwork: { "150x150"?: string; "480x480"?: string; "1000x1000"?: string };
+    album?: { id: string; name: string };
+    external_url: string;
+}
+
+export interface SpotifyArtistDetail {
+    id: string;
+    name: string;
+    genres: string[];
+    popularity: number;
+    followers: number;
+    images: string[];
+    external_url: string;
+}
+
+export interface SpotifyAlbumSummary {
+    id: string;
+    name: string;
+    album_type: string;
+    release_date: string;
+    images: string[];
+    artist_name: string;
+    external_url: string;
+}
+
+export interface SpotifyArtistResponse {
+    artist: SpotifyArtistDetail;
+    top_tracks: SpotifyTrackResponse[];
+    albums: SpotifyAlbumSummary[];
+    albums_total: number;
+    appears_on: SpotifyAlbumSummary[];
+    appears_total: number;
+    playlists: SpotifyCollectionSummary[];
+    related_artists: SpotifyArtistSummary[];
+}
+
+export interface SpotifyArtistDiscography {
+    artist: SpotifyArtistDetail;
+    albums: SpotifyAlbumSummary[];
+    total: number;
+}
+
+export interface SpotifyAlbumDetail {
+    id: string;
+    name: string;
+    album_type: string;
+    release_date: string;
+    total_tracks: number;
+    images: string[];
+    artist_id: string;
+    artist_name: string;
+    external_url: string;
+    label?: string;
+    tracks: SpotifyTrackResponse[];
+}
+
+const spotifyTrackToAudius = (track: SpotifyTrackResponse): AudiusTrack => ({
+    id: track.id,
+    provider: "spotify",
+    external_url: track.external_url,
+    title: track.title,
+    duration: track.duration,
+    created_at: track.created_at,
+    user: {
+        id: track.user.id,
+        name: track.user.name,
+        handle: track.user.id,
+        provider: "spotify",
+    },
+    artists: track.artists,
+    artwork: track.artwork,
+    album: track.album,
+});
+
+const spotifyArtistToAudius = (artist: SpotifyArtistSummary): AudiusUser => ({
+    id: artist.id,
+    provider: "spotify",
+    external_url: artist.external_url,
+    name: artist.name,
+    handle: artist.id,
+    profile_picture: {
+        "1000x1000": artist.images[0],
+        "480x480": artist.images[1] ?? artist.images[0],
+        "150x150": artist.images[2] ?? artist.images.at(-1),
+    },
+});
+
+const spotifyCollectionToAudius = (
+    collection: SpotifyCollectionSummary,
+): AudiusPlaylist => ({
+    id: collection.id,
+    provider: "spotify",
+    external_url: collection.external_url,
+    playlist_name: collection.name,
+    description: collection.description,
+    is_album: collection.type === "album",
+    track_count: collection.total_items,
+    created_at: collection.release_date,
+    user: {
+        id: collection.owner.id,
+        name: collection.owner.name,
+        handle: collection.owner.id,
+        provider: "spotify",
+    },
+    artwork: {
+        "1000x1000": collection.images[0],
+        "480x480": collection.images[1] ?? collection.images[0],
+        "150x150": collection.images[2] ?? collection.images.at(-1),
+    },
+});
+
+export const getSpotifyDiscoveryTracks = async (options: {
+    genre?: TrendingGenre;
+    time?: TrendingTimeFilter;
+}): Promise<AudiusTrack[]> => {
+    const params = new URLSearchParams({
+        genre: options.genre ?? "All",
+        time: options.time ?? "week",
+        limit: "20",
+    });
+    const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
+        `${PREFIX}/spotify/discovery/tracks?${params.toString()}`,
+    );
+    return unwrap(res.data).map(spotifyTrackToAudius);
+};
+
+export const getSpotifyDiscoveryArtists = async (): Promise<AudiusUser[]> => {
+    const res = await apiClient.get<{ data: SpotifyArtistSummary[] }>(
+        `${PREFIX}/spotify/discovery/artists?limit=16`,
+    );
+    return unwrap(res.data).map(spotifyArtistToAudius);
+};
+
+export const getSpotifyDiscoveryAlbums = async (): Promise<AudiusPlaylist[]> => {
+    const res = await apiClient.get<{ data: SpotifyCollectionSummary[] }>(
+        `${PREFIX}/spotify/discovery/albums?limit=16`,
+    );
+    return unwrap(res.data).map(spotifyCollectionToAudius);
+};
+
+export const getSpotifyDiscoveryPlaylists = async (): Promise<AudiusPlaylist[]> => {
+    const res = await apiClient.get<{ data: SpotifyCollectionSummary[] }>(
+        `${PREFIX}/spotify/discovery/playlists?limit=16`,
+    );
+    return unwrap(res.data).map(spotifyCollectionToAudius);
+};
+
+export const searchSpotifyArtists = async (query: string): Promise<AudiusUser[]> => {
+    if (!query.trim()) return [];
+    const res = await apiClient.get<{ data: SpotifyArtistSummary[] }>(
+        `${PREFIX}/search/artists`,
+        { params: { q: query, limit: 10 } },
+    );
+    return unwrap(res.data).map(spotifyArtistToAudius);
+};
+
+export const searchSpotifyPlaylists = async (query: string): Promise<AudiusPlaylist[]> => {
+    if (!query.trim()) return [];
+    const res = await apiClient.get<{ data: SpotifyCollectionSummary[] }>(
+        `${PREFIX}/search/playlists`,
+        { params: { q: query, limit: 10 } },
+    );
+    return unwrap(res.data).map(spotifyCollectionToAudius);
+};
+
+export const getSpotifyAlbumTracks = async (
+    albumId: string,
+    limit = 50,
+    offset = 0,
+): Promise<{ tracks: SpotifyTrackResponse[]; total: number }> => {
+    const res = await apiClient.get<{ data: { tracks: SpotifyTrackResponse[]; total: number; limit: number; offset: number } }>(
+        `${PREFIX}/albums/${encodeURIComponent(albumId)}/tracks?limit=${limit}&offset=${offset}`,
+    );
+    const data = unwrap(res.data);
+    return { tracks: data.tracks ?? [], total: data.total ?? 0 };
+};
+
+export const getSpotifyPlaylist = async (playlistId: string): Promise<SpotifyCollectionSummary | null> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyCollectionSummary }>(
+            `${PREFIX}/spotify/playlists/${encodeURIComponent(playlistId)}`,
+        );
+        return unwrap(res.data);
+    } catch {
+        return null;
+    }
+};
+
+export const getSpotifyPlaylistTracks = async (
+    playlistId: string,
+    limit = 50,
+    offset = 0,
+): Promise<{ tracks: SpotifyTrackDetail[]; total: number }> => {
+    const res = await apiClient.get<{ data: { tracks: SpotifyTrackDetail[]; total: number; limit: number; offset: number } }>(
+        `${PREFIX}/spotify/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&offset=${offset}`,
+    );
+    const data = unwrap(res.data);
+    return { tracks: data.tracks ?? [], total: data.total ?? 0 };
+};
+
+export const getSpotifyNewReleases = async (limit = 20): Promise<SpotifyCollectionSummary[]> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyCollectionSummary[] }>(
+            `${PREFIX}/browse/new-releases?limit=${limit}`,
+        );
+        return unwrap(res.data) ?? [];
+    } catch {
+        return [];
+    }
+};
+
+export const getSpotifyFeaturedPlaylists = async (limit = 20): Promise<SpotifyCollectionSummary[]> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyCollectionSummary[] }>(
+            `${PREFIX}/browse/featured-playlists?limit=${limit}`,
+        );
+        return unwrap(res.data) ?? [];
+    } catch {
+        return [];
+    }
+};
+
+export const getSpotifyCategories = async (limit = 20): Promise<SpotifyCategory[]> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyCategory[] }>(
+            `${PREFIX}/browse/categories?limit=${limit}`,
+        );
+        return unwrap(res.data) ?? [];
+    } catch {
+        return [];
+    }
+};
+
+export const getSpotifyCategoryPlaylists = async (
+    categoryId: string,
+    limit = 20,
+): Promise<SpotifyCollectionSummary[]> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyCollectionSummary[] }>(
+            `${PREFIX}/browse/categories/${encodeURIComponent(categoryId)}/playlists?limit=${limit}`,
+        );
+        return unwrap(res.data) ?? [];
+    } catch {
+        return [];
+    }
+};
+
+export const getSpotifyArtistAllAlbums = async (artistId: string): Promise<SpotifyAlbumSummary[]> => {
+    try {
+        const res = await apiClient.get<{ data: { albums: SpotifyAlbumSummary[]; total: number } }>(
+            `${PREFIX}/artists/${encodeURIComponent(artistId)}/discography`,
+        );
+        return unwrap(res.data).albums ?? [];
+    } catch {
+        return [];
+    }
+};
+
+export const getSpotifyAlbum = async (albumId: string): Promise<SpotifyAlbumDetail | null> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyAlbumDetail }>(
+            `${PREFIX}/albums/${encodeURIComponent(albumId)}`,
+        );
+        return unwrap(res.data);
+    } catch {
+        return null;
+    }
+};
+
+export const getSpotifyArtist = async (
+    artistId: string,
+): Promise<SpotifyArtistResponse | null> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyArtistResponse }>(
+            `${PREFIX}/artists/${encodeURIComponent(artistId)}`,
+        );
+        return unwrap(res.data);
+    } catch {
+        return null;
+    }
+};
+
+export const getSpotifyArtistDiscography = async (
+    artistId: string,
+): Promise<SpotifyArtistDiscography | null> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyArtistDiscography }>(
+            `${PREFIX}/artists/${encodeURIComponent(artistId)}/discography`,
+        );
+        return unwrap(res.data);
+    } catch {
+        return null;
+    }
+};
+
+export const getSpotifyTrack = async (trackId: string): Promise<SpotifyTrackDetail | null> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyTrackDetail }>(
+            `${PREFIX}/tracks/${encodeURIComponent(trackId)}`,
+        );
+        return unwrap(res.data);
+    } catch {
+        return null;
+    }
+};
 
 export const getSpotifyRecommendations = async (params: {
     seedTrack?: string;
@@ -155,8 +508,7 @@ export const getSpotifyRecommendations = async (params: {
     const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
         `${PREFIX}/recommendations?${query.toString()}`,
     );
-    const tracks = unwrap(res.data);
-    return tracks.map((t) => ({
+    return unwrap(res.data).map((t) => ({
         id: `audio:spotify:${t.id}`,
         sourceId: `spotify:${t.id}`,
         type: "audio" as const,
@@ -168,6 +520,7 @@ export const getSpotifyRecommendations = async (params: {
         publishedAt: t.created_at,
         provider: "spotify" as const,
         externalUrl: t.external_url,
+        album: t.album?.id ? { id: t.album.id, name: t.album.name } : undefined,
     }));
 };
 

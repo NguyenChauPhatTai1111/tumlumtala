@@ -10,6 +10,14 @@ import type {
     TrendingTimeFilter,
     YouTubeVideo,
 } from "@pages/music/types";
+import {
+    getSpotifyDiscoveryAlbums,
+    getSpotifyDiscoveryArtists,
+    getSpotifyDiscoveryPlaylists,
+    getSpotifyDiscoveryTracks,
+    searchSpotifyArtists,
+    searchSpotifyPlaylists,
+} from "@services/musicBackendService";
 
 const AUDIUS_API = "https://discoveryprovider.audius.co/v1";
 const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
@@ -101,13 +109,15 @@ export const toAudioMediaItem = (track: AudiusTrack): MediaItem => ({
     tags: track.tags,
     likeCount: track.favorite_count,
     repostCount: track.repost_count,
-    album: track.album_backlink
-        ? {
-              id: String(track.album_backlink.playlist_id),
-              name: track.album_backlink.playlist_name,
-              permalink: track.album_backlink.permalink,
-          }
-        : undefined,
+    album: track.album
+        ? { id: track.album.id, name: track.album.name }
+        : track.album_backlink
+          ? {
+                id: String(track.album_backlink.playlist_id),
+                name: track.album_backlink.playlist_name,
+                permalink: track.album_backlink.permalink,
+            }
+          : undefined,
     playlistIds: track.playlists_containing_track?.map(String),
     provider: track.provider ?? "audius",
     externalUrl: track.external_url,
@@ -135,17 +145,9 @@ export const getTrendingTracks = async (
     } = {},
 ): Promise<AudiusTrack[]> => {
     try {
-        const params: Record<string, string | number> = { limit: 50 };
-        if (options.genre && options.genre !== "All") params.genre = options.genre;
-        if (options.time) params.time = options.time;
-        const res = await axios.get<AudiusResponse<AudiusTrack[]>>(
-            `${AUDIUS_API}/tracks/trending`,
-            { params },
-        );
-        return [...res.data.data].sort((a, b) => (b.play_count ?? 0) - (a.play_count ?? 0));
-    } catch (error) {
-        if (isUnavailable(error)) return [];
-        throw error;
+        return await getSpotifyDiscoveryTracks(options);
+    } catch {
+        return [];
     }
 };
 
@@ -211,24 +213,9 @@ export const searchPreferredTracks = async (
 
 export const getTrendingArtists = async (): Promise<AudiusUser[]> => {
     try {
-        // No dedicated trending-artists endpoint — deduplicate users from trending tracks
-        const res = await axios.get<AudiusResponse<AudiusTrack[]>>(
-            `${AUDIUS_API}/tracks/trending`,
-            { params: { limit: 50 } },
-        );
-        const seen = new Set<string>();
-        const artists: AudiusUser[] = [];
-        for (const track of res.data.data) {
-            if (!seen.has(track.user.id)) {
-                seen.add(track.user.id);
-                artists.push(track.user);
-            }
-            if (artists.length >= 16) break;
-        }
-        return artists;
-    } catch (error) {
-        if (isUnavailable(error)) return [];
-        throw error;
+        return await getSpotifyDiscoveryArtists();
+    } catch {
+        return [];
     }
 };
 
@@ -244,13 +231,9 @@ export const getUser = async (userId: string): Promise<AudiusUser | null> => {
 export const searchArtists = async (query: string): Promise<AudiusUser[]> => {
     if (!query.trim()) return [];
     try {
-        const res = await axios.get<AudiusResponse<AudiusUser[]>>(`${AUDIUS_API}/users/search`, {
-            params: { query, limit: 12 },
-        });
-        return res.data.data;
-    } catch (error) {
-        if (isRateLimited(error)) return [];
-        throw error;
+        return await searchSpotifyArtists(query);
+    } catch {
+        return [];
     }
 };
 
@@ -323,41 +306,26 @@ export const getArtistFollowing = async (
 
 export const getTrendingPlaylists = async (): Promise<AudiusPlaylist[]> => {
     try {
-        const res = await axios.get<AudiusResponse<AudiusPlaylist[]>>(
-            `${AUDIUS_API}/playlists/trending`,
-            { params: { limit: 16 } },
-        );
-        return res.data.data;
-    } catch (error) {
-        if (isUnavailable(error)) return [];
-        throw error;
+        return await getSpotifyDiscoveryPlaylists();
+    } catch {
+        return [];
     }
 };
 
 export const getTrendingAlbums = async (): Promise<AudiusPlaylist[]> => {
     try {
-        const res = await axios.get<AudiusResponse<AudiusPlaylist[]>>(
-            `${AUDIUS_API}/playlists/trending`,
-            { params: { limit: 16, type: "album" } },
-        );
-        return res.data.data;
-    } catch (error) {
-        if (isUnavailable(error)) return [];
-        throw error;
+        return await getSpotifyDiscoveryAlbums();
+    } catch {
+        return [];
     }
 };
 
 export const searchPlaylists = async (query: string): Promise<AudiusPlaylist[]> => {
     if (!query.trim()) return [];
     try {
-        const res = await axios.get<AudiusResponse<AudiusPlaylist[]>>(
-            `${AUDIUS_API}/playlists/search`,
-            { params: { query, limit: 12 } },
-        );
-        return res.data.data;
-    } catch (error) {
-        if (isRateLimited(error)) return [];
-        throw error;
+        return await searchSpotifyPlaylists(query);
+    } catch {
+        return [];
     }
 };
 
@@ -792,6 +760,7 @@ function spotifyMediaToRecommended(items: import("@pages/music/types").MediaItem
             genre: item.genre,
             mood: item.mood,
             tags: item.tags,
+            album: item.album,
             user: {
                 id: item.artistId ?? "",
                 name: item.artist,
@@ -799,7 +768,7 @@ function spotifyMediaToRecommended(items: import("@pages/music/types").MediaItem
             },
             artwork: { "480x480": item.thumbnail },
             score: 100,
-            reasons: ["spotify_recommendation"],
+            reasons: ["same_genre"],
         });
     }
     return result;
@@ -809,36 +778,37 @@ export const getRecommendations = async (
     seedTrackId: string,
     limit = 12,
 ): Promise<RecommendedTrack[]> => {
-    // Spotify-first: if seed is a Spotify track or we can try Spotify recommendations
     const isSpotifySeed = seedTrackId.startsWith("spotify:");
-    const spotifyTrackId = isSpotifySeed ? seedTrackId.replace(/^spotify:/, "") : null;
 
-    if (spotifyTrackId) {
+    if (isSpotifySeed) {
         try {
             const { getSpotifyRecommendations } = await import("@services/musicBackendService");
-            const items = await getSpotifyRecommendations({ seedTrack: spotifyTrackId, limit });
+            const rawId = seedTrackId.replace(/^spotify:/, "");
+            const items = await getSpotifyRecommendations({ seedTrack: rawId, limit });
             if (items.length > 0) return spotifyMediaToRecommended(items);
         } catch {
-            // fall through to Audius
+            // Spotify seed has no equivalent Audius identifier for a meaningful fallback.
         }
-        // Seed is Spotify but recommendations failed; try Audius search with title as fallback
         return [];
     }
 
-    // Try Spotify recommendations with seed as Audius ID (search Spotify by keyword after fetching track info)
+    // Map Audius metadata to Spotify-supported genre/artist search filters.
     try {
         const seed = await getTrack(seedTrackId);
         if (seed) {
             const { getSpotifyRecommendations } = await import("@services/musicBackendService");
-            const seedGenre = seed.genre ?? undefined;
-            const items = await getSpotifyRecommendations({ seedGenre, limit });
+            const items = await getSpotifyRecommendations({
+                seedArtist: seed.user?.name,
+                seedGenre: seed.genre,
+                limit,
+            });
             if (items.length > 0) return spotifyMediaToRecommended(items);
         }
     } catch {
         // fall through to Audius
     }
 
-    // 1. Fetch seed track detail
+    // Full Audius recommendation engine
     const seed = await getTrack(seedTrackId);
     if (!seed) return [];
 

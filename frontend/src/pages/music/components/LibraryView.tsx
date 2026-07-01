@@ -59,6 +59,7 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
             if (selected.item.item_type === "radio") {
                 return getTrackRadio(selected.item.source_id, 50);
             }
+            if (selected.item.source_id.startsWith("spotify:") || selected.item.source_id.length > 13) return [];
             return getPlaylistTracks(selected.item.source_id, { limit: 100 });
         },
         enabled: selected?.kind === "saved",

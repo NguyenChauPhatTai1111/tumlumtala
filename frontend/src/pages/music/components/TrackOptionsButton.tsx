@@ -93,13 +93,15 @@ export function TrackOptionsButton({
         return getTrack(item.sourceId);
     };
 
+    const isSpotifyItem = item.provider === "spotify" || item.sourceId.startsWith("spotify:");
+
     const navigateToArtist = async () => {
         const artistId = item.artistId ?? (await resolveTrack())?.user.id;
         if (!artistId) return;
         closeMenu();
         window.dispatchEvent(
             new CustomEvent("music:navigate-entity", {
-                detail: { type: "artist", id: artistId },
+                detail: { type: "artist", id: artistId, provider: isSpotifyItem ? "spotify" : "audius" },
             }),
         );
     };
@@ -111,7 +113,7 @@ export function TrackOptionsButton({
         closeMenu();
         window.dispatchEvent(
             new CustomEvent("music:navigate-entity", {
-                detail: { type: "album", id: albumId },
+                detail: { type: "album", id: albumId, provider: isSpotifyItem ? "spotify" : "audius" },
             }),
         );
     };

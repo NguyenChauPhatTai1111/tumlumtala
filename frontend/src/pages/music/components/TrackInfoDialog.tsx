@@ -2,19 +2,20 @@ import AlbumOutlinedIcon from "@mui/icons-material/AlbumOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import LyricsOutlinedIcon from "@mui/icons-material/LyricsOutlined";
+import LocalMallOutlinedIcon from "@mui/icons-material/LocalMallOutlined";
+import MicNoneOutlinedIcon from "@mui/icons-material/MicNoneOutlined";
 import PauseIcon from "@mui/icons-material/Pause";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PlaylistPlayOutlinedIcon from "@mui/icons-material/PlaylistPlayOutlined";
+import QueueMusicOutlinedIcon from "@mui/icons-material/QueueMusicOutlined";
 import {
     Avatar,
     Box,
     Button,
     Chip,
     CircularProgress,
-    Dialog,
-    DialogContent,
-    DialogTitle,
+    Divider,
     IconButton,
     Stack,
     Tooltip,
@@ -22,7 +23,7 @@ import {
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import type { AudiusPlaylist, MediaItem } from "@pages/music/types";
-import { formatDisplayName } from "@pages/music/utils";
+import { formatDisplayName, formatDuration } from "@pages/music/utils";
 import { usePlayerStore } from "@store/playerStore";
 import {
     getAudiusProfileImage,
@@ -30,74 +31,82 @@ import {
     getPlaylistArtwork,
     getTrack,
 } from "@services/musicService";
+import {
+    getSpotifyArtistDiscography,
+    getSpotifyTrack,
+} from "@services/musicBackendService";
 import { useLyricsQuery } from "@pages/music/hooks/useMusicQueries";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 
 const ACCENT = "#f97316";
 
 export function TrackInfoButton({
     item,
     alwaysVisible = false,
-    playQueue,
 }: {
     item: MediaItem;
     alwaysVisible?: boolean;
     playQueue?: MediaItem[];
 }) {
-    const [infoOpen, setInfoOpen] = useState(false);
-
     if (item.type !== "audio") return null;
 
     return (
-        <>
-            <Tooltip title="Thông tin bài hát">
-                <IconButton
-                    size="small"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        setInfoOpen(true);
-                    }}
-                    sx={{
-                        color: alwaysVisible ? "text.secondary" : "transparent",
-                        "&:hover": { color: ACCENT },
-                        ".MuiBox-root:hover &": {
-                            color: "text.secondary",
-                        },
-                    }}
-                >
-                    <InfoOutlinedIcon sx={{ fontSize: 17 }} />
-                </IconButton>
-            </Tooltip>
-            <TrackInfoDialog
-                item={item}
-                open={infoOpen}
-                onClose={() => setInfoOpen(false)}
-                playQueue={playQueue}
-            />
-        </>
+        <Tooltip title="Thông tin bài hát">
+            <IconButton
+                size="small"
+                onClick={(event) => {
+                    event.stopPropagation();
+                    window.dispatchEvent(
+                        new CustomEvent("music:toggle-track-info", { detail: { item } }),
+                    );
+                }}
+                sx={{
+                    color: alwaysVisible ? "text.secondary" : "transparent",
+                    "&:hover": { color: ACCENT },
+                    ".MuiBox-root:hover &": {
+                        color: "text.secondary",
+                    },
+                }}
+            >
+                <InfoOutlinedIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+        </Tooltip>
     );
 }
 
-export function TrackInfoDialog({
+export function TrackInfoPanelContent({
     item,
-    open,
     onClose,
-    playQueue,
 }: {
-    item: MediaItem;
-    open: boolean;
+    item: MediaItem | null;
     onClose: () => void;
-    playQueue?: MediaItem[];
 }) {
-    const isSpotify = item.provider === "spotify";
+    const isSpotify =
+        item?.provider === "spotify" || Boolean(item?.sourceId.startsWith("spotify:"));
+    const spotifyRawId =
+        isSpotify && item ? item.sourceId.replace(/^spotify:/, "") : null;
 
-    const { currentItem, isPlaying, pause, play, resume } = usePlayerStore();
+    const { currentItem, queue, isPlaying, pause, play, resume } = usePlayerStore();
 
-    // Only fetch Audius track detail for non-Spotify items
+    const spotifyTrackQuery = useQuery({
+        queryKey: ["music", "spotify-track-info", spotifyRawId],
+        queryFn: () => getSpotifyTrack(spotifyRawId!),
+        enabled: Boolean(item) && isSpotify && Boolean(spotifyRawId) && !spotifyRawId?.includes(":"),
+        staleTime: 15 * 60 * 1000,
+    });
+    const spotifyTrack = spotifyTrackQuery.data ?? null;
+    const spotifyArtistQuery = useQuery({
+        queryKey: ["music", "spotify-track-artist", spotifyTrack?.user.id],
+        queryFn: () => getSpotifyArtistDiscography(spotifyTrack!.user.id),
+        enabled: isSpotify && Boolean(spotifyTrack?.user.id),
+        staleTime: 15 * 60 * 1000,
+    });
+    const spotifyArtist = spotifyArtistQuery.data;
+
     const trackQuery = useQuery({
-        queryKey: ["music", "track-info", item.sourceId],
-        queryFn: () => getTrack(item.sourceId),
-        enabled: open && !isSpotify,
+        queryKey: ["music", "track-info", item?.sourceId],
+        queryFn: () => getTrack(item!.sourceId),
+        enabled: Boolean(item) && !isSpotify,
         staleTime: 15 * 60 * 1000,
     });
     const track = trackQuery.data;
@@ -111,26 +120,28 @@ export function TrackInfoDialog({
         [track],
     );
     const collectionsQuery = useQuery({
-        queryKey: ["music", "track-collections", item.sourceId, collectionIds],
+        queryKey: ["music", "track-collections", item?.sourceId, collectionIds],
         queryFn: async () =>
             (await Promise.all(collectionIds.map((id) => getPlaylist(id)))).filter(
                 (collection): collection is AudiusPlaylist => Boolean(collection),
             ),
-        enabled: open && !isSpotify && collectionIds.length > 0,
+        enabled: Boolean(item) && !isSpotify && collectionIds.length > 0,
         staleTime: 15 * 60 * 1000,
     });
 
-    // Resolve display values — Spotify uses MediaItem fields directly, Audius uses fetched track
-    const displayTitle = isSpotify ? item.title : (track?.title ?? item.title);
-    const displayGenre = isSpotify ? (item.genre ?? "") : (track?.genre ?? item.genre ?? "");
+    const displayTitle = item ? (isSpotify ? item.title : (track?.title ?? item.title)) : "";
+    const displayGenre = item ? (isSpotify ? (item.genre ?? "") : (track?.genre ?? item.genre ?? "")) : "";
     const displayTags = useMemo(() => {
+        if (!item) return [];
         const raw = isSpotify ? item.tags : (track?.tags ?? item.tags);
-        return raw
-            ?.split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean)
-            .slice(0, 8);
-    }, [isSpotify, item.tags, track?.tags]);
+        return (
+            raw
+                ?.split(",")
+                .map((tag) => tag.trim())
+                .filter(Boolean)
+                .slice(0, 6) ?? []
+        );
+    }, [isSpotify, item, track?.tags]);
 
     const albumId = track?.album_backlink ? String(track.album_backlink.playlist_id) : undefined;
     const audiusAlbum = collectionsQuery.data?.find(
@@ -140,8 +151,13 @@ export function TrackInfoDialog({
         (collection) => String(collection.id) !== albumId,
     );
 
-    const active = currentItem?.id === item.id;
+    const spotifyArtistName = spotifyTrack?.user.name ?? item?.artist ?? "";
+    const spotifyArtistId = spotifyTrack?.user.id ?? item?.artistId;
+    const spotifyAlbum = spotifyTrack?.album ?? item?.album;
+
+    const active = item ? currentItem?.id === item.id : false;
     const handlePlay = () => {
+        if (!item) return;
         if (active && isPlaying) {
             pause();
             return;
@@ -150,246 +166,459 @@ export function TrackInfoDialog({
             resume();
             return;
         }
-        play(item, playQueue?.length ? playQueue : [item]);
+        play(item, queue.length ? queue : [item]);
     };
+
     const navigateToEntity = (type: "artist" | "album" | "playlist", id?: string) => {
         if (!id) return;
         onClose();
         window.dispatchEvent(
             new CustomEvent("music:navigate-entity", {
-                detail: { type, id },
+                detail: { type, id, provider: isSpotify ? "spotify" : "audius" },
             }),
         );
     };
 
-    const isLoading = !isSpotify && trackQuery.isLoading;
+    const isLoading = item ? (isSpotify ? spotifyTrackQuery.isLoading : trackQuery.isLoading) : false;
+
+    // Next in queue: tracks after current
+    const currentIndex = queue.findIndex((q) => q.id === currentItem?.id);
+    const nextTracks = currentIndex >= 0 ? queue.slice(currentIndex + 1, currentIndex + 4) : [];
 
     return (
-        <Dialog
-            open={open}
-            onClose={onClose}
-            fullWidth
-            maxWidth="sm"
-            slotProps={{
-                paper: {
-                    sx: {
-                        color: "text.primary",
-                        bgcolor: "background.paper",
-                        backgroundImage:
-                            "radial-gradient(circle at 12% 0%, rgba(249,115,22,0.12), transparent 38%)",
-                        border: "1px solid",
-                        borderColor: "divider",
-                        borderRadius: 3,
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            {/* Header */}
+            <Box
+                sx={{
+                    px: 2.5,
+                    py: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                    flexShrink: 0,
+                }}
+            >
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <InfoOutlinedIcon sx={{ color: ACCENT, fontSize: 20 }} />
+                    <Typography sx={{ fontWeight: 700, color: "text.primary", fontSize: 15 }}>
+                        Đang phát
+                    </Typography>
+                </Stack>
+                <Tooltip title="Đóng">
+                    <IconButton
+                        size="small"
+                        onClick={onClose}
+                        sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+            </Box>
+
+            {/* Scrollable body */}
+            <Box
+                sx={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: "auto",
+                    pb: "var(--persistent-music-player-height, 90px)",
+                    "&::-webkit-scrollbar": { width: 4 },
+                    "&::-webkit-scrollbar-thumb": {
+                        bgcolor: "rgba(249,115,22,0.35)",
+                        borderRadius: 2,
                     },
-                },
-            }}
-        >
-            <DialogTitle sx={{ pb: 1, fontWeight: 800 }}>Thông tin bài hát</DialogTitle>
-            <DialogContent>
-                {isLoading ? (
-                    <Box sx={{ minHeight: 240, display: "grid", placeItems: "center" }}>
+                }}
+            >
+                {!item ? (
+                    <Box
+                        sx={{
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 1,
+                            pt: 8,
+                        }}
+                    >
+                        <InfoOutlinedIcon sx={{ fontSize: 40, color: "text.disabled" }} />
+                        <Typography sx={{ color: "text.disabled", fontSize: 13 }}>
+                            Phát một bài hát để xem thông tin.
+                        </Typography>
+                    </Box>
+                ) : isLoading ? (
+                    <Box sx={{ display: "flex", justifyContent: "center", pt: 6 }}>
                         <CircularProgress size={28} sx={{ color: ACCENT }} />
                     </Box>
                 ) : (
-                    <Stack spacing={2.5}>
-                        {/* Track header */}
-                        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+                    <Stack spacing={0}>
+                        {/* Large artwork */}
+                        <Box sx={{ px: 2.5, pt: 2.5, pb: 1 }}>
                             <Avatar
                                 variant="rounded"
                                 src={item.thumbnail}
-                                sx={{ width: 88, height: 88, borderRadius: 2 }}
+                                sx={{
+                                    width: "100%",
+                                    height: "auto",
+                                    aspectRatio: "1",
+                                    borderRadius: 2,
+                                    boxShadow: "0 12px 32px rgba(0,0,0,0.4)",
+                                }}
                             />
-                            <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="h6" fontWeight={800} noWrap>
-                                    {formatDisplayName(displayTitle)}
-                                </Typography>
-                                <Typography sx={{ color: "text.secondary" }}>
-                                    {displayGenre || "Chưa có thể loại"}
-                                </Typography>
-                                {displayTags && displayTags.length > 0 && (
-                                    <Stack direction="row" gap={0.75} flexWrap="wrap" sx={{ mt: 1 }}>
-                                        {displayTags.map((tag) => (
-                                            <Chip
-                                                key={tag}
-                                                label={`#${tag}`}
-                                                size="small"
-                                                sx={{
-                                                    color: "#fed7aa",
-                                                    bgcolor: "rgba(249,115,22,0.12)",
-                                                }}
-                                            />
-                                        ))}
-                                    </Stack>
-                                )}
-                                <Button
-                                    variant={active ? "outlined" : "contained"}
-                                    startIcon={active && isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-                                    onClick={handlePlay}
-                                    sx={{
-                                        mt: 1.5,
-                                        minHeight: 40,
-                                        px: 2,
-                                        borderRadius: 999,
-                                        fontWeight: 700,
-                                        color: active ? "primary.main" : "primary.contrastText",
-                                        borderColor: active ? "primary.main" : undefined,
-                                        bgcolor: active ? "transparent" : ACCENT,
-                                        "&:hover": {
-                                            borderColor: "primary.main",
-                                            bgcolor: active ? "action.hover" : "#fb923c",
-                                        },
-                                    }}
-                                >
-                                    {active && isPlaying ? "Tạm dừng" : active ? "Phát tiếp" : "Phát bài này"}
-                                </Button>
-                            </Box>
                         </Box>
 
-                        {/* Artist section */}
-                        <InfoSection icon={<PersonOutlineIcon />} title="Nghệ sĩ">
-                            <Box
+                        {/* Track title + artist */}
+                        <Box sx={{ px: 2.5, pt: 1.5, pb: 0.5 }}>
+                            <Typography
+                                component="button"
+                                type="button"
+                                onClick={() =>
+                                    navigateToEntity(
+                                        "album",
+                                        isSpotify
+                                            ? spotifyAlbum?.id
+                                            : albumId,
+                                    )
+                                }
+                                noWrap
+                                sx={{
+                                    display: "block",
+                                    width: "100%",
+                                    p: 0,
+                                    border: 0,
+                                    bgcolor: "transparent",
+                                    textAlign: "left",
+                                    fontWeight: 800,
+                                    fontSize: 18,
+                                    color: "text.primary",
+                                    cursor: (isSpotify ? spotifyAlbum?.id : albumId) ? "pointer" : "default",
+                                    "&:hover": {
+                                        color: (isSpotify ? spotifyAlbum?.id : albumId) ? ACCENT : "text.primary",
+                                        textDecoration: (isSpotify ? spotifyAlbum?.id : albumId) ? "underline" : "none",
+                                    },
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {formatDisplayName(displayTitle)}
+                            </Typography>
+                            <Typography
                                 component="button"
                                 type="button"
                                 onClick={() =>
                                     navigateToEntity(
                                         "artist",
-                                        isSpotify ? item.artistId : (track?.user?.id ?? item.artistId),
+                                        isSpotify
+                                            ? spotifyArtistId
+                                            : (track?.user?.id ?? item.artistId),
                                     )
                                 }
-                                disabled={isSpotify ? !item.artistId : (!track?.user?.id && !item.artistId)}
+                                noWrap
                                 sx={{
+                                    display: "block",
                                     width: "100%",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 1.25,
                                     p: 0,
-                                    color: "inherit",
-                                    font: "inherit",
-                                    textAlign: "left",
                                     border: 0,
                                     bgcolor: "transparent",
-                                    cursor: (isSpotify ? item.artistId : (track?.user?.id || item.artistId))
-                                        ? "pointer"
-                                        : "default",
-                                    borderRadius: 1,
-                                    transition: "background-color 160ms ease",
-                                    "&:hover:not(:disabled)": { bgcolor: "action.hover" },
-                                    "&:focus-visible": {
-                                        outline: "2px solid rgba(249,115,22,0.75)",
-                                        outlineOffset: 4,
+                                    textAlign: "left",
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    color: "text.secondary",
+                                    cursor: (isSpotify ? spotifyArtistId : (track?.user?.id ?? item.artistId)) ? "pointer" : "default",
+                                    mt: 0.25,
+                                    "&:hover": {
+                                        color: "text.primary",
+                                        textDecoration: "underline",
+                                    },
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {formatDisplayName(
+                                    isSpotify ? spotifyArtistName : (track?.user?.name ?? item.artist),
+                                )}
+                            </Typography>
+                        </Box>
+
+                        {/* Play button */}
+                        <Box sx={{ px: 2.5, py: 1 }}>
+                            <Button
+                                fullWidth
+                                variant={active ? "outlined" : "contained"}
+                                startIcon={active && isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                                onClick={handlePlay}
+                                sx={{
+                                    borderRadius: 999,
+                                    fontWeight: 700,
+                                    color: active ? ACCENT : "black",
+                                    borderColor: active ? ACCENT : undefined,
+                                    bgcolor: active ? "transparent" : ACCENT,
+                                    "&:hover": {
+                                        borderColor: ACCENT,
+                                        bgcolor: active ? "action.hover" : "#fb923c",
                                     },
                                 }}
                             >
-                                <Avatar
-                                    src={
-                                        !isSpotify && track?.user
-                                            ? getAudiusProfileImage(track.user)
-                                            : undefined
-                                    }
-                                    sx={{ width: 46, height: 46 }}
-                                />
-                                <Box>
-                                    <Typography fontWeight={700}>
-                                        {formatDisplayName(
-                                            isSpotify
-                                                ? item.artist
-                                                : (track?.user?.name ?? item.artist),
-                                        )}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                                        {isSpotify
-                                            ? (item.artistId
-                                                ? `Spotify · ${item.artistId}`
-                                                : "Spotify")
-                                            : `@${track?.user?.handle ?? item.artistHandle ?? "unknown"}${
-                                                  track?.user?.follower_count !== undefined
-                                                      ? ` · ${track.user.follower_count.toLocaleString("vi-VN")} người theo dõi`
-                                                      : ""
-                                              }`}
-                                    </Typography>
-                                </Box>
-                            </Box>
-                            {!isSpotify && track?.user?.bio && (
-                                <Typography
-                                    variant="body2"
-                                    sx={{ mt: 1.25, color: "text.secondary", lineHeight: 1.6 }}
-                                >
-                                    {track.user.bio}
-                                </Typography>
-                            )}
-                        </InfoSection>
+                                {active && isPlaying ? "Tạm dừng" : active ? "Phát tiếp" : "Phát bài này"}
+                            </Button>
+                        </Box>
 
-                        {/* Album section */}
-                        <InfoSection icon={<AlbumOutlinedIcon />} title="Album">
+                        <Divider sx={{ mx: 2.5 }} />
+
+                        {/* Tags / genre */}
+                        {(displayGenre || displayTags.length > 0) && (
+                            <Box sx={{ px: 2.5, py: 1.5 }}>
+                                {displayGenre && (
+                                    <Typography sx={{ fontSize: 12, color: "text.disabled", mb: 0.75 }}>
+                                        {displayGenre}
+                                    </Typography>
+                                )}
+                                {displayTags.length > 0 && (
+                                    <Stack direction="row" gap={0.5} flexWrap="wrap">
+                                        {displayTags.map((tag) => (
+                                            <Chip
+                                                key={tag}
+                                                label={`#${tag}`}
+                                                size="small"
+                                                sx={{ color: "#fed7aa", bgcolor: "rgba(249,115,22,0.12)", fontSize: 11 }}
+                                            />
+                                        ))}
+                                    </Stack>
+                                )}
+                            </Box>
+                        )}
+
+                        <Divider sx={{ mx: 2.5 }} />
+
+                        {isSpotify && spotifyArtist && (
+                            <>
+                                <Box sx={{ px: 2.5, py: 2 }}>
+                                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                                        <PersonOutlineIcon sx={{ color: ACCENT, fontSize: 18 }} />
+                                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: "text.primary" }}>
+                                            About the artist
+                                        </Typography>
+                                    </Stack>
+                                    <Box
+                                        component="button"
+                                        type="button"
+                                        onClick={() => navigateToEntity("artist", spotifyArtist.artist.id)}
+                                        sx={{
+                                            position: "relative",
+                                            width: "100%",
+                                            minHeight: 190,
+                                            p: 1.75,
+                                            border: 0,
+                                            borderRadius: 2,
+                                            overflow: "hidden",
+                                            textAlign: "left",
+                                            cursor: "pointer",
+                                            background: spotifyArtist.artist.images?.[0]
+                                                ? `linear-gradient(0deg, rgba(0,0,0,.9), rgba(0,0,0,.08)), url(${spotifyArtist.artist.images[0]}) center/cover`
+                                                : "linear-gradient(135deg, #292524, #111827)",
+                                            "&:hover": { transform: "translateY(-2px)" },
+                                            transition: "transform 160ms ease",
+                                        }}
+                                    >
+                                        <Box sx={{ position: "absolute", left: 14, right: 14, bottom: 14 }}>
+                                            <Typography sx={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>
+                                                {spotifyArtist.artist.name}
+                                            </Typography>
+                                            <Typography sx={{ mt: 0.25, color: "rgba(255,255,255,.72)", fontSize: 11 }}>
+                                                {spotifyArtist.total} bản phát hành
+                                                {spotifyArtist.artist.followers
+                                                    ? ` · ${spotifyArtist.artist.followers.toLocaleString("vi-VN")} người theo dõi`
+                                                    : ""}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                </Box>
+                                <Divider sx={{ mx: 2.5 }} />
+                            </>
+                        )}
+
+                        {/* Credits (album + playlists) */}
+                        <Box sx={{ px: 2.5, py: 2 }}>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                                <MicNoneOutlinedIcon sx={{ color: ACCENT, fontSize: 18 }} />
+                                <Typography sx={{ fontWeight: 700, fontSize: 13, color: "text.primary" }}>
+                                    Credits
+                                </Typography>
+                            </Stack>
+
                             {isSpotify ? (
-                                item.album ? (
-                                    <CollectionRow
-                                        image={item.thumbnail}
-                                        name={item.album.name}
-                                        label="Album · Spotify"
-                                        onClick={
-                                            item.album.id
-                                                ? () => navigateToEntity("album", item.album!.id)
-                                                : undefined
-                                        }
-                                    />
-                                ) : (
-                                    <EmptyMetadata label="Bài hát này không thuộc album nào." />
-                                )
+                                spotifyTrack?.artists?.length ? (
+                                    <Stack spacing={1}>
+                                        {spotifyTrack.artists.map((artist, index) => (
+                                            <CollectionRow
+                                                key={artist.id}
+                                                image={
+                                                    artist.id === spotifyArtist?.artist.id
+                                                        ? (spotifyArtist.artist.images?.[0] ?? item.thumbnail)
+                                                        : item.thumbnail
+                                                }
+                                                name={artist.name}
+                                                label={index === 0 ? "Main artist" : "Featured artist"}
+                                                onClick={() => navigateToEntity("artist", artist.id)}
+                                            />
+                                        ))}
+                                        {spotifyAlbum && (
+                                            <CollectionRow
+                                                image={spotifyTrack.artwork["480x480"] ?? item.thumbnail}
+                                                name={spotifyAlbum.name}
+                                                label="Release"
+                                                onClick={spotifyAlbum.id ? () => navigateToEntity("album", spotifyAlbum.id) : undefined}
+                                            />
+                                        )}
+                                    </Stack>
+                                ) : null
                             ) : audiusAlbum || track?.album_backlink ? (
                                 <CollectionRow
                                     image={audiusAlbum ? getPlaylistArtwork(audiusAlbum) : item.thumbnail}
-                                    name={
-                                        audiusAlbum?.playlist_name ??
-                                        track?.album_backlink?.playlist_name ??
-                                        "Album"
-                                    }
+                                    name={audiusAlbum?.playlist_name ?? track?.album_backlink?.playlist_name ?? "Album"}
                                     label="Album"
                                     onClick={() =>
                                         navigateToEntity(
                                             "album",
-                                            String(
-                                                audiusAlbum?.id ??
-                                                    track?.album_backlink?.playlist_id ??
-                                                    "",
-                                            ),
+                                            String(audiusAlbum?.id ?? track?.album_backlink?.playlist_id ?? ""),
                                         )
                                     }
                                 />
-                            ) : (
-                                <EmptyMetadata label="Bài hát này không thuộc album nào." />
-                            )}
-                        </InfoSection>
+                            ) : null}
 
-                        {/* Playlist section — Spotify doesn't expose public playlist membership */}
-                        {!isSpotify && (
-                            <InfoSection icon={<PlaylistPlayOutlinedIcon />} title="Playlist">
-                                {collectionsQuery.isLoading ? (
-                                    <CircularProgress size={20} sx={{ color: ACCENT }} />
-                                ) : playlists.length ? (
-                                    <Stack spacing={1}>
-                                        {playlists.map((playlist) => (
-                                            <CollectionRow
-                                                key={playlist.id}
-                                                image={getPlaylistArtwork(playlist)}
-                                                name={playlist.playlist_name}
-                                                label={`${playlist.track_count ?? 0} bài`}
-                                                onClick={() =>
-                                                    navigateToEntity("playlist", String(playlist.id))
-                                                }
-                                            />
+                            {/* Playlists (Audius only) */}
+                            {!isSpotify && collectionsQuery.isLoading && (
+                                <CircularProgress size={16} sx={{ color: ACCENT, mt: 1 }} />
+                            )}
+                            {!isSpotify && playlists.length > 0 && (
+                                <Stack spacing={1} sx={{ mt: audiusAlbum || track?.album_backlink ? 1 : 0 }}>
+                                    {playlists.map((playlist) => (
+                                        <CollectionRow
+                                            key={playlist.id}
+                                            image={getPlaylistArtwork(playlist)}
+                                            name={playlist.playlist_name}
+                                            label={`Playlist · ${playlist.track_count ?? 0} bài`}
+                                            onClick={() => navigateToEntity("playlist", String(playlist.id))}
+                                        />
+                                    ))}
+                                </Stack>
+                            )}
+
+                            {isSpotify && !spotifyTrack?.artists?.length && (
+                                <Typography variant="body2" sx={{ color: "text.disabled", fontSize: 12 }}>
+                                    Không có thông tin credits.
+                                </Typography>
+                            )}
+                            {!isSpotify && !audiusAlbum && !track?.album_backlink && playlists.length === 0 && !collectionsQuery.isLoading && (
+                                <Typography variant="body2" sx={{ color: "text.disabled", fontSize: 12 }}>
+                                    Không có thông tin credits.
+                                </Typography>
+                            )}
+                        </Box>
+
+                        {isSpotify && (
+                            <>
+                                <Divider sx={{ mx: 2.5 }} />
+                                <Box sx={{ px: 2.5, py: 2 }}>
+                                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                                        <LocalMallOutlinedIcon sx={{ color: ACCENT, fontSize: 18 }} />
+                                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: "text.primary" }}>
+                                            Merch
+                                        </Typography>
+                                    </Stack>
+                                    <Box
+                                        sx={{
+                                            p: 1.5,
+                                            borderRadius: 2,
+                                            bgcolor: "action.hover",
+                                            border: "1px solid",
+                                            borderColor: "divider",
+                                        }}
+                                    >
+                                        <Typography sx={{ fontSize: 12, color: "text.secondary", lineHeight: 1.5 }}>
+                                            Danh mục merch chưa được Spotify Web API cung cấp.
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </>
+                        )}
+
+                        {/* Next in queue */}
+                        {nextTracks.length > 0 && (
+                            <>
+                                <Divider sx={{ mx: 2.5 }} />
+                                <Box sx={{ px: 2.5, py: 2 }}>
+                                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                                        <QueueMusicOutlinedIcon sx={{ color: ACCENT, fontSize: 18 }} />
+                                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: "text.primary" }}>
+                                            Tiếp theo trong danh sách
+                                        </Typography>
+                                    </Stack>
+                                    <Stack spacing={0.5}>
+                                        {nextTracks.map((q) => (
+                                            <Box
+                                                key={q.id}
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1.25,
+                                                    py: 0.5,
+                                                    borderRadius: 1,
+                                                    cursor: "pointer",
+                                                    "&:hover": { bgcolor: "action.hover" },
+                                                    transition: "background-color 150ms ease",
+                                                    px: 0.75,
+                                                }}
+                                                onClick={() => play(q, queue)}
+                                            >
+                                                <Avatar
+                                                    variant="rounded"
+                                                    src={q.thumbnail}
+                                                    sx={{ width: 36, height: 36, borderRadius: 1, flexShrink: 0 }}
+                                                />
+                                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                    <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary" }}>
+                                                        {formatDisplayName(q.title)}
+                                                    </Typography>
+                                                    <Typography noWrap sx={{ fontSize: 11, color: "text.secondary" }}>
+                                                        {formatDisplayName(q.artist)}
+                                                    </Typography>
+                                                </Box>
+                                                {q.duration && (
+                                                    <Typography sx={{ fontSize: 11, color: "text.disabled", flexShrink: 0 }}>
+                                                        {formatDuration(q.duration)}
+                                                    </Typography>
+                                                )}
+                                            </Box>
                                         ))}
                                     </Stack>
-                                ) : (
-                                    <EmptyMetadata label="Chưa có playlist công khai chứa bài hát này." />
-                                )}
-                            </InfoSection>
+                                </Box>
+                            </>
                         )}
                     </Stack>
                 )}
-            </DialogContent>
-        </Dialog>
+            </Box>
+        </Box>
     );
+}
+
+/** @deprecated use TrackInfoPanelContent instead — kept for backward compat */
+export function TrackInfoDialog({
+    item,
+    open,
+    onClose,
+}: {
+    item: MediaItem;
+    open: boolean;
+    onClose: () => void;
+    playQueue?: MediaItem[];
+}) {
+    if (!open) return null;
+    return <TrackInfoPanelContent item={item} onClose={onClose} />;
 }
 
 // ─── Lyrics panel content (dùng trong right panel + mobile drawer) ────────────
@@ -613,9 +842,9 @@ function CollectionRow({
                 transition: "background-color 160ms ease, transform 160ms ease",
                 "&:hover": onClick
                     ? {
-                          bgcolor: "action.hover",
-                          transform: "translateX(3px)",
-                      }
+                        bgcolor: "action.hover",
+                        transform: "translateX(3px)",
+                    }
                     : undefined,
                 "&:focus-visible": {
                     outline: "2px solid rgba(249,115,22,0.75)",

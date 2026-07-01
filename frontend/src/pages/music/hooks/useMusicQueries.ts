@@ -183,6 +183,9 @@ export const usePlaylistsQuery = (searchKeyword: string, enabled: boolean) =>
 
 // ─── Playlist / Artist detail ─────────────────────────────────────────────────
 
+const isAudiusId = (id: string | undefined): boolean =>
+    Boolean(id) && !id!.startsWith("spotify:") && id!.length <= 13;
+
 export const usePlaylistTracksQuery = (playlistId: string | undefined) =>
     useInfiniteQuery({
         queryKey: ["music", "playlist-tracks", playlistId],
@@ -191,7 +194,7 @@ export const usePlaylistTracksQuery = (playlistId: string | undefined) =>
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) =>
             lastPage.length === 50 ? allPages.length * 50 : undefined,
-        enabled: Boolean(playlistId),
+        enabled: Boolean(playlistId) && isAudiusId(playlistId),
         retry: false,
     });
 

@@ -1,5 +1,7 @@
 export interface AudiusUser {
     id: string;
+    provider?: "audius" | "spotify";
+    external_url?: string;
     name: string;
     handle: string;
     bio?: string;
@@ -34,6 +36,11 @@ export interface AudiusTrack {
     bpm?: number;
     musical_key?: string;
     tags?: string;
+    album?: {
+        id: string;
+        name: string;
+    };
+    artists?: Array<{ id: string; name: string }>;
     album_backlink?: {
         playlist_id: string | number;
         playlist_name: string;
@@ -59,6 +66,8 @@ export interface AudiusTrack {
 
 export interface AudiusPlaylist {
     id: string;
+    provider?: "audius" | "spotify";
+    external_url?: string;
     playlist_name: string;
     description?: string;
     is_album?: boolean;

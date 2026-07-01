@@ -1008,18 +1008,43 @@ export const BottomPlayer = () => {
                         <Avatar
                             variant="rounded"
                             src={currentItem?.thumbnail}
-                            sx={{ width: 36, height: 36, borderRadius: 0.5, flexShrink: 0 }}
+                            onClick={() => {
+                                if (!currentItem) return;
+                                window.dispatchEvent(new CustomEvent("music:toggle-track-info", { detail: { item: currentItem } }));
+                            }}
+                            sx={{ width: 36, height: 36, borderRadius: 0.5, flexShrink: 0, cursor: currentItem ? "pointer" : "default", "&:hover": currentItem ? { opacity: 0.85 } : {}, transition: "opacity 0.15s" }}
                         />
                         <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Typography
                                 noWrap
-                                sx={{ fontSize: 13, fontWeight: 600, color: "text.primary" }}
+                                onClick={() => {
+                                    if (!currentItem?.album?.id) return;
+                                    const isSpotify = currentItem.provider === "spotify" || currentItem.sourceId.startsWith("spotify:");
+                                    window.dispatchEvent(new CustomEvent("music:navigate-entity", { detail: { type: "album", id: currentItem.album.id, provider: isSpotify ? "spotify" : "audius" } }));
+                                }}
+                                sx={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: "text.primary",
+                                    cursor: currentItem?.album?.id ? "pointer" : "default",
+                                    "&:hover": currentItem?.album?.id ? { textDecoration: "underline" } : {},
+                                }}
                             >
                                 {formatDisplayName(currentItem?.title) || "Chọn bài hát"}
                             </Typography>
                             <Typography
                                 noWrap
-                                sx={{ fontSize: 11, color: "text.secondary" }}
+                                onClick={() => {
+                                    if (!currentItem?.artistId) return;
+                                    const isSpotify = currentItem.provider === "spotify" || currentItem.sourceId.startsWith("spotify:");
+                                    window.dispatchEvent(new CustomEvent("music:navigate-entity", { detail: { type: "artist", id: currentItem.artistId, provider: isSpotify ? "spotify" : "audius" } }));
+                                }}
+                                sx={{
+                                    fontSize: 11,
+                                    color: "text.secondary",
+                                    cursor: currentItem?.artistId ? "pointer" : "default",
+                                    "&:hover": currentItem?.artistId ? { color: "text.primary", textDecoration: "underline" } : {},
+                                }}
                             >
                                 {formatDisplayName(currentItem?.artist)}
                             </Typography>
@@ -1101,21 +1126,49 @@ export const BottomPlayer = () => {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
                         {currentItem ? (
                             <>
-                                <Avatar
-                                    variant="rounded"
-                                    src={currentItem.thumbnail}
-                                    sx={{ width: 52, height: 52, borderRadius: 1, flexShrink: 0 }}
-                                />
+                                <Tooltip title="Xem thông tin bài hát">
+                                    <Avatar
+                                        variant="rounded"
+                                        src={currentItem.thumbnail}
+                                        onClick={() => {
+                                            window.dispatchEvent(
+                                                new CustomEvent("music:toggle-track-info", { detail: { item: currentItem } }),
+                                            );
+                                        }}
+                                        sx={{ width: 52, height: 52, borderRadius: 1, flexShrink: 0, cursor: "pointer", "&:hover": { opacity: 0.85 }, transition: "opacity 0.15s" }}
+                                    />
+                                </Tooltip>
                                 <Box sx={{ minWidth: 0, flex: 1 }}>
                                     <Typography
                                         noWrap
-                                        sx={{ fontSize: 14, fontWeight: 600, color: "text.primary" }}
+                                        onClick={() => {
+                                            if (!currentItem.album?.id) return;
+                                            const isSpotify = currentItem.provider === "spotify" || currentItem.sourceId.startsWith("spotify:");
+                                            window.dispatchEvent(new CustomEvent("music:navigate-entity", { detail: { type: "album", id: currentItem.album.id, provider: isSpotify ? "spotify" : "audius" } }));
+                                        }}
+                                        sx={{
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            color: "text.primary",
+                                            cursor: currentItem.album?.id ? "pointer" : "default",
+                                            "&:hover": currentItem.album?.id ? { textDecoration: "underline" } : {},
+                                        }}
                                     >
                                         {formatDisplayName(currentItem.title)}
                                     </Typography>
                                     <Typography
                                         noWrap
-                                        sx={{ fontSize: 12, color: "text.secondary" }}
+                                        onClick={() => {
+                                            if (!currentItem.artistId) return;
+                                            const isSpotify = currentItem.provider === "spotify" || currentItem.sourceId.startsWith("spotify:");
+                                            window.dispatchEvent(new CustomEvent("music:navigate-entity", { detail: { type: "artist", id: currentItem.artistId, provider: isSpotify ? "spotify" : "audius" } }));
+                                        }}
+                                        sx={{
+                                            fontSize: 12,
+                                            color: "text.secondary",
+                                            cursor: currentItem.artistId ? "pointer" : "default",
+                                            "&:hover": currentItem.artistId ? { color: "text.primary", textDecoration: "underline" } : {},
+                                        }}
                                     >
                                         {formatDisplayName(currentItem.artist)}
                                     </Typography>

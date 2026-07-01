@@ -4,12 +4,14 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import PauseIcon from "@mui/icons-material/Pause";
 import LyricsOutlinedIcon from "@mui/icons-material/LyricsOutlined";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import PersonIcon from "@mui/icons-material/Person";
 import ExploreIcon from "@mui/icons-material/Explore";
@@ -30,28 +32,50 @@ import {
     Button,
     Chip,
     CircularProgress,
+    Dialog,
+    DialogContent,
     Divider,
     Drawer,
     IconButton,
     InputAdornment,
+    LinearProgress,
     Skeleton,
     Stack,
-    Tab,
-    Tabs,
     TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { saveMusicSearchKeyword } from "@services/musicBackendService";
+import {
+    getSpotifyAlbum,
+    getSpotifyAlbumTracks,
+    getSpotifyArtist,
+    getSpotifyArtistAllAlbums,
+    getSpotifyArtistDiscography,
+    getSpotifyCategories,
+    getSpotifyCategoryPlaylists,
+    getSpotifyFeaturedPlaylists,
+    getSpotifyNewReleases,
+    getSpotifyPlaylist,
+    getSpotifyPlaylistTracks,
+    saveMusicSearchKeyword,
+} from "@services/musicBackendService";
+import type {
+    SpotifyAlbumDetail,
+    SpotifyAlbumSummary,
+    SpotifyArtistResponse,
+    SpotifyArtistSummary,
+    SpotifyCategory,
+    SpotifyCollectionSummary,
+    SpotifyTrackDetail,
+} from "@services/musicBackendService";
 import {
     getAudiusProfileImage,
     getPlaylist,
     getPlaylistArtwork,
     getUser,
     toAudioMediaItem,
-    toVideoMediaItem,
 } from "@services/musicService";
 import { usePlayerStore } from "@store/playerStore";
 import { useThemeMode } from "@store/themeStore";
@@ -67,7 +91,7 @@ import { UserProfileView } from "./components/UserProfileView";
 import { PlaylistTracksDialog } from "./components/PlaylistTracksDialog";
 import { LibraryToggleButton } from "./components/LibraryToggleButton";
 import { TrackOptionsButton } from "./components/TrackOptionsButton";
-import { LyricsPanelContent, TrackInfoDialog } from "./components/TrackInfoDialog";
+import { LyricsPanelContent, TrackInfoPanelContent } from "./components/TrackInfoDialog";
 import { useDebouncedValue } from "./hooks/useDebouncedValue";
 import { useSmartQueueAutofill } from "./hooks/useSmartQueueAutofill";
 import {
@@ -94,7 +118,6 @@ import {
     useTrendingPlaylistsQuery,
     useTrendingQuery,
     useUndergroundTrendingQuery,
-    useVideosQuery,
 } from "./hooks/useMusicQueries";
 import type {
     AudiusPlaylist,
@@ -118,7 +141,9 @@ type MusicView =
     | "my-playlists"
     | "leaderboard"
     | "profile"
-    | "stats";
+    | "stats"
+    | "spotify-artist"
+    | "spotify-album";
 
 const SP_GREEN = "#f97316";
 const MUSIC_CARD_SURFACE_SX = {
@@ -338,6 +363,7 @@ const SIDEBAR_W = 280;
 const SIDEBAR_COLLAPSED_W = 96;
 const QUEUE_W = 320;
 const LYRICS_W = 450;
+const TRACK_INFO_W = 360;
 
 // ─── Horizontal scroll row ───────────────────────────────────────────────────
 function HScrollSection({
@@ -436,7 +462,6 @@ function TrackCard({
     const queueItems = useMemo(() => queue.map(toAudioMediaItem), [queue]);
     const active = currentItem?.id === item.id;
     const [hovered, setHovered] = useState(false);
-    const [infoOpen, setInfoOpen] = useState(false);
 
     const handlePlay = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -452,163 +477,157 @@ function TrackCard({
     };
 
     const openInfo = () => {
-        setInfoOpen(true);
+        window.dispatchEvent(new CustomEvent("music:toggle-track-info", { detail: { item } }));
     };
 
     return (
-        <>
+        <Box
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            sx={{
+                flexShrink: 0,
+                width: 160,
+                ...MUSIC_3D_CARD_SX,
+                "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
+            }}
+        >
             <Box
-                onMouseEnter={() => setHovered(true)}
-                onMouseLeave={() => setHovered(false)}
-                sx={{
-                    flexShrink: 0,
-                    width: 160,
-                    ...MUSIC_3D_CARD_SX,
-                    "&:hover .card-bg": MUSIC_CARD_HOVER_SX,
-                }}
+                className="card-bg"
+                sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}
             >
-                <Box
-                    className="card-bg"
-                    sx={{ ...MUSIC_CARD_SURFACE_SX, borderRadius: 1.5, p: 1.5 }}
-                >
-                    <Box sx={{ position: "relative", mb: 1.5 }}>
-                        <Box
-                            component="button"
-                            type="button"
-                            onClick={openInfo}
-                            sx={{
-                                display: "block",
-                                width: "100%",
-                                p: 0,
-                                border: 0,
-                                bgcolor: "transparent",
-                                cursor: "pointer",
-                                borderRadius: 1,
-                            }}
-                        >
-                            <Avatar
-                                className="card-cover"
-                                variant="rounded"
-                                src={item.thumbnail}
-                                sx={{
-                                    width: "100%",
-                                    height: "auto",
-                                    aspectRatio: "1",
-                                    borderRadius: 1,
-                                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                                }}
-                            />
-                        </Box>
-                        <IconButton
-                            onClick={handlePlay}
-                            sx={{
-                                position: "absolute",
-                                bottom: 8,
-                                right: 8,
-                                bgcolor: SP_GREEN,
-                                color: "black",
-                                width: 38,
-                                height: 38,
-                                opacity: hovered || active ? 1 : 0,
-                                transform: hovered || active ? "translateY(0)" : "translateY(8px)",
-                                transition: "opacity 0.2s, transform 0.2s",
-                                "&:hover": {
-                                    bgcolor: "#fb923c",
-                                    transform: "scale(1.06) translateY(0)",
-                                },
-                                boxShadow: "0 8px 16px rgba(0,0,0,0.5)",
-                            }}
-                        >
-                            {active && isPlaying ? (
-                                <Box
-                                    sx={{
-                                        width: 14,
-                                        height: 14,
-                                        display: "flex",
-                                        gap: "2px",
-                                        alignItems: "flex-end",
-                                    }}
-                                >
-                                    {[1, 2, 3].map((i) => (
-                                        <Box
-                                            key={i}
-                                            sx={{
-                                                width: 3,
-                                                bgcolor: "black",
-                                                borderRadius: 0.5,
-                                                animation: `eq ${0.6 + i * 0.15}s ease-in-out infinite`,
-                                                "@keyframes eq": {
-                                                    "0%,100%": { height: "40%" },
-                                                    "50%": { height: "100%" },
-                                                },
-                                                animationDelay: `${i * 0.1}s`,
-                                            }}
-                                        />
-                                    ))}
-                                </Box>
-                            ) : (
-                                <PlayArrowIcon sx={{ fontSize: 20 }} />
-                            )}
-                        </IconButton>
-                        <Box
-                            sx={{
-                                position: "absolute",
-                                top: 7,
-                                right: 7,
-                                ...MUSIC_CONTROL_OVERLAY_SX,
-                            }}
-                        >
-                            <TrackOptionsButton item={item} alwaysVisible />
-                        </Box>
-                    </Box>
-                    <Typography
-                        className="card-title"
+                <Box sx={{ position: "relative", mb: 1.5, isolation: "isolate" }}>
+                    <Box
                         component="button"
                         type="button"
                         onClick={openInfo}
-                        noWrap
                         sx={{
                             display: "block",
                             width: "100%",
                             p: 0,
                             border: 0,
                             bgcolor: "transparent",
-                            textAlign: "left",
                             cursor: "pointer",
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: "text.primary",
-                            mb: 0.25,
-                            "&:hover": { color: "primary.main" },
+                            borderRadius: 1,
                         }}
                     >
-                        {formatDisplayName(track.title)}
-                    </Typography>
-                    <Typography
-                        className="card-subtitle"
-                        noWrap
-                        sx={{ fontSize: 12, color: "text.secondary" }}
+                        <Avatar
+                            className="card-cover"
+                            variant="rounded"
+                            src={item.thumbnail}
+                            sx={{
+                                width: "100%",
+                                height: "auto",
+                                aspectRatio: "1",
+                                borderRadius: 1,
+                                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                            }}
+                        />
+                    </Box>
+                    <IconButton
+                        onClick={handlePlay}
+                        sx={{
+                            position: "absolute",
+                            bottom: 8,
+                            right: 8,
+                            zIndex: 2,
+                            bgcolor: SP_GREEN,
+                            color: "black",
+                            width: 38,
+                            height: 38,
+                            opacity: hovered || active ? 1 : 0,
+                            transform: hovered || active ? "translateY(0)" : "translateY(8px)",
+                            transition: "opacity 0.2s, transform 0.2s",
+                            "&:hover": {
+                                bgcolor: "#fb923c",
+                                transform: "scale(1.06) translateY(0)",
+                            },
+                            boxShadow: "0 8px 16px rgba(0,0,0,0.5)",
+                        }}
                     >
-                        {formatDisplayName(track.user.name)}
-                    </Typography>
-                    {recommendationReason && (
-                        <Typography
-                            className="card-badge"
-                            noWrap
-                            sx={{ mt: 0.5, fontSize: 10.5, fontWeight: 650, color: "#fdba74" }}
-                        >
-                            {recommendationReason}
-                        </Typography>
-                    )}
+                        {active && isPlaying ? (
+                            <Box
+                                sx={{
+                                    width: 14,
+                                    height: 14,
+                                    display: "flex",
+                                    gap: "2px",
+                                    alignItems: "flex-end",
+                                }}
+                            >
+                                {[1, 2, 3].map((i) => (
+                                    <Box
+                                        key={i}
+                                        sx={{
+                                            width: 3,
+                                            bgcolor: "black",
+                                            borderRadius: 0.5,
+                                            animation: `eq ${0.6 + i * 0.15}s ease-in-out infinite`,
+                                            "@keyframes eq": {
+                                                "0%,100%": { height: "40%" },
+                                                "50%": { height: "100%" },
+                                            },
+                                            animationDelay: `${i * 0.1}s`,
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        ) : (
+                            <PlayArrowIcon sx={{ fontSize: 20 }} />
+                        )}
+                    </IconButton>
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            top: 7,
+                            right: 7,
+                            zIndex: 2,
+                            ...MUSIC_CONTROL_OVERLAY_SX,
+                        }}
+                    >
+                        <TrackOptionsButton item={item} alwaysVisible />
+                    </Box>
                 </Box>
+                <Typography
+                    className="card-title"
+                    component="button"
+                    type="button"
+                    onClick={openInfo}
+                    noWrap
+                    sx={{
+                        display: "block",
+                        width: "100%",
+                        p: 0,
+                        border: 0,
+                        bgcolor: "transparent",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "text.primary",
+                        mb: 0.25,
+                        "&:hover": { color: "primary.main" },
+                    }}
+                >
+                    {formatDisplayName(track.title)}
+                </Typography>
+                <Typography
+                    className="card-subtitle"
+                    noWrap
+                    sx={{ fontSize: 12, color: "text.secondary" }}
+                >
+                    {formatDisplayName(track.user.name)}
+                </Typography>
+                {recommendationReason && (
+                    <Typography
+                        className="card-badge"
+                        noWrap
+                        sx={{ mt: 0.5, fontSize: 10.5, fontWeight: 650, color: "#fdba74" }}
+                    >
+                        {recommendationReason}
+                    </Typography>
+                )}
             </Box>
-            <TrackInfoDialog
-                item={item}
-                open={infoOpen}
-                onClose={() => setInfoOpen(false)}
-                playQueue={queueItems}
-            />
-        </>
+        </Box>
     );
 }
 
@@ -920,7 +939,7 @@ function QueuePanelContent({
                         </Typography>
                     </Box>
                 ) : (
-                    queue.map((item) => <QueueItem key={item.id} item={item} queue={queue} />)
+                    queue.map((item, i) => <QueueItem key={`${item.id}:${i}`} item={item} queue={queue} />)
                 )}
             </Box>
         </Box>
@@ -1163,6 +1182,821 @@ function SidebarInner({
     );
 }
 
+// ─── Spotify Artist View ──────────────────────────────────────────────────────
+function AlbumCard({ album }: { album: SpotifyAlbumSummary }) {
+    const thumb = album.images?.[0] ?? "";
+    const year = album.release_date?.slice(0, 4) ?? "";
+    const handleClick = () => {
+        window.dispatchEvent(
+            new CustomEvent("music:navigate-entity", {
+                detail: { type: "album", id: album.id, provider: "spotify" },
+            }),
+        );
+    };
+    return (
+        <Box
+            onClick={handleClick}
+            sx={{
+                display: "block",
+                width: 140,
+                flexShrink: 0,
+                textDecoration: "none",
+                cursor: "pointer",
+                "&:hover .album-name": { color: SP_GREEN },
+            }}
+        >
+            <Avatar
+                variant="rounded"
+                src={thumb}
+                sx={{ width: 140, height: 140, borderRadius: 1.5, mb: 1, bgcolor: "action.hover" }}
+            />
+            <Typography className="album-name" noWrap sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", transition: "color 0.15s" }}>
+                {album.name}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                {year}{year && album.album_type ? " · " : ""}{album.album_type === "single" ? "Single" : album.album_type === "album" ? "Album" : album.album_type}
+            </Typography>
+        </Box>
+    );
+}
+
+function SpotifyCollectionCard({ item }: { item: SpotifyCollectionSummary }) {
+    const handleClick = () => {
+        window.dispatchEvent(
+            new CustomEvent("music:navigate-entity", {
+                detail: { type: item.type === "album" ? "album" : "playlist", id: item.id, provider: "spotify" },
+            }),
+        );
+    };
+    return (
+        <Box
+            onClick={handleClick}
+            sx={{
+                width: 160,
+                flexShrink: 0,
+                cursor: "pointer",
+                "&:hover .collection-title": { color: SP_GREEN },
+            }}
+        >
+            <Avatar
+                variant="rounded"
+                src={item.images?.[0] ?? ""}
+                sx={{ width: 160, height: 160, borderRadius: 1.5, mb: 1 }}
+            />
+            <Typography className="collection-title" noWrap sx={{ fontSize: 13, fontWeight: 700 }}>
+                {item.name}
+            </Typography>
+            <Typography noWrap sx={{ mt: 0.25, fontSize: 11, color: "text.secondary" }}>
+                {item.owner?.name || "Nhạc"}
+            </Typography>
+        </Box>
+    );
+}
+
+function RelatedArtistCard({ artist }: { artist: SpotifyArtistSummary }) {
+    return (
+        <Box
+            onClick={() =>
+                window.dispatchEvent(
+                    new CustomEvent("music:navigate-entity", {
+                        detail: { type: "artist", id: artist.id, provider: "spotify" },
+                    }),
+                )
+            }
+            sx={{ width: 150, flexShrink: 0, cursor: "pointer", "&:hover .artist-name": { color: SP_GREEN } }}
+        >
+            <Avatar src={artist.images?.[0] ?? ""} sx={{ width: 150, height: 150, mb: 1 }} />
+            <Typography className="artist-name" noWrap sx={{ fontSize: 13, fontWeight: 700 }}>
+                {artist.name}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: "text.secondary" }}>Nghệ sĩ</Typography>
+        </Box>
+    );
+}
+
+function SpotifyArtistView({
+    data,
+    onBack,
+    scrollRef,
+}: {
+    data: SpotifyArtistResponse;
+    onBack: () => void;
+    scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
+    const {
+        artist,
+        top_tracks,
+        albums,
+        albums_total,
+        appears_on,
+        appears_total,
+        playlists = [],
+        related_artists = [],
+    } = data;
+    const { currentItem, isPlaying, play, pause, resume } = usePlayerStore();
+    const [discographyTab, setDiscographyTab] = useState<"popular" | "albums" | "singles">("popular");
+    const [showFullBio, setShowFullBio] = useState(false);
+
+    const wikiBioQuery = useQuery({
+        queryKey: ["wikipedia-artist-bio", artist.name],
+        queryFn: async () => {
+            const searchRes = await fetch(
+                `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(artist.name + " musician")}&srlimit=1&format=json&origin=*`,
+            );
+            const searchData = await searchRes.json() as { query?: { search?: { pageid: number; title: string }[] } };
+            const page = searchData.query?.search?.[0];
+            if (!page) return null;
+
+            const summaryRes = await fetch(
+                `https://en.wikipedia.org/w/api.php?action=query&pageids=${page.pageid}&prop=extracts&exintro=true&explaintext=true&format=json&origin=*`,
+            );
+            const summaryData = await summaryRes.json() as { query?: { pages?: Record<string, { extract?: string }> } };
+            const extract = summaryData.query?.pages?.[page.pageid]?.extract ?? null;
+            if (!extract) return null;
+            return { extract, title: page.title, pageid: page.pageid };
+        },
+        staleTime: 60 * 60 * 1000,
+        retry: false,
+    });
+
+    const uniqueTrackCountQuery = useQuery({
+        queryKey: ["spotify-artist-unique-tracks", artist.id],
+        queryFn: async () => {
+            const allAlbums = await getSpotifyArtistAllAlbums(artist.id);
+            const trackIds = new Set<string>();
+            await Promise.all(
+                allAlbums.map(async (album) => {
+                    try {
+                        const res = await getSpotifyAlbumTracks(album.id, 50, 0);
+                        for (const t of res.tracks) {
+                            if (t.id) trackIds.add(t.id);
+                        }
+                    } catch {
+                        // bỏ qua album lỗi
+                    }
+                }),
+            );
+            return trackIds.size;
+        },
+        staleTime: 60 * 60 * 1000,
+        retry: false,
+    });
+
+    const coverImage = artist.images?.[0] ?? "";
+
+    const trackItems: MediaItem[] = (top_tracks ?? []).map((t) => ({
+        id: `audio:spotify:${t.id}`,
+        sourceId: `spotify:${t.id}`,
+        type: "audio" as const,
+        title: t.title,
+        artist: t.user.name,
+        artistId: t.user.id,
+        thumbnail: t.artwork["480x480"] ?? t.artwork["1000x1000"] ?? t.artwork["150x150"] ?? "",
+        duration: t.duration,
+        provider: "spotify" as const,
+        externalUrl: t.external_url,
+        album: t.album?.id ? { id: t.album.id, name: t.album.name } : undefined,
+    }));
+
+    const visibleTracks = trackItems.slice(0, 10);
+    const genres = artist.genres ?? [];
+    const discography = albums ?? [];
+    const featuring = appears_on ?? [];
+    const visibleDiscography =
+        discographyTab === "albums"
+            ? discography.filter((album) => album.album_type === "album")
+            : discographyTab === "singles"
+                ? discography.filter((album) => album.album_type !== "album")
+                : discography;
+    const latestAlbum = [...discography].sort((a, b) =>
+        (b.release_date ?? "").localeCompare(a.release_date ?? ""),
+    )[0];
+    const artistPick = latestAlbum
+        ? {
+            id: latestAlbum.id,
+            name: latestAlbum.name,
+            image: latestAlbum.images?.[0] ?? "",
+            label: latestAlbum.album_type === "album" ? "Album" : "Single",
+            isAlbum: true,
+        }
+        : playlists[0]
+            ? {
+                id: playlists[0].id,
+                name: playlists[0].name,
+                image: playlists[0].images?.[0] ?? "",
+                label: "Playlist",
+                isAlbum: false,
+            }
+            : null;
+
+    const sectionLabel = (text: string, extra?: string) => (
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 18, color: "text.primary" }}>{text}</Typography>
+            {extra && <Typography sx={{ fontSize: 12, color: "text.secondary" }}>{extra}</Typography>}
+        </Box>
+    );
+
+    return (
+        <Box
+            ref={scrollRef}
+            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+        >
+            {/* Back */}
+            <Button
+                startIcon={<ChevronLeftIcon />}
+                onClick={onBack}
+                sx={{ mb: 2, color: "text.secondary", "&:hover": { color: "text.primary" } }}
+            >
+                Quay lại
+            </Button>
+
+            {/* ── Hero ─────────────────────────────────────────────── */}
+            <Box
+                sx={{
+                    position: "relative",
+                    borderRadius: 3,
+                    overflow: "hidden",
+                    mb: 4,
+                    minHeight: 220,
+                    background: coverImage
+                        ? `linear-gradient(160deg, rgba(30,30,30,0.0) 0%, rgba(0,0,0,0.85) 100%), url(${coverImage}) center/cover no-repeat`
+                        : "linear-gradient(160deg, #1a1a2e 0%, #16213e 100%)",
+                }}
+            >
+                <Box sx={{ display: "flex", gap: 3, alignItems: "flex-end", p: 3, pt: 8 }}>
+                    <Avatar
+                        src={coverImage}
+                        sx={{
+                            width: { xs: 100, md: 150 },
+                            height: { xs: 100, md: 150 },
+                            flexShrink: 0,
+                            boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
+                            border: "3px solid rgba(255,255,255,0.12)",
+                        }}
+                    />
+                    <Box sx={{ minWidth: 0, pb: 0.5 }}>
+                        <Typography sx={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1.5, mb: 0.5 }}>
+                            Nghệ sĩ
+                        </Typography>
+                        <Typography sx={{ fontWeight: 900, fontSize: { xs: 26, md: 44 }, lineHeight: 1.05, color: "#fff" }}>
+                            {artist.name}
+                        </Typography>
+                        {genres.length > 0 && (
+                            <Stack direction="row" gap={0.75} flexWrap="wrap" sx={{ mt: 1.5 }}>
+                                {genres.slice(0, 5).map((g) => (
+                                    <Chip key={g} label={g} size="small"
+                                        sx={{ bgcolor: "rgba(249,115,22,0.2)", color: "#fed7aa", fontSize: 11, border: "1px solid rgba(249,115,22,0.3)" }}
+                                    />
+                                ))}
+                            </Stack>
+                        )}
+                    </Box>
+                </Box>
+            </Box>
+
+            {/* ── Popular tracks ────────────────────────────────────── */}
+            {trackItems.length > 0 && (
+                <Box
+                    sx={{
+                        mb: 5,
+                        display: "grid",
+                        gridTemplateColumns: { xs: "1fr", lg: artistPick ? "minmax(0,1.65fr) minmax(280px,.75fr)" : "1fr" },
+                        gap: 4,
+                    }}
+                >
+                    <Box>
+                        {sectionLabel("Popular")}
+                        <Stack spacing={0.5}>
+                            {visibleTracks.map((item, i) => {
+                                const active = currentItem?.id === item.id;
+                                return (
+                                    <Box
+                                        key={item.id}
+                                        onClick={() => {
+                                            if (active && isPlaying) { pause(); return; }
+                                            if (active) { resume(); return; }
+                                            play(item, trackItems);
+                                        }}
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 1.5,
+                                            px: 1.5,
+                                            py: 1,
+                                            borderRadius: 1.5,
+                                            cursor: "pointer",
+                                            bgcolor: active ? "action.selected" : "transparent",
+                                            "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
+                                            transition: "background-color 0.15s",
+                                        }}
+                                    >
+                                        <Box sx={{ width: 24, textAlign: "right", flexShrink: 0 }}>
+                                            {active && isPlaying
+                                                ? <GraphicEqIcon sx={{ fontSize: 16, color: SP_GREEN }} />
+                                                : <Typography sx={{ fontSize: 13, color: "text.disabled" }}>{i + 1}</Typography>
+                                            }
+                                        </Box>
+                                        <Avatar variant="rounded" src={item.thumbnail}
+                                            sx={{ width: 40, height: 40, borderRadius: 1, flexShrink: 0 }}
+                                        />
+                                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                                            <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: active ? SP_GREEN : "text.primary" }}>
+                                                {formatDisplayName(item.title)}
+                                            </Typography>
+                                            {item.album?.id ? (
+                                                <Typography
+                                                    noWrap
+                                                    component="span"
+                                                    sx={{ fontSize: 12, color: "text.secondary", cursor: "pointer", display: "block", "&:hover": { color: "text.primary", textDecoration: "underline" } }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        window.dispatchEvent(new CustomEvent("music:navigate-entity", { detail: { type: "album", id: item.album!.id, provider: "spotify" } }));
+                                                    }}
+                                                >
+                                                    {item.album.name}
+                                                </Typography>
+                                            ) : (
+                                                <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                                                    {formatDisplayName(item.artist)}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+                                            {active && isPlaying
+                                                ? <IconButton size="small" onClick={(e) => { e.stopPropagation(); pause(); }} sx={{ color: SP_GREEN }}>
+                                                    <PauseIcon sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                                : <IconButton size="small" onClick={(e) => { e.stopPropagation(); play(item, trackItems); }}
+                                                    sx={{ color: "text.disabled", "&:hover": { color: SP_GREEN }, opacity: 0, ".MuiBox-root:hover > * > &": { opacity: 1 } }}
+                                                >
+                                                    <PlayArrowIcon sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            }
+                                            <Typography sx={{ fontSize: 12, color: "text.disabled", minWidth: 36, textAlign: "right" }}>
+                                                {item.duration ? formatDuration(item.duration) : ""}
+                                            </Typography>
+                                            <Box sx={{ opacity: { xs: 1, md: 0 }, ".MuiBox-root:hover &": { opacity: 1 }, transition: "opacity 0.15s" }} onClick={(e) => e.stopPropagation()}>
+                                                <TrackOptionsButton item={item} alwaysVisible />
+                                            </Box>
+                                        </Box>
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    </Box>
+                    {artistPick && (
+                        <Box>
+                            {sectionLabel("Phát hành mới nhất")}
+                            <Box
+                                onClick={() =>
+                                    window.dispatchEvent(
+                                        new CustomEvent("music:navigate-entity", {
+                                            detail: {
+                                                type: artistPick.isAlbum ? "album" : "playlist",
+                                                id: artistPick.id,
+                                                provider: "spotify",
+                                            },
+                                        }),
+                                    )
+                                }
+                                sx={{
+                                    display: "flex",
+                                    gap: 1.5,
+                                    p: 1.5,
+                                    borderRadius: 2,
+                                    bgcolor: "action.hover",
+                                    cursor: "pointer",
+                                    "&:hover": { bgcolor: "action.selected" },
+                                }}
+                            >
+                                <Avatar
+                                    variant="rounded"
+                                    src={artistPick.image}
+                                    sx={{ width: 88, height: 88, borderRadius: 1.5 }}
+                                />
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                                        Phát hành gần đây của {artist.name}
+                                    </Typography>
+                                    <Typography sx={{ mt: 0.75, fontWeight: 800 }} noWrap>
+                                        {artistPick.name}
+                                    </Typography>
+                                    <Typography sx={{ mt: 0.25, fontSize: 12, color: "text.secondary" }}>
+                                        {artistPick.label}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    )}
+                </Box>
+            )}
+
+            {/* ── Discography ───────────────────────────────────────── */}
+            {discography.length > 0 && (
+                <Box sx={{ mb: 5 }}>
+                    {sectionLabel("Discography", albums_total > discography.length ? `${albums_total} releases` : undefined)}
+                    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        {([
+                            ["popular", "Popular releases"],
+                            ["albums", "Albums"],
+                            ["singles", "Singles and EPs"],
+                        ] as const).map(([value, label]) => (
+                            <Chip
+                                key={value}
+                                label={label}
+                                onClick={() => setDiscographyTab(value)}
+                                sx={{
+                                    bgcolor: discographyTab === value ? "text.primary" : "action.selected",
+                                    color: discographyTab === value ? "background.default" : "text.primary",
+                                    fontWeight: 700,
+                                }}
+                            />
+                        ))}
+                    </Stack>
+                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 }, "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 } }}>
+                        {visibleDiscography.map((album) => (
+                            <AlbumCard key={album.id} album={album} />
+                        ))}
+                    </Box>
+                </Box>
+            )}
+
+            {/* ── Featuring ─────────────────────────────────────────── */}
+            {featuring.length > 0 && (
+                <Box sx={{ mb: 4 }}>
+                    {sectionLabel("Featuring " + artist.name, appears_total > featuring.length ? `${appears_total} releases` : undefined)}
+                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 }, "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 } }}>
+                        {featuring.map((album) => (
+                            <AlbumCard key={album.id} album={album} />
+                        ))}
+                    </Box>
+                </Box>
+            )}
+
+            {/* ── About ────────────────────────────────────────────── */}
+            <Box sx={{ mb: 5 }}>
+                <Box>
+                    {sectionLabel("About")}
+                    <Box
+                        sx={{
+                            position: "relative",
+                            minHeight: 360,
+                            p: 3,
+                            borderRadius: 2.5,
+                            overflow: "hidden",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "flex-end",
+                            background: coverImage
+                                ? `linear-gradient(0deg, rgba(0,0,0,.92), rgba(0,0,0,.08)), url(${coverImage}) center 25%/cover no-repeat`
+                                : "linear-gradient(135deg, #292524, #111827)",
+                        }}
+                    >
+                        <Box sx={{ position: "relative", color: "#fff" }}>
+                            <Typography sx={{ fontSize: 24, fontWeight: 900 }}>{artist.name}</Typography>
+                            <Typography sx={{ mt: 0.75, fontSize: 13, color: "rgba(255,255,255,.78)" }}>
+                                {uniqueTrackCountQuery.data != null
+                                    ? `${uniqueTrackCountQuery.data} bài hát`
+                                    : `${albums_total} bản phát hành`}
+                                {artist.followers ? ` · ${artist.followers.toLocaleString("vi-VN")} người theo dõi` : ""}
+                            </Typography>
+                            {genres.length > 0 && (
+                                <Typography sx={{ mt: 0.75, fontSize: 12, color: "rgba(255,255,255,.65)" }}>
+                                    {genres.slice(0, 5).join(" · ")}
+                                </Typography>
+                            )}
+                            {wikiBioQuery.isLoading && (
+                                <Box sx={{ mt: 2, display: "flex", alignItems: "center", gap: 1 }}>
+                                    <CircularProgress size={14} sx={{ color: "rgba(255,255,255,.5)" }} />
+                                    <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>
+                                        Đang tải thông tin từ Wikipedia…
+                                    </Typography>
+                                </Box>
+                            )}
+                            {wikiBioQuery.data && (
+                                <Box sx={{ mt: 2 }}>
+                                    <Typography
+                                        sx={{
+                                            fontSize: 13,
+                                            lineHeight: 1.65,
+                                            color: "rgba(255,255,255,.82)",
+                                            display: "-webkit-box",
+                                            WebkitLineClamp: showFullBio ? "unset" : 5,
+                                            WebkitBoxOrient: "vertical",
+                                            overflow: showFullBio ? "visible" : "hidden",
+                                        }}
+                                    >
+                                        {wikiBioQuery.data.extract}
+                                    </Typography>
+                                    <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1.5 }}>
+                                        <Button
+                                            size="small"
+                                            onClick={() => setShowFullBio((v) => !v)}
+                                            sx={{ color: "rgba(255,255,255,.6)", textTransform: "none", fontSize: 12, p: 0, minWidth: 0, "&:hover": { color: "#fff", bgcolor: "transparent" } }}
+                                        >
+                                            {showFullBio ? "Thu gọn" : "Xem thêm"}
+                                        </Button>
+                                        <Typography
+                                            component="a"
+                                            href={`https://en.wikipedia.org/?curid=${wikiBioQuery.data.pageid}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            sx={{ fontSize: 11, color: "rgba(255,255,255,.4)", textDecoration: "none", "&:hover": { color: "rgba(255,255,255,.7)", textDecoration: "underline" } }}
+                                        >
+                                            Wikipedia
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+                        </Box>
+                    </Box>
+                </Box>
+            </Box>
+
+            {playlists.length > 0 && (
+                <Box sx={{ mb: 5 }}>
+                    {sectionLabel("Artist Playlists")}
+                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1 }}>
+                        {playlists.map((playlist) => (
+                            <SpotifyCollectionCard key={playlist.id} item={playlist} />
+                        ))}
+                    </Box>
+                </Box>
+            )}
+
+            {related_artists.length > 0 && (
+                <Box sx={{ mb: 5 }}>
+                    {sectionLabel("Fans also like")}
+                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1 }}>
+                        {related_artists.map((relatedArtist) => (
+                            <RelatedArtistCard key={relatedArtist.id} artist={relatedArtist} />
+                        ))}
+                    </Box>
+                </Box>
+            )}
+        </Box>
+    );
+}
+
+// ─── Spotify Album View ───────────────────────────────────────────────────────
+function SpotifyAlbumView({
+    data,
+    onBack,
+    scrollRef,
+}: {
+    data: SpotifyAlbumDetail;
+    onBack: () => void;
+    scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
+    const { currentItem, isPlaying, play, pause, resume } = usePlayerStore();
+    const coverImage = data.images?.[0] ?? "";
+    const year = data.release_date?.slice(0, 4) ?? "";
+    const [extraTracks, setExtraTracks] = useState<MediaItem[]>([]);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const artistQuery = useQuery({
+        queryKey: ["music", "spotify-artist", data.artist_id],
+        queryFn: () => getSpotifyArtistDiscography(data.artist_id),
+        enabled: Boolean(data.artist_id),
+        staleTime: 15 * 60 * 1000,
+    });
+    const artistData = artistQuery.data;
+    const artistImage = artistData?.artist.images?.[0] ?? "";
+    const moreByArtist = (artistData?.albums ?? []).filter((album) => album.id !== data.id);
+
+    const openArtist = () => {
+        if (!data.artist_id) return;
+        window.dispatchEvent(
+            new CustomEvent("music:navigate-entity", {
+                detail: { type: "artist", id: data.artist_id, provider: "spotify" },
+            }),
+        );
+    };
+
+    const toMediaItem = (t: { id: string; title: string; user: { id: string; name: string }; artwork: { "150x150"?: string; "480x480"?: string; "1000x1000"?: string }; duration: number; external_url: string }): MediaItem => ({
+        id: `audio:spotify:${t.id}`,
+        sourceId: `spotify:${t.id}`,
+        type: "audio" as const,
+        title: t.title,
+        artist: t.user.name,
+        artistId: t.user.id,
+        thumbnail: t.artwork["480x480"] ?? t.artwork["1000x1000"] ?? t.artwork["150x150"] ?? coverImage,
+        duration: t.duration,
+        provider: "spotify" as const,
+        externalUrl: t.external_url,
+        album: { id: data.id, name: data.name },
+    });
+
+    const baseTrackItems: MediaItem[] = (data.tracks ?? []).map(toMediaItem);
+    const trackItems: MediaItem[] = [...baseTrackItems, ...extraTracks];
+
+    const canLoadMore = data.total_tracks > trackItems.length;
+
+    const loadMore = async () => {
+        setLoadingMore(true);
+        try {
+            const result = await getSpotifyAlbumTracks(data.id, 50, trackItems.length);
+            setExtraTracks((prev) => [...prev, ...result.tracks.map(toMediaItem)]);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    const typeLabel = data.album_type === "single" ? "Single" : data.album_type === "ep" ? "EP" : "Album";
+
+    return (
+        <Box ref={scrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
+            <Button
+                startIcon={<ChevronLeftIcon />}
+                onClick={onBack}
+                sx={{ mb: 2, color: "text.secondary", "&:hover": { color: "text.primary" } }}
+            >
+                Quay lại
+            </Button>
+
+            {/* Hero */}
+            <Box
+                sx={{
+                    position: "relative",
+                    display: "flex",
+                    gap: 3,
+                    alignItems: "flex-end",
+                    mb: 4,
+                    p: { xs: 2, md: 3 },
+                    minHeight: { xs: 260, md: 330 },
+                    borderRadius: 3,
+                    overflow: "hidden",
+                    flexWrap: "wrap",
+                    background: artistImage
+                        ? `linear-gradient(90deg, rgba(14,12,11,.94) 0%, rgba(14,12,11,.72) 48%, rgba(14,12,11,.32) 100%), url(${artistImage}) center 24%/cover no-repeat`
+                        : "linear-gradient(135deg, #29201b, #111827)",
+                }}
+            >
+                <Avatar
+                    variant="rounded"
+                    src={coverImage}
+                    sx={{
+                        width: { xs: 140, md: 200 },
+                        height: { xs: 140, md: 200 },
+                        borderRadius: 2,
+                        flexShrink: 0,
+                        boxShadow: "0 16px 48px rgba(0,0,0,0.58)",
+                    }}
+                />
+                <Box sx={{ minWidth: 0, pb: 0.5, position: "relative" }}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.disabled", textTransform: "uppercase", letterSpacing: 1.5, mb: 0.5 }}>
+                        {typeLabel}
+                    </Typography>
+                    <Typography sx={{ fontWeight: 900, fontSize: { xs: 28, md: 44 }, lineHeight: 1.05, color: "#fff" }}>
+                        {data.name}
+                    </Typography>
+                    <Typography sx={{ fontSize: 14, color: "rgba(255,255,255,.72)", mt: 0.75 }}>
+                        <Box
+                            component="button"
+                            type="button"
+                            onClick={openArtist}
+                            sx={{
+                                p: 0,
+                                border: 0,
+                                bgcolor: "transparent",
+                                color: "#fff",
+                                font: "inherit",
+                                fontWeight: 700,
+                                cursor: data.artist_id ? "pointer" : "default",
+                                "&:hover": { textDecoration: data.artist_id ? "underline" : "none" },
+                            }}
+                        >
+                            {data.artist_name}
+                        </Box>
+                        {year ? ` · ${year}` : ""}
+                        {data.total_tracks ? ` · ${data.total_tracks} bài` : ""}
+                    </Typography>
+                    {data.label && (
+                        <Typography sx={{ fontSize: 12, color: "text.disabled", mt: 0.5 }}>
+                            {data.label}
+                        </Typography>
+                    )}
+                    <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }} alignItems="center">
+                        <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<PlayArrowIcon />}
+                            onClick={() => trackItems.length && play(trackItems[0], trackItems)}
+                            sx={{
+                                bgcolor: SP_GREEN,
+                                color: "#fff",
+                                fontWeight: 700,
+                                textTransform: "none",
+                                borderRadius: 5,
+                                px: 2,
+                                "&:hover": { bgcolor: "#fb923c" },
+                            }}
+                        >
+                            Phát
+                        </Button>
+                    </Stack>
+                </Box>
+            </Box>
+
+            {/* Track list */}
+            <Stack spacing={0.5}>
+                {trackItems.map((item, i) => {
+                    const active = currentItem?.id === item.id;
+                    return (
+                        <Box
+                            key={item.id}
+                            onClick={() => {
+                                if (active && isPlaying) { pause(); return; }
+                                if (active) { resume(); return; }
+                                play(item, trackItems);
+                            }}
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1.5,
+                                px: 1.5,
+                                py: 1,
+                                borderRadius: 1.5,
+                                cursor: "pointer",
+                                bgcolor: active ? "action.selected" : "transparent",
+                                "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
+                                "&:hover .track-options": { opacity: 1 },
+                                transition: "background-color 0.15s",
+                            }}
+                        >
+                            <Box sx={{ width: 24, textAlign: "right", flexShrink: 0 }}>
+                                {active && isPlaying
+                                    ? <GraphicEqIcon sx={{ fontSize: 16, color: SP_GREEN }} />
+                                    : <Typography sx={{ fontSize: 13, color: "text.disabled" }}>{i + 1}</Typography>
+                                }
+                            </Box>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                                <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: active ? SP_GREEN : "text.primary" }}>
+                                    {formatDisplayName(item.title)}
+                                </Typography>
+                                <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                                    {formatDisplayName(item.artist)}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+                                <Typography sx={{ fontSize: 12, color: "text.disabled", minWidth: 36, textAlign: "right" }}>
+                                    {item.duration ? formatDuration(item.duration) : ""}
+                                </Typography>
+                                <Box className="track-options" sx={{ opacity: { xs: 1, md: 0 }, transition: "opacity 0.15s" }} onClick={(e) => e.stopPropagation()}>
+                                    <TrackOptionsButton item={item} alwaysVisible />
+                                </Box>
+                            </Box>
+                        </Box>
+                    );
+                })}
+            </Stack>
+
+            {canLoadMore && (
+                <Button
+                    size="small"
+                    onClick={() => void loadMore()}
+                    disabled={loadingMore}
+                    sx={{ mt: 2, color: "text.secondary", fontWeight: 700, textTransform: "none", "&:hover": { color: "text.primary" } }}
+                >
+                    {loadingMore ? "Đang tải..." : `Tải thêm ${data.total_tracks - trackItems.length} bài`}
+                </Button>
+            )}
+
+            <Box sx={{ mt: 5 }}>
+                <Typography sx={{ mb: 2, fontWeight: 900, fontSize: 22 }}>
+                    More by {data.artist_name}
+                </Typography>
+                {artistQuery.isLoading ? (
+                    <Stack direction="row" spacing={2}>
+                        {Array.from({ length: 5 }).map((_, index) => (
+                            <Skeleton key={index} variant="rounded" width={140} height={180} />
+                        ))}
+                    </Stack>
+                ) : moreByArtist.length > 0 ? (
+                    <Box
+                        sx={{
+                            display: "flex",
+                            gap: 2,
+                            overflowX: "auto",
+                            pb: 1,
+                            "&::-webkit-scrollbar": { height: 4 },
+                            "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 },
+                        }}
+                    >
+                        {moreByArtist.map((album) => (
+                            <AlbumCard key={album.id} album={album} />
+                        ))}
+                    </Box>
+                ) : (
+                    <Typography sx={{ color: "text.disabled", fontSize: 13 }}>
+                        Chưa có thêm bản phát hành nào.
+                    </Typography>
+                )}
+            </Box>
+
+        </Box>
+    );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function MusicPage() {
     useSmartQueueAutofill();
@@ -1171,20 +2005,21 @@ export default function MusicPage() {
     const [keyword, setKeyword] = useState("");
     const [showQueue, setShowQueue] = useState(false);
     const [showLyrics, setShowLyrics] = useState(false);
+    const [showTrackInfo, setShowTrackInfo] = useState(false);
     const [playlistName, setPlaylistName] = useState("");
     const [selectedArtist, setSelectedArtist] = useState<AudiusUser | null>(null);
+    const [selectedSpotifyArtist, setSelectedSpotifyArtist] = useState<SpotifyArtistResponse | null>(null);
+    const [selectedSpotifyAlbum, setSelectedSpotifyAlbum] = useState<SpotifyAlbumDetail | null>(null);
+    const [selectedSpotifyPlaylist, setSelectedSpotifyPlaylist] = useState<SpotifyCollectionSummary | null>(null);
     const [selectedPlaylist, setSelectedPlaylist] = useState<AudiusPlaylist | null>(null);
     const [openLibraryPlaylistId, setOpenLibraryPlaylistId] = useState<number | undefined>();
     const [trendingGenre, setTrendingGenre] = useState<TrendingGenre>("All");
     const [trendingTime, setTrendingTime] = useState<TrendingTimeFilter>("week");
-    const [searchTab, setSearchTab] = useState(0);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-    // Separate scroll containers for search columns (state so IntersectionSentinel re-renders with correct root)
     const mainScrollRef = useRef<HTMLDivElement | null>(null);
     const [tracksScrollEl, setTracksScrollEl] = useState<HTMLDivElement | null>(null);
-    const [videosScrollEl, setVideosScrollEl] = useState<HTMLDivElement | null>(null);
 
     const debouncedKeyword = useDebouncedValue(keyword, 650);
     const searchKeyword = debouncedKeyword.trim();
@@ -1204,8 +2039,6 @@ export default function MusicPage() {
         hydrateLibrary,
         appendToQueue,
     } = usePlayerStore();
-    const hasYouTubeKey = Boolean(import.meta.env.VITE_YOUTUBE_API_KEY);
-
     // Queries
     const trendingQuery = useTrendingQuery({ genre: trendingGenre, time: trendingTime });
     const trendingArtistsQuery = useTrendingArtistsQuery();
@@ -1213,26 +2046,58 @@ export default function MusicPage() {
     const trendingAlbumsQuery = useTrendingAlbumsQuery();
     const undergroundQuery = useUndergroundTrendingQuery();
 
-    // Seed = bài nghe gần nhất (audio từ bất kỳ provider, không phải YouTube video)
-    const seedItem = recentItems.find((i) => i.type === "audio");
+    const backendRecentQuery = useBackendRecentQuery();
+    // Seed ưu tiên: bài đang phát → lịch sử backend → lịch sử store
+    const seedItem = useMemo(() => {
+        if (currentItem?.type === "audio") return currentItem;
+        const fromBackend = (backendRecentQuery.data ?? []).find((i: MediaItem) => i.type === "audio");
+        if (fromBackend) return fromBackend;
+        return recentItems.find((i) => i.type === "audio") ?? null;
+    }, [currentItem, backendRecentQuery.data, recentItems]);
     const recommendationsQuery = useRecommendationsQuery(seedItem?.sourceId);
     const artistRadioQuery = useArtistRadioQuery(selectedArtist);
     const tracksQuery = useTracksQuery(searchKeyword, view === "search" && hasSearchKeyword);
-    const videosQuery = useVideosQuery(
-        searchKeyword,
-        view === "search" && hasSearchKeyword && hasYouTubeKey,
-    );
     const artistsQuery = useArtistsQuery(searchKeyword, view === "artists" && hasSearchKeyword);
     const playlistsQuery = usePlaylistsQuery(
         searchKeyword,
         view === "playlists" && hasSearchKeyword,
     );
     const playlistTracksQuery = usePlaylistTracksQuery(selectedPlaylist?.id);
+    const spotifyPlaylistTracksQuery = useQuery({
+        queryKey: ["spotify-playlist-tracks", selectedSpotifyPlaylist?.id],
+        queryFn: async () => {
+            if (!selectedSpotifyPlaylist) return { tracks: [], total: 0 };
+            return getSpotifyPlaylistTracks(selectedSpotifyPlaylist.id, 50, 0);
+        },
+        enabled: Boolean(selectedSpotifyPlaylist),
+        staleTime: 5 * 60 * 1000,
+    });
+    const newReleasesQuery = useQuery({
+        queryKey: ["spotify", "new-releases"],
+        queryFn: () => getSpotifyNewReleases(20),
+        staleTime: 30 * 60 * 1000,
+    });
+    const featuredPlaylistsQuery = useQuery({
+        queryKey: ["spotify", "featured-playlists"],
+        queryFn: () => getSpotifyFeaturedPlaylists(20),
+        staleTime: 30 * 60 * 1000,
+    });
+    const categoriesQuery = useQuery({
+        queryKey: ["spotify", "categories"],
+        queryFn: () => getSpotifyCategories(20),
+        staleTime: 60 * 60 * 1000,
+    });
+    const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+    const categoryPlaylistsQuery = useQuery({
+        queryKey: ["spotify", "category-playlists", activeCategoryId],
+        queryFn: () => getSpotifyCategoryPlaylists(activeCategoryId!, 20),
+        enabled: Boolean(activeCategoryId),
+        staleTime: 15 * 60 * 1000,
+    });
     const artistTracksQuery = useArtistTracksQuery(selectedArtist?.id);
     const artistAlbumsQuery = useArtistAlbumsQuery(selectedArtist?.id);
     const artistPlaylistsQuery = useArtistPlaylistsQuery(selectedArtist?.id);
     const backendLikedQuery = useBackendLikedQuery();
-    const backendRecentQuery = useBackendRecentQuery();
     const backendSearchHistoryQuery = useBackendSearchHistoryQuery();
     const backendPlaylistsQuery = useBackendPlaylistsQuery();
 
@@ -1245,13 +2110,29 @@ export default function MusicPage() {
     const addToPlaylistMutation = useAddToPlaylistMutation();
 
     useEffect(() => {
+        const handleToggleTrackInfo = () => {
+            setShowTrackInfo((p) => !p);
+        };
+        window.addEventListener("music:toggle-track-info", handleToggleTrackInfo);
+        return () => window.removeEventListener("music:toggle-track-info", handleToggleTrackInfo);
+    }, []);
+
+    useEffect(() => {
         const handleEntityNavigation = (event: Event) => {
-            const { type, id } = (
-                event as CustomEvent<{ type?: "artist" | "album" | "playlist"; id?: string }>
+            const { type, id, provider } = (
+                event as CustomEvent<{ type?: "artist" | "album" | "playlist"; id?: string; provider?: string }>
             ).detail;
             if (!id) return;
 
             if (type === "artist") {
+                if (provider === "spotify") {
+                    void getSpotifyArtist(id).then((data) => {
+                        if (!data) return;
+                        setSelectedSpotifyArtist(data);
+                        setView("spotify-artist");
+                    });
+                    return;
+                }
                 void getUser(id).then((artist) => {
                     if (!artist) return;
                     setSelectedArtist(artist);
@@ -1260,7 +2141,28 @@ export default function MusicPage() {
                 return;
             }
 
-            if (type === "album" || type === "playlist") {
+            if (type === "album") {
+                if (provider === "spotify") {
+                    void getSpotifyAlbum(id).then((album) => {
+                        if (!album) return;
+                        setSelectedSpotifyAlbum(album);
+                        setView("spotify-album");
+                    });
+                    return;
+                }
+                void getPlaylist(id).then((playlist) => {
+                    if (playlist) setSelectedPlaylist(playlist);
+                });
+                return;
+            }
+
+            if (type === "playlist") {
+                if (provider === "spotify") {
+                    void getSpotifyPlaylist(id).then((playlist) => {
+                        if (playlist) setSelectedSpotifyPlaylist(playlist);
+                    });
+                    return;
+                }
                 void getPlaylist(id).then((playlist) => {
                     if (playlist) setSelectedPlaylist(playlist);
                 });
@@ -1269,6 +2171,7 @@ export default function MusicPage() {
 
         window.addEventListener("music:navigate-entity", handleEntityNavigation);
         return () => window.removeEventListener("music:navigate-entity", handleEntityNavigation);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -1314,14 +2217,42 @@ export default function MusicPage() {
         () => (tracksQuery.data?.pages.flat() ?? []).map(toAudioMediaItem),
         [tracksQuery.data],
     );
-    const searchVideoItems = useMemo(
-        () => (videosQuery.data?.pages.flatMap((p) => p.videos) ?? []).map(toVideoMediaItem),
-        [videosQuery.data],
-    );
     const playlistTracks = useMemo(
         () => playlistTracksQuery.data?.pages.flat() ?? [],
         [playlistTracksQuery.data],
     );
+
+    const selectArtist = (artist: AudiusUser) => {
+        if (artist.provider === "spotify") {
+            void getSpotifyArtist(artist.id).then((data) => {
+                if (!data) return;
+                setSelectedArtist(null);
+                setSelectedSpotifyArtist(data);
+                setView("spotify-artist");
+            });
+            return;
+        }
+        setSelectedArtist(artist);
+        setView("artists");
+    };
+
+    const selectPlaylist = (playlist: AudiusPlaylist) => {
+        if (playlist.provider !== "spotify") {
+            setSelectedPlaylist(playlist);
+            return;
+        }
+        if (playlist.is_album) {
+            void getSpotifyAlbum(playlist.id).then((album) => {
+                if (!album) return;
+                setSelectedSpotifyAlbum(album);
+                setView("spotify-album");
+            });
+            return;
+        }
+        void getSpotifyPlaylist(playlist.id).then((sp) => {
+            if (sp) setSelectedSpotifyPlaylist(sp);
+        });
+    };
 
     const navItems = [
         { id: "home" as MusicView, label: "Home", icon: <HomeIcon /> },
@@ -1533,6 +2464,17 @@ export default function MusicPage() {
                                 {mode === "light" ? <Brightness4Icon /> : <Brightness7Icon />}
                             </IconButton>
                         </Tooltip>
+                        <Tooltip title="Thông tin bài hát">
+                            <IconButton
+                                onClick={() => setShowTrackInfo((p) => !p)}
+                                sx={{
+                                    color: showTrackInfo ? SP_GREEN : "text.secondary",
+                                    "&:hover": { color: "text.primary" },
+                                }}
+                            >
+                                <InfoOutlinedIcon />
+                            </IconButton>
+                        </Tooltip>
                         <Tooltip title="Lời bài hát">
                             <IconButton
                                 onClick={() => {
@@ -1678,7 +2620,7 @@ export default function MusicPage() {
                             </HScrollSection>
                         )}
 
-                        <HScrollSection title="Trending" loading={trendingQuery.isLoading}>
+                        <HScrollSection title="Xu hướng" loading={trendingQuery.isLoading}>
                             {trendingTracks.map((track) => (
                                 <TrackCard key={track.id} track={track} queue={trendingTracks} />
                             ))}
@@ -1692,23 +2634,20 @@ export default function MusicPage() {
                                 <ArtistCard
                                     key={artist.id}
                                     artist={artist}
-                                    onClick={() => {
-                                        setSelectedArtist(artist);
-                                        setView("artists");
-                                    }}
+                                    onClick={() => selectArtist(artist)}
                                 />
                             ))}
                         </HScrollSection>
 
                         <HScrollSection
-                            title="Albums nổi bật"
+                            title="Album mới nổi bật"
                             loading={trendingAlbumsQuery.isLoading}
                         >
                             {trendingAlbums.map((album) => (
                                 <PlaylistCard
                                     key={album.id}
                                     playlist={album}
-                                    onClick={() => setSelectedPlaylist(album)}
+                                    onClick={() => selectPlaylist(album)}
                                 />
                             ))}
                         </HScrollSection>
@@ -1721,7 +2660,7 @@ export default function MusicPage() {
                                 <PlaylistCard
                                     key={playlist.id}
                                     playlist={playlist}
-                                    onClick={() => setSelectedPlaylist(playlist)}
+                                    onClick={() => selectPlaylist(playlist)}
                                 />
                             ))}
                         </HScrollSection>
@@ -1731,6 +2670,63 @@ export default function MusicPage() {
                                 <TrackCard key={track.id} track={track} queue={undergroundTracks} />
                             ))}
                         </HScrollSection>
+
+                        <HScrollSection title="Phát hành mới" loading={newReleasesQuery.isLoading}>
+                            {(newReleasesQuery.data ?? []).map((item) => (
+                                <SpotifyCollectionCard
+                                    key={item.id}
+                                    item={item}
+                                />
+                            ))}
+                        </HScrollSection>
+
+                        <HScrollSection title="Playlist nổi bật từ ban biên tập" loading={featuredPlaylistsQuery.isLoading}>
+                            {(featuredPlaylistsQuery.data ?? []).map((item) => (
+                                <SpotifyCollectionCard
+                                    key={item.id}
+                                    item={item}
+                                />
+                            ))}
+                        </HScrollSection>
+
+                        {/* Categories + category playlists */}
+                        {(categoriesQuery.data ?? []).length > 0 && (
+                            <Box sx={{ mb: 4 }}>
+                                <Typography sx={{ fontWeight: 800, fontSize: 18, mb: 1.5 }}>
+                                    Khám phá theo thể loại
+                                </Typography>
+                                <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: "auto", pb: 0.5 }}>
+                                    {(categoriesQuery.data ?? []).map((cat) => (
+                                        <Chip
+                                            key={cat.id}
+                                            label={cat.name}
+                                            onClick={() => setActiveCategoryId((prev) => prev === cat.id ? null : cat.id)}
+                                            sx={{
+                                                flexShrink: 0,
+                                                fontWeight: 700,
+                                                bgcolor: activeCategoryId === cat.id ? "text.primary" : "action.selected",
+                                                color: activeCategoryId === cat.id ? "background.default" : "text.primary",
+                                            }}
+                                        />
+                                    ))}
+                                </Stack>
+                                {activeCategoryId && (
+                                    categoryPlaylistsQuery.isLoading ? (
+                                        <Stack direction="row" spacing={2}>
+                                            {Array.from({ length: 6 }).map((_, i) => (
+                                                <Skeleton key={i} variant="rounded" width={160} height={200} />
+                                            ))}
+                                        </Stack>
+                                    ) : (
+                                        <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 }, "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 } }}>
+                                            {(categoryPlaylistsQuery.data ?? []).map((item) => (
+                                                <SpotifyCollectionCard key={item.id} item={item} />
+                                            ))}
+                                        </Box>
+                                    )
+                                )}
+                            </Box>
+                        )}
                     </Box>
                 )}
 
@@ -1875,7 +2871,7 @@ export default function MusicPage() {
                                 )}
                             </Box>
                         ) : (
-                            /* Two independent scrollable columns */
+                            /* Single songs column */
                             <Box
                                 sx={{
                                     flex: 1,
@@ -1885,72 +2881,23 @@ export default function MusicPage() {
                                     overflow: "hidden",
                                 }}
                             >
-                                {/* Mobile tab switcher — hidden on lg+ */}
-                                <Tabs
-                                    value={searchTab}
-                                    onChange={(_, v: number) => setSearchTab(v)}
-                                    sx={{
-                                        display: { xs: "flex", lg: "none" },
-                                        flexShrink: 0,
-                                        px: 2,
-                                        borderBottom: "1px solid",
-                                        borderColor: "divider",
-                                        "& .MuiTab-root": {
-                                            color: "text.secondary",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            textTransform: "none",
-                                            minHeight: 40,
-                                        },
-                                        "& .Mui-selected": { color: "text.primary" },
-                                        "& .MuiTabs-indicator": { bgcolor: SP_GREEN, height: 2 },
-                                    }}
-                                >
-                                    <Tab
-                                        label={`Bài hát${searchTrackItems.length ? ` (${searchTrackItems.length})` : ""}`}
-                                    />
-                                    <Tab
-                                        label={`Videos YouTube${searchVideoItems.length ? ` (${searchVideoItems.length})` : ""}`}
-                                    />
-                                </Tabs>
-
                                 <Box
                                     sx={{
                                         flex: 1,
                                         minHeight: 0,
-                                        display: "grid",
-                                        gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+                                        display: "flex",
+                                        flexDirection: "column",
                                         overflow: "hidden",
                                     }}
                                 >
                                     {/* Songs column */}
                                     <Box
                                         sx={{
-                                            display: {
-                                                xs: searchTab === 0 ? "flex" : "none",
-                                                lg: "flex",
-                                            },
+                                            display: "flex",
                                             flexDirection: "column",
                                             overflow: "hidden",
-                                            borderRight: { lg: "1px solid" },
-                                            borderColor: { lg: "divider" },
                                         }}
                                     >
-                                        <Typography
-                                            sx={{
-                                                fontWeight: 800,
-                                                fontSize: 20,
-                                                color: "text.primary",
-                                                px: { xs: 2, md: 3 },
-                                                pt: { xs: 2, md: 3 },
-                                                pb: 2,
-                                                flexShrink: 0,
-                                                bgcolor: "background.default",
-                                                display: { xs: "none", lg: "block" },
-                                            }}
-                                        >
-                                            Bài hát
-                                        </Typography>
                                         <Box
                                             ref={setTracksScrollEl}
                                             sx={{
@@ -2041,123 +2988,6 @@ export default function MusicPage() {
                                             )}
                                         </Box>
                                     </Box>
-
-                                    {/* Videos column */}
-                                    <Box
-                                        sx={{
-                                            display: {
-                                                xs: searchTab === 1 ? "flex" : "none",
-                                                lg: "flex",
-                                            },
-                                            flexDirection: "column",
-                                            overflow: "hidden",
-                                        }}
-                                    >
-                                        <Typography
-                                            sx={{
-                                                fontWeight: 800,
-                                                fontSize: 20,
-                                                color: "text.primary",
-                                                px: { xs: 2, md: 3 },
-                                                pt: { xs: 2, md: 3 },
-                                                pb: 2,
-                                                flexShrink: 0,
-                                                bgcolor: "background.default",
-                                                display: { xs: "none", lg: "block" },
-                                            }}
-                                        >
-                                            Videos YouTube
-                                        </Typography>
-                                        <Box
-                                            ref={setVideosScrollEl}
-                                            sx={{
-                                                overflow: "auto",
-                                                flex: 1,
-                                                minHeight: 0,
-                                                px: { xs: 2, md: 3 },
-                                                pb: { xs: 2, md: 3 },
-                                            }}
-                                        >
-                                            {videosQuery.isFetching && !searchVideoItems.length ? (
-                                                <Box
-                                                    sx={{
-                                                        py: 4,
-                                                        display: "flex",
-                                                        justifyContent: "center",
-                                                    }}
-                                                >
-                                                    <CircularProgress
-                                                        sx={{ color: SP_GREEN }}
-                                                        size={28}
-                                                    />
-                                                </Box>
-                                            ) : !searchVideoItems.length ? (
-                                                <EmptyState
-                                                    label={
-                                                        hasSearchKeyword
-                                                            ? "Không tìm thấy video YouTube."
-                                                            : "Nhập từ khóa để tìm video."
-                                                    }
-                                                    onRetry={
-                                                        hasSearchKeyword && hasYouTubeKey
-                                                            ? () => void videosQuery.refetch()
-                                                            : undefined
-                                                    }
-                                                />
-                                            ) : (
-                                                <>
-                                                    {searchVideoItems.map((item, index) => (
-                                                        <Fragment key={item.id}>
-                                                            <MediaRow
-                                                                item={item}
-                                                                queue={searchVideoItems}
-                                                                index={index + 1}
-                                                            />
-                                                            {index ===
-                                                                searchVideoItems.length - 5 &&
-                                                                videosQuery.hasNextPage &&
-                                                                !videosQuery.isFetchingNextPage && (
-                                                                    <IntersectionSentinel
-                                                                        onVisible={() =>
-                                                                            void videosQuery.fetchNextPage()
-                                                                        }
-                                                                        root={videosScrollEl}
-                                                                    />
-                                                                )}
-                                                        </Fragment>
-                                                    ))}
-                                                    {videosQuery.isFetchingNextPage && (
-                                                        <Box
-                                                            sx={{
-                                                                py: 2,
-                                                                display: "flex",
-                                                                justifyContent: "center",
-                                                            }}
-                                                        >
-                                                            <CircularProgress
-                                                                sx={{ color: SP_GREEN }}
-                                                                size={24}
-                                                            />
-                                                        </Box>
-                                                    )}
-                                                    {!videosQuery.hasNextPage &&
-                                                        searchVideoItems.length > 5 && (
-                                                            <Typography
-                                                                sx={{
-                                                                    textAlign: "center",
-                                                                    py: 2,
-                                                                    fontSize: 12,
-                                                                    color: "text.disabled",
-                                                                }}
-                                                            >
-                                                                Đã hiển thị tất cả{" "}
-                                                                {searchVideoItems.length} video
-                                                            </Typography>
-                                                        )}
-                                                </>
-                                            )}
-                                        </Box>
-                                    </Box>
                                 </Box>
                             </Box>
                         )}
@@ -2179,19 +3009,21 @@ export default function MusicPage() {
                             <Typography
                                 sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
                             >
-                                {hasSearchKeyword ? "Kết quả tìm kiếm" : "Nghệ sĩ phổ biến hôm nay"}
+                                {hasSearchKeyword
+                                    ? "Kết quả tìm kiếm"
+                                    : "Nghệ sĩ phổ biến"}
                             </Typography>
                         )}
                         <ArtistsPanel
                             artists={hasSearchKeyword ? (artistsQuery.data ?? []) : trendingArtists}
                             selectedArtist={selectedArtist}
-                            onSelectArtist={setSelectedArtist}
+                            onSelectArtist={selectArtist}
                             artistTracks={artistTracksQuery.data ?? []}
                             artistAlbums={artistAlbumsQuery.data ?? []}
                             artistPlaylists={artistPlaylistsQuery.data ?? []}
                             artistRadioTracks={artistRadioTracks}
                             artistRadioLoading={artistRadioQuery.isLoading}
-                            onSelectPlaylist={setSelectedPlaylist}
+                            onSelectPlaylist={selectPlaylist}
                         />
                     </Box>
                 )}
@@ -2210,7 +3042,9 @@ export default function MusicPage() {
                         <Typography
                             sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
                         >
-                            {hasSearchKeyword ? "Kết quả tìm kiếm" : "Playlists nổi bật hôm nay"}
+                            {hasSearchKeyword
+                                ? "Kết quả tìm kiếm"
+                                : "Playlist và album nổi bật"}
                         </Typography>
                         <PlaylistGrid
                             playlists={
@@ -2218,7 +3052,7 @@ export default function MusicPage() {
                                     ? (playlistsQuery.data ?? [])
                                     : [...trendingPlaylists, ...trendingAlbums]
                             }
-                            onSelectPlaylist={setSelectedPlaylist}
+                            onSelectPlaylist={selectPlaylist}
                         />
                     </Box>
                 )}
@@ -2557,6 +3391,24 @@ export default function MusicPage() {
                         <UserProfileView />
                     </Box>
                 )}
+
+                {/* ── SPOTIFY ARTIST ───────────────────────────────────────── */}
+                {view === "spotify-artist" && selectedSpotifyArtist && (
+                    <SpotifyArtistView
+                        data={selectedSpotifyArtist}
+                        onBack={() => setView("home")}
+                        scrollRef={mainScrollRef}
+                    />
+                )}
+
+                {/* ── SPOTIFY ALBUM ────────────────────────────────────────── */}
+                {view === "spotify-album" && selectedSpotifyAlbum && (
+                    <SpotifyAlbumView
+                        data={selectedSpotifyAlbum}
+                        onBack={() => setView("home")}
+                        scrollRef={mainScrollRef}
+                    />
+                )}
             </Box>
 
             {/* ── Right Queue Panel ────────────────────────────────────── */}
@@ -2643,6 +3495,43 @@ export default function MusicPage() {
                 </Box>
             )}
 
+            {/* ── Right Track Info Panel ───────────────────────────────── */}
+            {/* Mobile/tablet: Drawer */}
+            <Drawer
+                anchor="right"
+                open={showTrackInfo}
+                onClose={() => setShowTrackInfo(false)}
+                ModalProps={{ keepMounted: true }}
+                sx={{
+                    display: { xs: "block", xl: "none" },
+                    "& .MuiDrawer-paper": {
+                        width: TRACK_INFO_W,
+                        bgcolor: "background.default",
+                        border: "none",
+                    },
+                }}
+            >
+                <TrackInfoPanelContent item={currentItem} onClose={() => setShowTrackInfo(false)} />
+            </Drawer>
+
+            {/* Desktop: inline track info panel */}
+            {showTrackInfo && (
+                <Box
+                    sx={{
+                        width: TRACK_INFO_W,
+                        flexShrink: 0,
+                        display: { xs: "none", xl: "flex" },
+                        flexDirection: "column",
+                        bgcolor: "background.default",
+                        borderLeft: "1px solid",
+                        borderColor: "divider",
+                        overflow: "hidden",
+                    }}
+                >
+                    <TrackInfoPanelContent item={currentItem} onClose={() => setShowTrackInfo(false)} />
+                </Box>
+            )}
+
             <PlaylistTracksDialog
                 playlist={selectedPlaylist}
                 tracks={playlistTracks}
@@ -2653,6 +3542,215 @@ export default function MusicPage() {
                 onLoadMore={() => void playlistTracksQuery.fetchNextPage()}
                 onClose={() => setSelectedPlaylist(null)}
             />
+
+            <SpotifyPlaylistDialog
+                playlist={selectedSpotifyPlaylist}
+                tracks={spotifyPlaylistTracksQuery.data?.tracks ?? []}
+                loading={spotifyPlaylistTracksQuery.isFetching}
+                onClose={() => setSelectedSpotifyPlaylist(null)}
+            />
         </Box>
+    );
+}
+
+// ─── Spotify Playlist Dialog ──────────────────────────────────────────────────
+function SpotifyPlaylistDialog({
+    playlist,
+    tracks,
+    loading,
+    onClose,
+}: {
+    playlist: SpotifyCollectionSummary | null;
+    tracks: SpotifyTrackDetail[];
+    loading: boolean;
+    onClose: () => void;
+}) {
+    const { currentItem, isPlaying, play, pause, resume } = usePlayerStore();
+    const coverImage = playlist?.images?.[0] ?? "";
+
+    const trackItems = useMemo<MediaItem[]>(
+        () =>
+            tracks.map((t) => ({
+                id: `audio:spotify:${t.id}`,
+                sourceId: `spotify:${t.id}`,
+                type: "audio" as const,
+                title: t.title,
+                artist: t.user.name,
+                artistId: t.user.id,
+                thumbnail: t.artwork["480x480"] ?? t.artwork["1000x1000"] ?? t.artwork["150x150"] ?? "",
+                duration: t.duration,
+                provider: "spotify" as const,
+                externalUrl: t.external_url,
+                album: t.album?.id ? { id: t.album.id, name: t.album.name } : undefined,
+            })),
+        [tracks],
+    );
+
+    const { replaceQueue } = usePlayerStore();
+
+    return (
+        <Dialog
+            open={Boolean(playlist)}
+            onClose={onClose}
+            fullWidth
+            maxWidth="lg"
+            slotProps={{
+                paper: {
+                    sx: {
+                        height: { xs: "100dvh", sm: "90dvh" },
+                        maxHeight: { xs: "100dvh", sm: "90dvh" },
+                        m: { xs: 0, sm: 2 },
+                        borderRadius: { xs: 0, sm: 3 },
+                        overflow: "hidden",
+                        bgcolor: "background.default",
+                        backgroundImage: "linear-gradient(180deg, rgba(249,115,22,0.09), transparent 46%)",
+                    },
+                },
+            }}
+        >
+            <DialogContent sx={{ p: 0, overflowY: "auto" }}>
+                {/* Hero */}
+                <Box
+                    sx={{
+                        position: "relative",
+                        minHeight: { xs: 260, md: 320 },
+                        display: "flex",
+                        alignItems: "flex-end",
+                        overflow: "hidden",
+                        p: { xs: 2.5, md: 4 },
+                    }}
+                >
+                    <Box
+                        aria-hidden
+                        sx={{
+                            position: "absolute",
+                            inset: -40,
+                            backgroundImage: coverImage ? `url("${coverImage}")` : undefined,
+                            backgroundSize: "cover",
+                            backgroundPosition: "center",
+                            filter: "blur(34px) saturate(1.15)",
+                            opacity: 0.55,
+                            transform: "scale(1.12)",
+                        }}
+                    />
+                    <Box
+                        aria-hidden
+                        sx={{
+                            position: "absolute",
+                            inset: 0,
+                            background: "linear-gradient(180deg, rgba(18,18,18,0.12) 0%, rgba(18,18,18,0.45) 45%, #171312 100%)",
+                        }}
+                    />
+                    <IconButton
+                        onClick={onClose}
+                        sx={{
+                            position: "absolute",
+                            zIndex: 2,
+                            top: 16,
+                            right: 16,
+                            color: "text.primary",
+                            bgcolor: "rgba(0,0,0,0.42)",
+                            backdropFilter: "blur(10px)",
+                            "&:hover": { bgcolor: "rgba(0,0,0,0.65)" },
+                        }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                    <Box
+                        sx={{
+                            position: "relative",
+                            zIndex: 1,
+                            display: "flex",
+                            flexDirection: { xs: "column", sm: "row" },
+                            alignItems: { xs: "flex-start", sm: "flex-end" },
+                            gap: { xs: 2, md: 3 },
+                            width: "100%",
+                        }}
+                    >
+                        <Avatar
+                            variant="rounded"
+                            src={coverImage}
+                            sx={{ width: { xs: 120, md: 190 }, height: { xs: 120, md: 190 }, borderRadius: 2, boxShadow: "0 22px 54px rgba(0,0,0,0.46)", flexShrink: 0 }}
+                        />
+                        <Box sx={{ minWidth: 0, pb: { sm: 0.5 } }}>
+                            <Typography sx={{ fontSize: 12, fontWeight: 750, color: "text.secondary", mb: 0.75 }}>
+                                Danh sách phát
+                            </Typography>
+                            <Typography component="h2" sx={{ fontSize: { xs: "clamp(1.8rem,9vw,3rem)", md: "clamp(2.5rem,5vw,4.5rem)" }, fontWeight: 950, letterSpacing: "-0.05em", lineHeight: 0.98, textWrap: "balance" }}>
+                                {formatDisplayName(playlist?.name ?? "Playlist")}
+                            </Typography>
+                            {playlist?.description && (
+                                <Typography sx={{ mt: 1.25, maxWidth: 640, fontSize: 13, color: "text.secondary", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                    {playlist.description}
+                                </Typography>
+                            )}
+                            <Typography sx={{ mt: 1.25, fontSize: 13, color: "text.secondary" }}>
+                                <Box component="span" sx={{ color: "text.primary", fontWeight: 750 }}>
+                                    {playlist?.owner?.name}
+                                </Box>
+                                {playlist?.total_items ? ` · ${playlist.total_items} bài` : ""}
+                            </Typography>
+                        </Box>
+                    </Box>
+                </Box>
+
+                {/* Actions + tracks */}
+                <Box sx={{ px: { xs: 1, sm: 2.5, md: 4 }, pb: 5, background: (theme: import("@mui/material").Theme) => `linear-gradient(180deg, rgba(54,31,20,0.56) 0%, ${theme.palette.background.default} 170px)` }}>
+                    <Stack direction="row" alignItems="center" spacing={1.25} sx={{ py: 2.5 }}>
+                        <IconButton
+                            onClick={() => replaceQueue(trackItems, 0)}
+                            disabled={!trackItems.length}
+                            sx={{ width: 54, height: 54, color: "background.default", bgcolor: SP_GREEN, "&:hover": { bgcolor: "#fb923c", transform: "scale(1.04)" }, "&:disabled": { bgcolor: "action.selected" }, transition: "transform 180ms ease" }}
+                        >
+                            <PlayArrowIcon sx={{ fontSize: 30 }} />
+                        </IconButton>
+                    </Stack>
+
+                    {loading && !trackItems.length ? (
+                        <LinearProgress sx={{ bgcolor: "action.selected", "& .MuiLinearProgress-bar": { bgcolor: SP_GREEN } }} />
+                    ) : trackItems.length ? (
+                        <Stack spacing={0.5}>
+                            {trackItems.map((item, i) => {
+                                const active = currentItem?.id === item.id;
+                                return (
+                                    <Box
+                                        key={item.id}
+                                        onClick={() => {
+                                            if (active && isPlaying) { pause(); return; }
+                                            if (active) { resume(); return; }
+                                            play(item, trackItems);
+                                        }}
+                                        sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, borderRadius: 1.5, cursor: "pointer", bgcolor: active ? "action.selected" : "transparent", "&:hover": { bgcolor: active ? "action.selected" : "action.hover" }, transition: "background-color 0.15s" }}
+                                    >
+                                        <Box sx={{ width: 24, textAlign: "right", flexShrink: 0 }}>
+                                            {active && isPlaying
+                                                ? <GraphicEqIcon sx={{ fontSize: 16, color: SP_GREEN }} />
+                                                : <Typography sx={{ fontSize: 13, color: "text.disabled" }}>{i + 1}</Typography>
+                                            }
+                                        </Box>
+                                        <Avatar variant="rounded" src={item.thumbnail} sx={{ width: 40, height: 40, borderRadius: 1, flexShrink: 0 }} />
+                                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                                            <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: active ? SP_GREEN : "text.primary" }}>
+                                                {formatDisplayName(item.title)}
+                                            </Typography>
+                                            <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                                                {formatDisplayName(item.artist)}
+                                            </Typography>
+                                        </Box>
+                                        <Typography sx={{ fontSize: 12, color: "text.disabled", minWidth: 36, textAlign: "right", flexShrink: 0 }}>
+                                            {item.duration ? formatDuration(item.duration) : ""}
+                                        </Typography>
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    ) : (
+                        <Typography sx={{ color: "text.disabled", fontSize: 13, py: 4, textAlign: "center" }}>
+                            Playlist này chưa có bài hát.
+                        </Typography>
+                    )}
+                </Box>
+            </DialogContent>
+        </Dialog>
     );
 }
