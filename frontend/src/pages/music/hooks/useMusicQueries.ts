@@ -12,6 +12,7 @@ import {
     getMusicPlaylists,
     getMusicSearchHistory,
     getRecentMusic,
+    getSpotifyPlaylistTracks,
     likeMusic,
     removeMusicLibraryItem,
     unlikeMusic,
@@ -185,6 +186,17 @@ export const usePlaylistsQuery = (searchKeyword: string, enabled: boolean) =>
 
 const isAudiusId = (id: string | undefined): boolean =>
     Boolean(id) && !id!.startsWith("spotify:") && id!.length <= 13;
+
+export const useSpotifyPlaylistTracksQuery = (playlistId: string | undefined) =>
+    useQuery({
+        queryKey: ["spotify-playlist-tracks", playlistId],
+        queryFn: async () => {
+            if (!playlistId) return { tracks: [], total: 0 };
+            return getSpotifyPlaylistTracks(playlistId, 50, 0);
+        },
+        enabled: Boolean(playlistId),
+        staleTime: 5 * 60 * 1000,
+    });
 
 export const usePlaylistTracksQuery = (playlistId: string | undefined) =>
     useInfiniteQuery({

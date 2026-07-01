@@ -364,21 +364,27 @@ type Category struct {
 	Icon string `json:"icon"`
 }
 
-// GetNewReleases fetches new album releases from Spotify.
+// GetNewReleases fetches new album releases via search (browse endpoint deprecated 2024).
+// tag:new filter has a max limit of 10 on Spotify search.
 func (c *Client) GetNewReleases(ctx context.Context, limit int) ([]CollectionSummary, error) {
 	if c.clientID == "" || c.clientSecret == "" {
 		return nil, ErrNotConfigured
 	}
-	if limit < 1 || limit > 50 {
-		limit = 20
+	if limit < 1 || limit > 10 {
+		limit = 10
 	}
 	token, err := c.token(ctx)
 	if err != nil {
 		return nil, err
 	}
-	params := url.Values{"limit": {strconv.Itoa(limit)}}
+	params := url.Values{
+		"q":      {"tag:new"},
+		"type":   {"album"},
+		"market": {"VN"},
+		"limit":  {strconv.Itoa(limit)},
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.apiURL+"/browse/new-releases?"+params.Encode(), nil)
+		c.apiURL+"/search?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +399,8 @@ func (c *Client) GetNewReleases(ctx context.Context, limit int) ([]CollectionSum
 		return c.GetNewReleases(ctx, limit)
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("Spotify GetNewReleases trả về HTTP %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return nil, fmt.Errorf("Spotify GetNewReleases trả về HTTP %d: %s", res.StatusCode, bodyBytes)
 	}
 	var payload struct {
 		Albums struct {
@@ -419,6 +426,9 @@ func (c *Client) GetNewReleases(ctx context.Context, limit int) ([]CollectionSum
 	}
 	result := make([]CollectionSummary, 0, len(payload.Albums.Items))
 	for _, item := range payload.Albums.Items {
+		if item.ID == "" {
+			continue
+		}
 		images := make([]string, 0, len(item.Images))
 		for _, img := range item.Images {
 			if img.URL != "" {
@@ -442,21 +452,27 @@ func (c *Client) GetNewReleases(ctx context.Context, limit int) ([]CollectionSum
 	return result, nil
 }
 
-// GetFeaturedPlaylists fetches Spotify editorial featured playlists.
+// GetFeaturedPlaylists fetches editorial playlists via search (browse endpoint deprecated 2024).
+// Spotify search with client credentials caps at limit=10.
 func (c *Client) GetFeaturedPlaylists(ctx context.Context, limit int) ([]CollectionSummary, error) {
 	if c.clientID == "" || c.clientSecret == "" {
 		return nil, ErrNotConfigured
 	}
-	if limit < 1 || limit > 50 {
-		limit = 20
+	if limit < 1 || limit > 10 {
+		limit = 10
 	}
 	token, err := c.token(ctx)
 	if err != nil {
 		return nil, err
 	}
-	params := url.Values{"limit": {strconv.Itoa(limit)}, "locale": {"vi_VN"}}
+	params := url.Values{
+		"q":      {"top hits playlist 2024"},
+		"type":   {"playlist"},
+		"market": {"VN"},
+		"limit":  {strconv.Itoa(limit)},
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.apiURL+"/browse/featured-playlists?"+params.Encode(), nil)
+		c.apiURL+"/search?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +487,8 @@ func (c *Client) GetFeaturedPlaylists(ctx context.Context, limit int) ([]Collect
 		return c.GetFeaturedPlaylists(ctx, limit)
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("Spotify GetFeaturedPlaylists trả về HTTP %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return nil, fmt.Errorf("Spotify GetFeaturedPlaylists trả về HTTP %d: %s", res.StatusCode, bodyBytes)
 	}
 	var payload struct {
 		Playlists struct {
@@ -523,77 +540,60 @@ func (c *Client) GetFeaturedPlaylists(ctx context.Context, limit int) ([]Collect
 	return result, nil
 }
 
-// GetCategories fetches Spotify browse categories.
-func (c *Client) GetCategories(ctx context.Context, limit int) ([]Category, error) {
+// GetCategories returns a hardcoded genre list (browse/categories deprecated 2024).
+func (c *Client) GetCategories(_ context.Context, limit int) ([]Category, error) {
 	if c.clientID == "" || c.clientSecret == "" {
 		return nil, ErrNotConfigured
 	}
-	if limit < 1 || limit > 50 {
-		limit = 20
+	all := []Category{
+		{ID: "pop", Name: "Pop"},
+		{ID: "hiphop", Name: "Hip-Hop"},
+		{ID: "rnb", Name: "R&B"},
+		{ID: "rock", Name: "Rock"},
+		{ID: "electronic", Name: "Electronic"},
+		{ID: "indie", Name: "Indie"},
+		{ID: "jazz", Name: "Jazz"},
+		{ID: "classical", Name: "Classical"},
+		{ID: "kpop", Name: "K-Pop"},
+		{ID: "vpop", Name: "V-Pop"},
+		{ID: "latin", Name: "Latin"},
+		{ID: "soul", Name: "Soul"},
+		{ID: "metal", Name: "Metal"},
+		{ID: "country", Name: "Country"},
+		{ID: "reggae", Name: "Reggae"},
+		{ID: "blues", Name: "Blues"},
+		{ID: "folk", Name: "Folk"},
+		{ID: "punk", Name: "Punk"},
+		{ID: "afrobeats", Name: "Afrobeats"},
+		{ID: "chill", Name: "Chill"},
 	}
-	token, err := c.token(ctx)
-	if err != nil {
-		return nil, err
+	if limit < 1 || limit > len(all) {
+		limit = len(all)
 	}
-	params := url.Values{"limit": {strconv.Itoa(limit)}, "locale": {"vi_VN"}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.apiURL+"/browse/categories?"+params.Encode(), nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	res, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized {
-		c.invalidateToken()
-		return c.GetCategories(ctx, limit)
-	}
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("Spotify GetCategories trả về HTTP %d", res.StatusCode)
-	}
-	var payload struct {
-		Categories struct {
-			Items []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-				Icons []struct {
-					URL string `json:"url"`
-				} `json:"icons"`
-			} `json:"items"`
-		} `json:"categories"`
-	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&payload); err != nil {
-		return nil, err
-	}
-	result := make([]Category, 0, len(payload.Categories.Items))
-	for _, item := range payload.Categories.Items {
-		icon := ""
-		if len(item.Icons) > 0 {
-			icon = item.Icons[0].URL
-		}
-		result = append(result, Category{ID: item.ID, Name: item.Name, Icon: icon})
-	}
-	return result, nil
+	return all[:limit], nil
 }
 
-// GetCategoryPlaylists fetches playlists for a specific Spotify category.
+// GetCategoryPlaylists fetches playlists for a genre via search (browse endpoint deprecated 2024).
+// Spotify search with client credentials caps at limit=10.
 func (c *Client) GetCategoryPlaylists(ctx context.Context, categoryID string, limit int) ([]CollectionSummary, error) {
 	if c.clientID == "" || c.clientSecret == "" {
 		return nil, ErrNotConfigured
 	}
-	if limit < 1 || limit > 50 {
-		limit = 20
+	if limit < 1 || limit > 10 {
+		limit = 10
 	}
 	token, err := c.token(ctx)
 	if err != nil {
 		return nil, err
 	}
-	params := url.Values{"limit": {strconv.Itoa(limit)}}
+	params := url.Values{
+		"q":      {categoryID + " playlist"},
+		"type":   {"playlist"},
+		"market": {"VN"},
+		"limit":  {strconv.Itoa(limit)},
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.apiURL+"/browse/categories/"+categoryID+"/playlists?"+params.Encode(), nil)
+		c.apiURL+"/search?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1848,9 +1848,11 @@ func (c *Client) GetArtistAppearsOn(ctx context.Context, artistID string, limit,
 }
 
 func (c *Client) fetchArtistAlbums(ctx context.Context, token, artistID, includeGroups string, limit, offset int) ([]AlbumSummary, int, int, error) {
+	if limit > 20 {
+		limit = 20
+	}
 	params := url.Values{
 		"include_groups": {includeGroups},
-		"market":         {c.market},
 		"limit":          {strconv.Itoa(limit)},
 		"offset":         {strconv.Itoa(offset)},
 	}
@@ -1866,7 +1868,8 @@ func (c *Client) fetchArtistAlbums(ctx context.Context, token, artistID, include
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, 0, res.StatusCode, fmt.Errorf("Spotify ArtistAlbums trả về HTTP %d", res.StatusCode)
+		body, _ := io.ReadAll(res.Body)
+		return nil, 0, res.StatusCode, fmt.Errorf("Spotify ArtistAlbums trả về HTTP %d: %s", res.StatusCode, string(body))
 	}
 	var payload struct {
 		Total int `json:"total"`
