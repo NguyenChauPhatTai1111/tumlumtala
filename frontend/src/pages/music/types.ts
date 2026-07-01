@@ -24,6 +24,8 @@ export interface AudiusUser {
 
 export interface AudiusTrack {
     id: string;
+    provider?: "audius" | "spotify";
+    external_url?: string;
     title: string;
     duration: number;
     created_at?: string;
@@ -115,6 +117,8 @@ export interface MediaItem {
         permalink?: string;
     };
     playlistIds?: string[];
+    provider?: "audius" | "spotify";
+    externalUrl?: string;
 }
 
 export type TrendingTimeFilter = "week" | "month" | "allTime";

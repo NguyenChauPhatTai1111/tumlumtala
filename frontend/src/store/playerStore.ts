@@ -42,6 +42,8 @@ interface PlayerStore {
     clearQueue: () => void;
     appendToQueue: (items: MediaItem[]) => void;
     replaceQueue: (items: MediaItem[], startIndex?: number, context?: PlaybackContext) => void;
+    updateCurrentItem: (item: MediaItem) => void;
+    updateQueueItem: (item: MediaItem) => void;
     setPlaybackContext: (context: PlaybackContext) => void;
     // called by BottomPlayer when actual playback position is known
     reportProgress: (listenedSeconds: number) => void;
@@ -176,9 +178,14 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
             );
         }
 
+        const indexedCurrentItem = state.currentItem
+            ? state.queue.findIndex((entry) => entry.id === state.currentItem?.id)
+            : -1;
+        const activeIndex =
+            indexedCurrentItem >= 0 ? indexedCurrentItem : state.currentIndex;
         const nextIndex = state.shuffle
             ? Math.floor(Math.random() * state.queue.length)
-            : state.currentIndex + 1;
+            : activeIndex + 1;
 
         if (nextIndex >= state.queue.length) {
             if (state.repeat !== "all") {
@@ -298,6 +305,22 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
             playbackContext: nextContext,
         });
     },
+
+    updateCurrentItem: (item) =>
+        set((state) => {
+            if (!state.currentItem || state.currentItem.id !== item.id) return state;
+            return {
+                currentItem: item,
+                queue: state.queue.map((entry, index) =>
+                    index === state.currentIndex ? item : entry,
+                ),
+            };
+        }),
+
+    updateQueueItem: (item) =>
+        set((state) => ({
+            queue: state.queue.map((entry) => (entry.id === item.id ? item : entry)),
+        })),
 
     setPlaybackContext: (playbackContext) => set({ playbackContext }),
 

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/tumlumtala/musics-service/internal/common/httpctx"
 	"github.com/tumlumtala/musics-service/internal/common/responses"
+	"github.com/tumlumtala/musics-service/internal/infrastructure/spotify"
 	eventdto "github.com/tumlumtala/musics-service/internal/module/application/dto/event"
 	librarydto "github.com/tumlumtala/musics-service/internal/module/application/dto/library"
 	mediadto "github.com/tumlumtala/musics-service/internal/module/application/dto/media"
@@ -43,6 +45,7 @@ type Handler struct {
 	listeningQuery   *listeningquery.QueryService
 	listeningUseCase *listeninguc.UseCase
 	intelligence     *intelligenceuc.Service
+	spotify          *spotify.Client
 }
 
 func NewHandler(
@@ -59,6 +62,7 @@ func NewHandler(
 	listeningQuery *listeningquery.QueryService,
 	listeningUseCase *listeninguc.UseCase,
 	intelligence *intelligenceuc.Service,
+	spotifyClient *spotify.Client,
 ) *Handler {
 	return &Handler{
 		likedQuery:       likedQuery,
@@ -74,7 +78,81 @@ func NewHandler(
 		listeningQuery:   listeningQuery,
 		listeningUseCase: listeningUseCase,
 		intelligence:     intelligence,
+		spotify:          spotifyClient,
 	}
+}
+
+func (h *Handler) SearchSpotifyTracks(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		responses.ResponseError(c, responses.ErrBadRequest("q không được để trống"))
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if h.spotify == nil {
+		responses.ResponseError(c, responses.NewError("Spotify chưa được cấu hình", http.StatusServiceUnavailable))
+		return
+	}
+	tracks, err := h.spotify.SearchTracks(c.Request.Context(), query, limit, offset)
+	if err != nil {
+		log.Printf("spotify search unavailable, falling back to Audius: %v", err)
+		c.Header("X-Music-Provider", "audius-fallback")
+		responses.ResponseSuccess(
+			c,
+			http.StatusOK,
+			"Spotify tạm không khả dụng, chuyển sang Audius",
+			responses.ResponseData{Data: []spotify.Track{}},
+		)
+		return
+	}
+	c.Header("X-Music-Provider", "spotify")
+	responses.ResponseSuccess(
+		c,
+		http.StatusOK,
+		"tìm bài hát Spotify thành công",
+		responses.ResponseData{Data: tracks},
+	)
+}
+
+func (h *Handler) GetSpotifyRecommendations(c *gin.Context) {
+	if h.spotify == nil {
+		responses.ResponseError(c, responses.NewError("Spotify chưa được cấu hình", http.StatusServiceUnavailable))
+		return
+	}
+	seedTrack := strings.TrimSpace(c.Query("seed_track"))
+	seedArtist := strings.TrimSpace(c.Query("seed_artist"))
+	seedGenre := strings.TrimSpace(c.Query("seed_genre"))
+	if seedTrack == "" && seedArtist == "" && seedGenre == "" {
+		responses.ResponseError(c, responses.ErrBadRequest("cần ít nhất một trong seed_track, seed_artist hoặc seed_genre"))
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "12"))
+
+	params := spotify.RecommendParams{Limit: limit}
+	if seedTrack != "" {
+		params.SeedTrackIDs = strings.Split(seedTrack, ",")
+	}
+	if seedArtist != "" {
+		params.SeedArtistIDs = strings.Split(seedArtist, ",")
+	}
+	if seedGenre != "" {
+		params.SeedGenres = strings.Split(seedGenre, ",")
+	}
+
+	tracks, err := h.spotify.GetRecommendations(c.Request.Context(), params)
+	if err != nil {
+		log.Printf("spotify recommendations error: %v", err)
+		responses.ResponseSuccess(
+			c,
+			http.StatusOK,
+			"Spotify tạm không khả dụng",
+			responses.ResponseData{Data: []spotify.Track{}},
+		)
+		return
+	}
+	c.Header("X-Music-Provider", "spotify")
+	responses.ResponseSuccess(c, http.StatusOK, "lấy gợi ý thành công", responses.ResponseData{Data: tracks})
 }
 
 func (h *Handler) ListLibrary(c *gin.Context) {

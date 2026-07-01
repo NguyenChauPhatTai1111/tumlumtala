@@ -89,14 +89,19 @@ export function TrackInfoDialog({
     onClose: () => void;
     playQueue?: MediaItem[];
 }) {
+    const isSpotify = item.provider === "spotify";
+
     const { currentItem, isPlaying, pause, play, resume } = usePlayerStore();
+
+    // Only fetch Audius track detail for non-Spotify items
     const trackQuery = useQuery({
         queryKey: ["music", "track-info", item.sourceId],
         queryFn: () => getTrack(item.sourceId),
-        enabled: open,
+        enabled: open && !isSpotify,
         staleTime: 15 * 60 * 1000,
     });
     const track = trackQuery.data;
+
     const collectionIds = useMemo(
         () =>
             [track?.album_backlink?.playlist_id, ...(track?.playlists_containing_track ?? [])]
@@ -111,19 +116,30 @@ export function TrackInfoDialog({
             (await Promise.all(collectionIds.map((id) => getPlaylist(id)))).filter(
                 (collection): collection is AudiusPlaylist => Boolean(collection),
             ),
-        enabled: open && collectionIds.length > 0,
+        enabled: open && !isSpotify && collectionIds.length > 0,
         staleTime: 15 * 60 * 1000,
     });
+
+    // Resolve display values — Spotify uses MediaItem fields directly, Audius uses fetched track
+    const displayTitle = isSpotify ? item.title : (track?.title ?? item.title);
+    const displayGenre = isSpotify ? (item.genre ?? "") : (track?.genre ?? item.genre ?? "");
+    const displayTags = useMemo(() => {
+        const raw = isSpotify ? item.tags : (track?.tags ?? item.tags);
+        return raw
+            ?.split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+            .slice(0, 8);
+    }, [isSpotify, item.tags, track?.tags]);
+
     const albumId = track?.album_backlink ? String(track.album_backlink.playlist_id) : undefined;
-    const album = collectionsQuery.data?.find((collection) => String(collection.id) === albumId);
+    const audiusAlbum = collectionsQuery.data?.find(
+        (collection) => String(collection.id) === albumId,
+    );
     const playlists = (collectionsQuery.data ?? []).filter(
         (collection) => String(collection.id) !== albumId,
     );
-    const tags = track?.tags
-        ?.split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-        .slice(0, 8);
+
     const active = currentItem?.id === item.id;
     const handlePlay = () => {
         if (active && isPlaying) {
@@ -145,6 +161,8 @@ export function TrackInfoDialog({
             }),
         );
     };
+
+    const isLoading = !isSpotify && trackQuery.isLoading;
 
     return (
         <Dialog
@@ -168,12 +186,13 @@ export function TrackInfoDialog({
         >
             <DialogTitle sx={{ pb: 1, fontWeight: 800 }}>Thông tin bài hát</DialogTitle>
             <DialogContent>
-                {trackQuery.isLoading ? (
+                {isLoading ? (
                     <Box sx={{ minHeight: 240, display: "grid", placeItems: "center" }}>
                         <CircularProgress size={28} sx={{ color: ACCENT }} />
                     </Box>
                 ) : (
                     <Stack spacing={2.5}>
+                        {/* Track header */}
                         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
                             <Avatar
                                 variant="rounded"
@@ -182,24 +201,26 @@ export function TrackInfoDialog({
                             />
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography variant="h6" fontWeight={800} noWrap>
-                                    {formatDisplayName(track?.title ?? item.title)}
+                                    {formatDisplayName(displayTitle)}
                                 </Typography>
                                 <Typography sx={{ color: "text.secondary" }}>
-                                    {track?.genre || item.genre || "Chưa có thể loại"}
+                                    {displayGenre || "Chưa có thể loại"}
                                 </Typography>
-                                <Stack direction="row" gap={0.75} flexWrap="wrap" sx={{ mt: 1 }}>
-                                    {tags?.map((tag) => (
-                                        <Chip
-                                            key={tag}
-                                            label={`#${tag}`}
-                                            size="small"
-                                            sx={{
-                                                color: "#fed7aa",
-                                                bgcolor: "rgba(249,115,22,0.12)",
-                                            }}
-                                        />
-                                    ))}
-                                </Stack>
+                                {displayTags && displayTags.length > 0 && (
+                                    <Stack direction="row" gap={0.75} flexWrap="wrap" sx={{ mt: 1 }}>
+                                        {displayTags.map((tag) => (
+                                            <Chip
+                                                key={tag}
+                                                label={`#${tag}`}
+                                                size="small"
+                                                sx={{
+                                                    color: "#fed7aa",
+                                                    bgcolor: "rgba(249,115,22,0.12)",
+                                                }}
+                                            />
+                                        ))}
+                                    </Stack>
+                                )}
                                 <Button
                                     variant={active ? "outlined" : "contained"}
                                     startIcon={active && isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
@@ -219,23 +240,23 @@ export function TrackInfoDialog({
                                         },
                                     }}
                                 >
-                                    {active && isPlaying
-                                        ? "Tạm dừng"
-                                        : active
-                                          ? "Phát tiếp"
-                                          : "Phát bài này"}
+                                    {active && isPlaying ? "Tạm dừng" : active ? "Phát tiếp" : "Phát bài này"}
                                 </Button>
                             </Box>
                         </Box>
 
+                        {/* Artist section */}
                         <InfoSection icon={<PersonOutlineIcon />} title="Nghệ sĩ">
                             <Box
                                 component="button"
                                 type="button"
                                 onClick={() =>
-                                    navigateToEntity("artist", track?.user?.id ?? item.artistId)
+                                    navigateToEntity(
+                                        "artist",
+                                        isSpotify ? item.artistId : (track?.user?.id ?? item.artistId),
+                                    )
                                 }
-                                disabled={!track?.user?.id && !item.artistId}
+                                disabled={isSpotify ? !item.artistId : (!track?.user?.id && !item.artistId)}
                                 sx={{
                                     width: "100%",
                                     display: "flex",
@@ -247,13 +268,12 @@ export function TrackInfoDialog({
                                     textAlign: "left",
                                     border: 0,
                                     bgcolor: "transparent",
-                                    cursor:
-                                        track?.user?.id || item.artistId ? "pointer" : "default",
+                                    cursor: (isSpotify ? item.artistId : (track?.user?.id || item.artistId))
+                                        ? "pointer"
+                                        : "default",
                                     borderRadius: 1,
                                     transition: "background-color 160ms ease",
-                                    "&:hover:not(:disabled)": {
-                                        bgcolor: "action.hover",
-                                    },
+                                    "&:hover:not(:disabled)": { bgcolor: "action.hover" },
                                     "&:focus-visible": {
                                         outline: "2px solid rgba(249,115,22,0.75)",
                                         outlineOffset: 4,
@@ -262,45 +282,65 @@ export function TrackInfoDialog({
                             >
                                 <Avatar
                                     src={
-                                        track?.user ? getAudiusProfileImage(track.user) : undefined
+                                        !isSpotify && track?.user
+                                            ? getAudiusProfileImage(track.user)
+                                            : undefined
                                     }
                                     sx={{ width: 46, height: 46 }}
                                 />
                                 <Box>
                                     <Typography fontWeight={700}>
-                                        {formatDisplayName(track?.user?.name ?? item.artist)}
+                                        {formatDisplayName(
+                                            isSpotify
+                                                ? item.artist
+                                                : (track?.user?.name ?? item.artist),
+                                        )}
                                     </Typography>
-                                    <Typography
-                                        variant="caption"
-                                        sx={{ color: "text.secondary" }}
-                                    >
-                                        @{track?.user?.handle ?? item.artistHandle ?? "unknown"}
-                                        {track?.user?.follower_count !== undefined
-                                            ? ` · ${track.user.follower_count.toLocaleString("vi-VN")} người theo dõi`
-                                            : ""}
+                                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                                        {isSpotify
+                                            ? (item.artistId
+                                                ? `Spotify · ${item.artistId}`
+                                                : "Spotify")
+                                            : `@${track?.user?.handle ?? item.artistHandle ?? "unknown"}${
+                                                  track?.user?.follower_count !== undefined
+                                                      ? ` · ${track.user.follower_count.toLocaleString("vi-VN")} người theo dõi`
+                                                      : ""
+                                              }`}
                                     </Typography>
                                 </Box>
                             </Box>
-                            {track?.user?.bio && (
+                            {!isSpotify && track?.user?.bio && (
                                 <Typography
                                     variant="body2"
-                                    sx={{
-                                        mt: 1.25,
-                                        color: "text.secondary",
-                                        lineHeight: 1.6,
-                                    }}
+                                    sx={{ mt: 1.25, color: "text.secondary", lineHeight: 1.6 }}
                                 >
                                     {track.user.bio}
                                 </Typography>
                             )}
                         </InfoSection>
 
+                        {/* Album section */}
                         <InfoSection icon={<AlbumOutlinedIcon />} title="Album">
-                            {album || track?.album_backlink ? (
+                            {isSpotify ? (
+                                item.album ? (
+                                    <CollectionRow
+                                        image={item.thumbnail}
+                                        name={item.album.name}
+                                        label="Album · Spotify"
+                                        onClick={
+                                            item.album.id
+                                                ? () => navigateToEntity("album", item.album!.id)
+                                                : undefined
+                                        }
+                                    />
+                                ) : (
+                                    <EmptyMetadata label="Bài hát này không thuộc album nào." />
+                                )
+                            ) : audiusAlbum || track?.album_backlink ? (
                                 <CollectionRow
-                                    image={album ? getPlaylistArtwork(album) : item.thumbnail}
+                                    image={audiusAlbum ? getPlaylistArtwork(audiusAlbum) : item.thumbnail}
                                     name={
-                                        album?.playlist_name ??
+                                        audiusAlbum?.playlist_name ??
                                         track?.album_backlink?.playlist_name ??
                                         "Album"
                                     }
@@ -309,7 +349,7 @@ export function TrackInfoDialog({
                                         navigateToEntity(
                                             "album",
                                             String(
-                                                album?.id ??
+                                                audiusAlbum?.id ??
                                                     track?.album_backlink?.playlist_id ??
                                                     "",
                                             ),
@@ -321,27 +361,30 @@ export function TrackInfoDialog({
                             )}
                         </InfoSection>
 
-                        <InfoSection icon={<PlaylistPlayOutlinedIcon />} title="Playlist">
-                            {collectionsQuery.isLoading ? (
-                                <CircularProgress size={20} sx={{ color: ACCENT }} />
-                            ) : playlists.length ? (
-                                <Stack spacing={1}>
-                                    {playlists.map((playlist) => (
-                                        <CollectionRow
-                                            key={playlist.id}
-                                            image={getPlaylistArtwork(playlist)}
-                                            name={playlist.playlist_name}
-                                            label={`${playlist.track_count ?? 0} bài`}
-                                            onClick={() =>
-                                                navigateToEntity("playlist", String(playlist.id))
-                                            }
-                                        />
-                                    ))}
-                                </Stack>
-                            ) : (
-                                <EmptyMetadata label="Chưa có playlist công khai chứa bài hát này." />
-                            )}
-                        </InfoSection>
+                        {/* Playlist section — Spotify doesn't expose public playlist membership */}
+                        {!isSpotify && (
+                            <InfoSection icon={<PlaylistPlayOutlinedIcon />} title="Playlist">
+                                {collectionsQuery.isLoading ? (
+                                    <CircularProgress size={20} sx={{ color: ACCENT }} />
+                                ) : playlists.length ? (
+                                    <Stack spacing={1}>
+                                        {playlists.map((playlist) => (
+                                            <CollectionRow
+                                                key={playlist.id}
+                                                image={getPlaylistArtwork(playlist)}
+                                                name={playlist.playlist_name}
+                                                label={`${playlist.track_count ?? 0} bài`}
+                                                onClick={() =>
+                                                    navigateToEntity("playlist", String(playlist.id))
+                                                }
+                                            />
+                                        ))}
+                                    </Stack>
+                                ) : (
+                                    <EmptyMetadata label="Chưa có playlist công khai chứa bài hát này." />
+                                )}
+                            </InfoSection>
+                        )}
                     </Stack>
                 )}
             </DialogContent>

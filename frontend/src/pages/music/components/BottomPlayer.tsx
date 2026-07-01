@@ -41,6 +41,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useLocation } from "react-router-dom";
 import { usePlayerStore } from "@store/playerStore";
 import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
+import { resolveSpotifyTrackPlayback } from "@services/musicService";
 import { TrackInfoButton } from "./TrackInfoDialog";
 
 const SPOTIFY_GREEN = "#f97316";
@@ -167,6 +168,8 @@ export const BottomPlayer = () => {
     const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
     const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
     const youtubeControlsHideTimerRef = useRef<number | null>(null);
+    const resolvingSpotifyItemRef = useRef<string | null>(null);
+    const preloadingSpotifyItemRef = useRef<string | null>(null);
     const volumeRef = useRef(1);
     const reportProgressRef = useRef(usePlayerStore.getState().reportProgress);
     const youtubeStateRef = useRef({
@@ -194,6 +197,8 @@ export const BottomPlayer = () => {
 
     const {
         currentItem,
+        queue,
+        currentIndex,
         isPlaying,
         pause,
         resume,
@@ -206,6 +211,8 @@ export const BottomPlayer = () => {
         likedItems,
         toggleLike,
         clearQueue,
+        updateCurrentItem,
+        updateQueueItem,
         _restoredFromStorage,
     } = usePlayerStore();
     const restoredPlaybackRef = useRef({
@@ -216,7 +223,10 @@ export const BottomPlayer = () => {
     const liked = likedItems.some((entry) => entry.id === currentItem?.id);
     const likeMutation = useLikeMusicMutation(currentItem ?? ({} as never), liked);
 
-    const youtubeVideoId = currentItem?.type === "video" ? currentItem.videoId : undefined;
+    const youtubeVideoId = currentItem?.videoId;
+    const usesYouTubePlayback = Boolean(youtubeVideoId);
+    const needsSpotifyResolution =
+        currentItem?.provider === "spotify" && !currentItem.videoId;
     const isMusicRoute = location.pathname.startsWith("/music");
     const videoCollapsed =
         currentItem?.type === "video" && (!isMusicRoute || collapsedVideoId === currentItem.id);
@@ -229,9 +239,9 @@ export const BottomPlayer = () => {
     const isMessengerRoute = location.pathname.startsWith("/messenger");
     const hideForComposer = isCompact && isMessengerRoute && composerInputFocused;
 
-    const currentTime = currentItem?.type === "video" ? youtubeCurrentTime : audioCurrentTime;
+    const currentTime = usesYouTubePlayback ? youtubeCurrentTime : audioCurrentTime;
     const duration =
-        currentItem?.type === "video"
+        usesYouTubePlayback
             ? youtubeDuration || currentItem?.duration || 0
             : audioDuration || currentItem?.duration || 0;
 
@@ -318,7 +328,11 @@ export const BottomPlayer = () => {
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
-        if (currentItem?.type !== "audio") {
+        if (
+            currentItem?.type !== "audio" ||
+            usesYouTubePlayback ||
+            needsSpotifyResolution
+        ) {
             audio.pause();
             return;
         }
@@ -327,7 +341,95 @@ export const BottomPlayer = () => {
         } else {
             audio.pause();
         }
-    }, [currentItem, isPlaying, pause]);
+    }, [currentItem, isPlaying, needsSpotifyResolution, pause, usesYouTubePlayback]);
+
+    useEffect(() => {
+        if (!currentItem || !needsSpotifyResolution) return;
+
+        const itemId = currentItem.id;
+        let disposed = false;
+        resolvingSpotifyItemRef.current = itemId;
+
+        void resolveSpotifyTrackPlayback(currentItem)
+            .then((playable) => {
+                if (
+                    disposed ||
+                    resolvingSpotifyItemRef.current !== itemId ||
+                    usePlayerStore.getState().currentItem?.id !== itemId
+                ) {
+                    return;
+                }
+                if (playable) {
+                    updateCurrentItem(playable);
+                    return;
+                }
+                next();
+            })
+            .catch(() => {
+                if (
+                    !disposed &&
+                    resolvingSpotifyItemRef.current === itemId &&
+                    usePlayerStore.getState().currentItem?.id === itemId
+                ) {
+                    next();
+                }
+            })
+            .finally(() => {
+                if (resolvingSpotifyItemRef.current === itemId) {
+                    resolvingSpotifyItemRef.current = null;
+                }
+            });
+
+        return () => {
+            disposed = true;
+        };
+    }, [currentItem, needsSpotifyResolution, next, updateCurrentItem]);
+
+    useEffect(() => {
+        if (!currentItem || !queue.length) return;
+
+        const indexedCurrentItem = queue.findIndex(
+            (entry) => entry.id === currentItem.id,
+        );
+        const activeIndex =
+            indexedCurrentItem >= 0 ? indexedCurrentItem : currentIndex;
+        const nextIndex =
+            activeIndex + 1 < queue.length
+                ? activeIndex + 1
+                : repeat === "all"
+                  ? 0
+                  : -1;
+        const nextItem = nextIndex >= 0 ? queue[nextIndex] : undefined;
+        if (
+            !nextItem ||
+            nextItem.provider !== "spotify" ||
+            nextItem.videoId ||
+            preloadingSpotifyItemRef.current === nextItem.id
+        ) {
+            return;
+        }
+
+        const itemId = nextItem.id;
+        let disposed = false;
+        preloadingSpotifyItemRef.current = itemId;
+
+        void resolveSpotifyTrackPlayback(nextItem)
+            .then((playable) => {
+                if (!disposed && playable) updateQueueItem(playable);
+            })
+            .catch(() => {
+                // The current track keeps playing; unresolved next tracks are handled on demand.
+            })
+            .finally(() => {
+                if (preloadingSpotifyItemRef.current === itemId) {
+                    preloadingSpotifyItemRef.current = null;
+                }
+            });
+
+        return () => {
+            disposed = true;
+        };
+    }, [currentIndex, currentItem, queue, repeat, updateQueueItem]);
 
     useEffect(() => {
         if (!youtubeVideoId || !youtubeContainerRef.current) {
@@ -418,13 +520,13 @@ export const BottomPlayer = () => {
     }, [youtubeVideoId]);
 
     useEffect(() => {
-        if (currentItem?.type !== "video" || !youtubePlayerRef.current) return;
+        if (!usesYouTubePlayback || !youtubePlayerRef.current) return;
         if (isPlaying) {
             youtubePlayerRef.current.playVideo();
         } else {
             youtubePlayerRef.current.pauseVideo();
         }
-    }, [currentItem?.type, isPlaying]);
+    }, [isPlaying, usesYouTubePlayback]);
 
     const showYoutubeControlsTemporarily = useCallback((durationMs = 5000) => {
         if (youtubeControlsHideTimerRef.current)
@@ -443,10 +545,10 @@ export const BottomPlayer = () => {
     }, [youtubeVideoId, showYoutubeControlsTemporarily]);
 
     useEffect(() => {
-        if (currentItem?.type !== "video" || !isPlaying) return;
+        if (!usesYouTubePlayback || !isPlaying) return;
         const t = window.setTimeout(() => showYoutubeControlsTemporarily(5000), 0);
         return () => window.clearTimeout(t);
-    }, [currentItem?.type, isPlaying, showYoutubeControlsTemporarily]);
+    }, [isPlaying, showYoutubeControlsTemporarily, usesYouTubePlayback]);
 
     useEffect(() => {
         youtubePlayerRef.current?.setVolume(Math.round(volume * 100));
@@ -500,9 +602,7 @@ export const BottomPlayer = () => {
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
                 const delta = event.key === "ArrowLeft" ? -10 : 10;
                 event.preventDefault();
-                if (currentItem.type === "audio") {
-                    handleAudioSeekBy(delta);
-                } else {
+                if (usesYouTubePlayback) {
                     const player = youtubePlayerRef.current;
                     if (player) {
                         const nextTime = Math.min(
@@ -513,6 +613,8 @@ export const BottomPlayer = () => {
                         setYoutubeCurrentTime(nextTime);
                         showYoutubeControlsTemporarily(4000);
                     }
+                } else {
+                    handleAudioSeekBy(delta);
                 }
             } else if (event.key === "ArrowUp") {
                 event.preventDefault();
@@ -532,7 +634,13 @@ export const BottomPlayer = () => {
         };
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [currentItem, handleAudioSeekBy, isMusicRoute, showYoutubeControlsTemporarily]);
+    }, [
+        currentItem,
+        handleAudioSeekBy,
+        isMusicRoute,
+        showYoutubeControlsTemporarily,
+        usesYouTubePlayback,
+    ]);
 
     const handleEnded = () => {
         const audio = audioRef.current;
@@ -634,10 +742,17 @@ export const BottomPlayer = () => {
             {youtubeVideoId && (
                 <Box
                     sx={{
-                        maxHeight: videoCollapsed ? 0 : 320,
+                        position: "fixed",
+                        left: -10000,
+                        top: -10000,
+                        width: 320,
+                        height: 180,
+                        maxHeight: 180,
+                        opacity: 0,
+                        pointerEvents: "none",
                         overflow: "hidden",
-                        transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
                     }}
+                    aria-hidden
                 >
                     <Box
                         ref={youtubeFrameRef}
@@ -655,7 +770,8 @@ export const BottomPlayer = () => {
                             }, 3000);
                         }}
                         sx={{
-                            width: { xs: "100%", md: "60%", xl: "40%" },
+                            width: "100%",
+                            height: "100%",
                             mx: "auto",
                             aspectRatio: "16/9",
                             bgcolor: "#000",
@@ -842,7 +958,11 @@ export const BottomPlayer = () => {
             {/* biome-ignore lint/a11y/useMediaCaption: Music streams do not provide caption tracks through the current API. */}
             <audio
                 ref={audioRef}
-                src={currentItem?.type === "audio" ? currentItem.streamUrl : undefined}
+                src={
+                    currentItem?.type === "audio" && !usesYouTubePlayback
+                        ? currentItem.streamUrl
+                        : undefined
+                }
                 onEnded={handleEnded}
                 onLoadedMetadata={(e) => {
                     const audio = e.currentTarget;
@@ -880,9 +1000,7 @@ export const BottomPlayer = () => {
                             value={currentTime}
                             max={duration}
                             onChange={(v) =>
-                                currentItem?.type === "video"
-                                    ? handleYoutubeSeek(v)
-                                    : handleAudioSeek(v)
+                                usesYouTubePlayback ? handleYoutubeSeek(v) : handleAudioSeek(v)
                             }
                         />
                     </Box>
@@ -1175,9 +1293,7 @@ export const BottomPlayer = () => {
                                 value={currentTime}
                                 max={duration}
                                 onChange={(v) =>
-                                    currentItem?.type === "video"
-                                        ? handleYoutubeSeek(v)
-                                        : handleAudioSeek(v)
+                                    usesYouTubePlayback ? handleYoutubeSeek(v) : handleAudioSeek(v)
                                 }
                             />
                             <Typography
@@ -1202,30 +1318,6 @@ export const BottomPlayer = () => {
                             gap: 0.5,
                         }}
                     >
-                        {currentItem?.type === "video" && (
-                            <Tooltip title={videoCollapsed ? "Mở video" : "Thu gọn video"}>
-                                <IconButton
-                                    size="small"
-                                    onClick={() =>
-                                        setCollapsedVideoId((id) =>
-                                            id === currentItem?.id
-                                                ? null
-                                                : (currentItem?.id ?? null),
-                                        )
-                                    }
-                                    sx={{
-                                        color: "text.secondary",
-                                        "&:hover": { color: "text.primary" },
-                                    }}
-                                >
-                                    {videoCollapsed ? (
-                                        <KeyboardArrowUpIcon sx={{ fontSize: 18 }} />
-                                    ) : (
-                                        <KeyboardArrowDownIcon sx={{ fontSize: 18 }} />
-                                    )}
-                                </IconButton>
-                            </Tooltip>
-                        )}
                         <Tooltip title={volume === 0 ? "Bật âm" : "Tắt âm"}>
                             <IconButton
                                 size="small"

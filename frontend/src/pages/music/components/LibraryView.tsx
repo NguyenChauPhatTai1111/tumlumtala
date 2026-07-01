@@ -40,7 +40,7 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
         if (!initialPlaylistId || !playlistsQuery.data) return;
         const playlist = playlistsQuery.data.find((p) => p.id === initialPlaylistId);
         if (playlist) setSelected({ kind: "created", item: playlist });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialPlaylistId, playlistsQuery.data]);
 
     const remoteTracksQuery = useQuery({
@@ -139,7 +139,12 @@ export function LibraryView({ initialPlaylistId }: { initialPlaylistId?: number 
                     </Box>
                 ) : queue.length ? (
                     queue.map((item, index) => (
-                        <MediaRow key={item.id} item={item} queue={queue} index={index + 1} />
+                        <MediaRow
+                            key={`${item.id}-${index}`}
+                            item={item}
+                            queue={queue}
+                            index={index + 1}
+                        />
                     ))
                 ) : (
                     <Typography sx={{ py: 8, textAlign: "center", color: "text.disabled" }}>

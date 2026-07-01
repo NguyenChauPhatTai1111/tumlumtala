@@ -8,6 +8,12 @@ service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse);
   rpc RefreshToken(RefreshTokenRequest) returns (LoginResponse);
   rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  // WebAuthn / Passkey (Face ID) ceremonies
+  rpc WebAuthnBeginRegistration(WebAuthnBeginRegistrationRequest) returns (WebAuthnBeginRegistrationResponse);
+  rpc WebAuthnFinishRegistration(WebAuthnFinishRegistrationRequest) returns (WebAuthnFinishRegistrationResponse);
+  rpc WebAuthnBeginLogin(WebAuthnBeginLoginRequest) returns (WebAuthnBeginLoginResponse);
+  rpc WebAuthnFinishLogin(WebAuthnFinishLoginRequest) returns (LoginResponse);
 }
 
 message LoginRequest {
@@ -30,4 +36,38 @@ message LogoutRequest {
 
 message LogoutResponse {
   bool success = 1;
+}
+
+message WebAuthnBeginRegistrationRequest {
+  string user_uuid = 1;
+  string session_id = 2;
+}
+
+message WebAuthnBeginRegistrationResponse {
+  bytes options_json = 1;
+}
+
+message WebAuthnFinishRegistrationRequest {
+  string user_uuid = 1;
+  string session_id = 2;
+  bytes raw_response_json = 3;
+}
+
+message WebAuthnFinishRegistrationResponse {
+  bool success = 1;
+}
+
+message WebAuthnBeginLoginRequest {
+  string email = 1;
+  string session_id = 2;
+}
+
+message WebAuthnBeginLoginResponse {
+  bytes options_json = 1;
+}
+
+message WebAuthnFinishLoginRequest {
+  string email = 1;
+  string session_id = 2;
+  bytes raw_response_json = 3;
 }

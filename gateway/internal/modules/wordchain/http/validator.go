@@ -36,22 +36,24 @@ func (v *groqValidator) validateAndExplain(ctx context.Context, phrase string) (
 	if v.endpoint == "" || v.apiKey == "" {
 		return validationResult{}, errors.New("Groq chưa được cấu hình")
 	}
-	prompt := fmt.Sprintf(`Kiểm tra cụm từ tiếng Việt "%s".
+	prompt := fmt.Sprintf(`Kiểm tra cụm từ tiếng Việt "%s" theo cách sử dụng phổ biến vào năm %d.
 Chỉ trả về JSON theo mẫu:
 {"valid":true,"normalized":"cụm từ","explanation":"Giải thích nghĩa ngắn gọn bằng tiếng Việt."}
 
 Quy tắc:
 - valid chỉ là true nếu đây là một mục từ hoặc cụm từ cố định gồm đúng hai âm tiết, có nghĩa từ vựng độc lập và thực sự được người Việt sử dụng.
 - Chấp nhận danh từ, động từ, tính từ, trạng từ và thành ngữ cố định như "gia đình", "sống sót", "quần đảo".
+- Chấp nhận thuật ngữ hiện đại trong công nghệ, đời sống số, công việc, giải trí, tài chính, môi trường và xã hội nếu đã được người Việt sử dụng rộng rãi.
+- Chấp nhận từ vay mượn hoặc cách gọi mới đã trở nên quen thuộc; không bác bỏ chỉ vì từ đó chưa xuất hiện trong từ điển truyền thống.
 - Không chấp nhận mảnh câu hỏi/hội thoại, tổ hợp đại từ + trợ từ, liên từ rời rạc như "sao hả", "sao mà", "sao chăng", "vậy hả".
-- Không chấp nhận tên riêng, viết tắt, tiếng lóng bịa đặt, ghép từ vô nghĩa hoặc lặp lại cùng một âm.
+- Không chấp nhận tên riêng, teen-code, meme nhất thời, tiếng lóng bịa đặt, ghép từ vô nghĩa hoặc lặp lại cùng một âm.
 - normalized viết thường, đúng chính tả.
-- explanation tối đa 35 từ và phải giải thích được cho cả hai người chơi.`, phrase)
+- explanation tối đa 35 từ, dùng ngôn ngữ hiện đại, dễ hiểu và phải giải thích được cho cả hai người chơi.`, phrase, time.Now().Year())
 
 	body, err := json.Marshal(map[string]any{
 		"model": v.model,
 		"messages": []map[string]string{
-			{"role": "system", "content": "Bạn là trọng tài ngôn ngữ tiếng Việt nghiêm ngặt cho trò chơi nối từ."},
+			{"role": "system", "content": "Bạn là trọng tài tiếng Việt hiện đại, am hiểu cách dùng từ phổ biến trong đời sống và văn hóa số."},
 			{"role": "user", "content": prompt},
 		},
 		"temperature":     0,

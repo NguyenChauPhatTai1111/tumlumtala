@@ -34,9 +34,10 @@ import { useConversationsPaginated } from "@hooks/messenger/useConversationsPagi
 import { useCurrentUser } from "@hooks/common/useCurrentUser";
 import { useNotification } from "@hooks/common/useNotification";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMessengerPresence } from "@/context/MessengerPresenceContext";
+import { useSharedMessengerWS } from "@/context/MessengerWebSocketContext";
 import type { Conversation } from "@/types/messenger";
 import { formatTimestampRealtime } from "@/utils";
 import { resolveCdnUrl } from "@/utils/urlUtils";
@@ -177,6 +178,10 @@ export function HeaderChatsMenu() {
 	const conversationActions = useMessengerConversationActions();
 	const currentUserId = currentUser?.id;
 
+	const ws = useSharedMessengerWS();
+	const currentUserIdRef = useRef(currentUserId);
+	useEffect(() => { currentUserIdRef.current = currentUserId; }, [currentUserId]);
+
 	const {
 		conversations,
 		loadingRef: convLoadingRef,
@@ -184,12 +189,49 @@ export function HeaderChatsMenu() {
 		loading: loadingMore,
 		loadMore,
 		reset: resetConversations,
+		patchConversation,
+		moveToTop,
 	} = useConversationsPaginated(HEADER_CONVERSATION_LIMIT);
 
 	useEffect(() => {
 		void loadMore();
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	// Sync local state when a new message arrives via WebSocket.
+	const handleMessageCreated = useCallback((data: unknown) => {
+		const msg = data as {
+			id?: number;
+			conversation_id?: number;
+			sender_id?: number | string;
+			content?: string;
+			message_type?: string;
+			created_at?: string;
+			last_message_at?: string;
+			last_message_content?: string;
+		};
+		const conversationId = msg?.conversation_id;
+		if (!conversationId) return;
+		const uid = currentUserIdRef.current;
+		const isSender = msg.sender_id != null && Number(msg.sender_id) === Number(uid);
+
+		patchConversation(conversationId, (conv) => ({
+			last_message_id: msg.id ?? conv.last_message_id,
+			last_message_content: msg.content ?? msg.last_message_content ?? conv.last_message_content,
+			last_message_at: msg.created_at ?? msg.last_message_at ?? conv.last_message_at,
+			last_message_sender_id: msg.sender_id != null ? Number(msg.sender_id) : conv.last_message_sender_id,
+			last_message_type: msg.message_type ?? conv.last_message_type,
+			unread_count: isSender ? conv.unread_count : (conv.unread_count ?? 0) + 1,
+		}));
+		moveToTop(conversationId);
+	}, [patchConversation, moveToTop]);
+
+	useEffect(() => {
+		if (!ws) return;
+		const handlers = { onMessageCreated: handleMessageCreated };
+		ws.addHandlers(handlers);
+		return () => ws.removeHandlers(handlers);
+	}, [ws, handleMessageCreated]);
 
 	const handleListScroll = (event: UIEvent<HTMLDivElement>) => {
 		if (convLoadingRef.current || !convHasMoreRef.current) return;
@@ -600,6 +642,8 @@ export function HeaderChatsMenu() {
 											!openConversationIds.includes(conversation.id) &&
 											Number(conversation.unread_count ?? 0) > 0
 										) {
+											// Optimistically clear unread badge in local state immediately.
+											patchConversation(conversation.id, { unread_count: 0 });
 											void conversationActions.markRead.mutateAsync({
 												conversationId: conversation.id,
 												currentUserId: Number(currentUserId ?? 0),

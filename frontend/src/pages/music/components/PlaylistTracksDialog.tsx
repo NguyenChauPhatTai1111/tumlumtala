@@ -286,7 +286,7 @@ export const PlaylistTracksDialog = ({
                     ) : queue.length ? (
                         <Box>
                             {queue.map((item, index) => (
-                                <Fragment key={item.id}>
+                                <Fragment key={`${item.id}-${index}`}>
                                     <MediaRow
                                         item={item}
                                         queue={queue}

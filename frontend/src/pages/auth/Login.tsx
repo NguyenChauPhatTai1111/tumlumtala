@@ -1,9 +1,10 @@
 import { yupResolver } from "@hookform/resolvers/yup";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
+import FingerprintIcon from "@mui/icons-material/Fingerprint";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import { Alert, Box, Button, Paper, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Divider, Paper, TextField, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -11,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import * as yup from "yup";
 import { login } from "@api/authApi";
 import { authStore } from "@store/authStore";
+import { loginWithPasskey } from "@/services/webAuthnService";
 
 const schema = yup.object({
   email: yup.string().email("Email không hợp lệ").required("Vui lòng nhập email"),
@@ -59,7 +61,6 @@ const LoginLanding = () => (
       zIndex: 1,
     }}
   >
-    {/* Hero icon */}
     <Box sx={{ position: "relative", display: "inline-flex" }}>
       <Box
         sx={(theme) => ({
@@ -91,7 +92,6 @@ const LoginLanding = () => (
       />
     </Box>
 
-    {/* Title */}
     <Box sx={{ textAlign: "center", maxWidth: 400 }}>
       <Typography variant="h5" fontWeight={600} gutterBottom sx={{ letterSpacing: -0.5 }}>
         Chào mừng đến với
@@ -112,7 +112,6 @@ const LoginLanding = () => (
       </Typography>
     </Box>
 
-    {/* Feature cards */}
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", maxWidth: 420 }}>
       {FEATURES.map((feature) => (
         <Paper
@@ -169,6 +168,9 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [faceIdEmail, setFaceIdEmail] = useState("");
+  const [faceIdLoading, setFaceIdLoading] = useState(false);
+  const [faceIdError, setFaceIdError] = useState("");
 
   const {
     handleSubmit,
@@ -190,6 +192,29 @@ export const LoginPage = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFaceIdLogin = async () => {
+    if (!faceIdEmail.trim()) {
+      setFaceIdError("Vui lòng nhập email trước khi dùng Face ID");
+      return;
+    }
+    setFaceIdLoading(true);
+    setFaceIdError("");
+    try {
+      const accessToken = await loginWithPasskey(faceIdEmail.trim());
+      authStore.setToken(accessToken);
+      navigate("/", { replace: true });
+    } catch (err: unknown) {
+      const e = err as { name?: string; message?: string };
+      if (e.name === "NotAllowedError") {
+        setFaceIdError("Xác thực bị từ chối hoặc hết thời gian. Vui lòng thử lại.");
+      } else {
+        setFaceIdError(e.message ?? "Đăng nhập bằng Face ID thất bại. Thiết bị có thể chưa đăng ký.");
+      }
+    } finally {
+      setFaceIdLoading(false);
     }
   };
 
@@ -236,10 +261,8 @@ export const LoginPage = () => {
         })}
       />
 
-      {/* Left: landing */}
       <LoginLanding />
 
-      {/* Right: form */}
       <Box
         sx={{
           display: "flex",
@@ -304,6 +327,10 @@ export const LoginPage = () => {
                   autoComplete="email"
                   error={!!errors.email}
                   helperText={errors.email?.message}
+                  onChange={(e) => {
+                    field.onChange(e);
+                    setFaceIdEmail(e.target.value);
+                  }}
                 />
               )}
             />
@@ -335,6 +362,42 @@ export const LoginPage = () => {
               {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </Button>
           </Box>
+
+          {/* Face ID / Passkey login */}
+          <Divider sx={{ my: 2 }}>
+            <Typography variant="caption" color="text.secondary">
+              hoặc
+            </Typography>
+          </Divider>
+
+          {faceIdError && (
+            <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setFaceIdError("")}>
+              {faceIdError}
+            </Alert>
+          )}
+
+          <Button
+            fullWidth
+            size="large"
+            variant="outlined"
+            disabled={faceIdLoading}
+            onClick={handleFaceIdLogin}
+            startIcon={<FingerprintIcon />}
+            sx={(theme) => ({
+              py: 1.5,
+              borderRadius: 2,
+              textTransform: "none",
+              fontSize: "1rem",
+              borderColor: alpha(theme.palette.primary.main, 0.5),
+              color: "primary.main",
+              "&:hover": {
+                borderColor: "primary.main",
+                bgcolor: alpha(theme.palette.primary.main, 0.06),
+              },
+            })}
+          >
+            {faceIdLoading ? "Đang xác thực..." : "Đăng nhập bằng Face ID / Passkey"}
+          </Button>
 
           <Box sx={{ mt: 2 }}>
             <Button

@@ -14,7 +14,6 @@ services:
       APP_VERSION: local
       LOCAL_UPLOAD_DIR: /app/uploads
       LOCAL_UPLOAD_BASE_URL: /uploads
-      WORDMATCH_DICT_DIR: /app/words
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-llama3}

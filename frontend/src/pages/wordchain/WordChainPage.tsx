@@ -89,8 +89,7 @@ export default function WordChainPage() {
     const [room, setRoom] = useState<WordChainRoom | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [acceptDelay, setAcceptDelay] = useState(false);
-    const acceptDelayTimerRef = useRef<number | null>(null);
+    const [checkingWord, setCheckingWord] = useState(false);
     const [connected, setConnected] = useState(false);
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
@@ -167,7 +166,9 @@ export default function WordChainPage() {
                         message.type === "game_started" ||
                         message.type === "game_over"
                     ) {
-                        setRoom(message.data as WordChainRoom);
+                        const nextRoom = message.data as WordChainRoom;
+                        setRoom(nextRoom);
+                        setCheckingWord(nextRoom.validating);
                         setSubmitting(false);
                         if (message.type === "game_started") {
                             setCountdown(null);
@@ -192,29 +193,28 @@ export default function WordChainPage() {
                         return;
                     }
                     if (message.type === "word_checking") {
-                        setSubmitting(true);
+                        const checking = message.data as { userId?: string };
+                        setCheckingWord(true);
+                        setSubmitting(checking.userId === currentUserId);
                         setNoticeSeverity("info");
                         setNotice("Groq đang kiểm tra nghĩa của cụm từ...");
                         return;
                     }
                     if (message.type === "word_accepted") {
                         const accepted = message.data as WordChainEntry;
-                        setWord("");
-                        setSubmitting(false);
+                        setCheckingWord(false);
+                        if (accepted.playerId === currentUserId) {
+                            setWord("");
+                            setSubmitting(false);
+                        }
                         setNoticeSeverity("success");
                         setNotice(`${accepted.word}: ${accepted.explanation}`);
-                        // Delay 2s before allowing next input
-                        setAcceptDelay(true);
-                        if (acceptDelayTimerRef.current) window.clearTimeout(acceptDelayTimerRef.current);
-                        acceptDelayTimerRef.current = window.setTimeout(() => {
-                            setAcceptDelay(false);
-                            acceptDelayTimerRef.current = null;
-                        }, 2000);
                         return;
                     }
                     if (message.type === "word_rejected") {
-                        const rejected = message.data as { explanation?: string };
-                        setSubmitting(false);
+                        const rejected = message.data as { userId?: string; explanation?: string };
+                        setCheckingWord(false);
+                        if (rejected.userId === currentUserId) setSubmitting(false);
                         setNoticeSeverity("error");
                         setNotice(rejected.explanation ?? "Cụm từ chưa được xác nhận.");
                         return;
@@ -280,11 +280,10 @@ export default function WordChainPage() {
         return () => {
             disposed = true;
             if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
-            if (acceptDelayTimerRef.current) window.clearTimeout(acceptDelayTimerRef.current);
             socketRef.current?.close();
             socketRef.current = null;
         };
-    }, [navigate, roomId]);
+    }, [currentUserId, navigate, roomId]);
 
     useEffect(() => {
         if (!room?.deadline || room.status !== "playing") return;
@@ -355,7 +354,7 @@ export default function WordChainPage() {
                 noticeSeverity={noticeSeverity}
                 word={word}
                 submitting={submitting}
-                acceptDelay={acceptDelay}
+                checkingWord={checkingWord}
                 remainingMs={remainingMs}
                 countdown={countdown}
                 onWordChange={setWord}
@@ -571,7 +570,7 @@ export default function WordChainPage() {
 
 function GameRoom({
     room, currentUserId, connected, loading, error, notice, noticeSeverity,
-    word, submitting, acceptDelay, remainingMs, countdown,
+    word, submitting, checkingWord, remainingMs, countdown,
     chatMessages, onSendChat,
     onWordChange, onClearError, onBack, onReady, onStart, onChangeMode, onKick, onSubmit,
 }: {
@@ -584,7 +583,7 @@ function GameRoom({
     noticeSeverity: "info" | "success" | "error";
     word: string;
     submitting: boolean;
-    acceptDelay: boolean;
+    checkingWord: boolean;
     remainingMs: number;
     countdown: number | null;
     chatMessages: ChatMessage[];
@@ -1033,14 +1032,14 @@ function GameRoom({
                                     disabled={
                                         (!isBrawl && !isMyTurn) ||
                                         (isBrawl && (currentPlayer?.eliminated ?? true)) ||
-                                        submitting || acceptDelay || !connected
+                                        submitting || !connected
                                     }
                                     inputProps={{ maxLength: 60 }}
                                 />
                                 <Button
                                     type="submit"
                                     variant="contained"
-                                    disabled={!isMyTurn || !word.trim() || submitting || acceptDelay || !connected}
+                                    disabled={!isMyTurn || !word.trim() || submitting || checkingWord || !connected}
                                     sx={{ minWidth: { xs: "100%", sm: 110 }, py: { xs: 1, sm: 0 } }}
                                 >
                                     {submitting ? <CircularProgress size={18} color="inherit" /> : "Gửi từ"}

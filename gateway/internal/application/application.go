@@ -29,6 +29,7 @@ import (
 	usergrpc "github.com/tumlumtala/gateway/internal/modules/user/grpcclient"
 	userhttp "github.com/tumlumtala/gateway/internal/modules/user/http"
 	userservice "github.com/tumlumtala/gateway/internal/modules/user/service"
+	autotaskhttp "github.com/tumlumtala/gateway/internal/modules/autotask/http"
 	wordchainhttp "github.com/tumlumtala/gateway/internal/modules/wordchain/http"
 	wordmatchhttp "github.com/tumlumtala/gateway/internal/modules/wordmatch/http"
 	"github.com/tumlumtala/gateway/internal/shared/logger"
@@ -94,7 +95,7 @@ func New(cfg config.Config) (*Application, error) {
 		grpcRegistry: grpcRegistry,
 		redis:        redisClient,
 		server: &nethttp.Server{
-			Addr:              ":" + cfg.AppPort,
+			Addr:              cfg.BindAddr + ":" + cfg.AppPort,
 			Handler:           router,
 			ReadHeaderTimeout: 5 * time.Second,
 		},
@@ -176,18 +177,16 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		return nil, err
 	}
 
-	wordMatchHandler := wordmatchhttp.NewHandler(cfg.WordMatchDictDir, cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
+	autotaskRoutes := autotaskhttp.NewRoutes(autotaskhttp.NewHandler(cfg.RedmineAPIKey))
+
+	wordMatchHandler := wordmatchhttp.NewHandler(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
 	wordMatchRoutes := wordmatchhttp.NewRoutes(wordMatchHandler)
-	wordChainRoutes, err := wordchainhttp.NewRoutes(
+	wordChainRoutes := wordchainhttp.NewRoutes(
 		redisClient,
-		cfg.WordMatchDictDir,
 		cfg.LLMBaseURL,
 		cfg.LLMAPIKey,
 		cfg.LLMModel,
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -208,6 +207,7 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 		musicshttp.NewMusicsRoutes(musicsProxy),
 		wordMatchRoutes,
 		wordChainRoutes,
+		autotaskRoutes,
 		httproutes.NewHealthRoutes(healthHandler),
 		httproutes.NewMetricsRoutes(),
 	)

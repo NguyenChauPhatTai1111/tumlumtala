@@ -257,6 +257,362 @@ func (x *LogoutResponse) GetSuccess() bool {
 	return false
 }
 
+type WebAuthnBeginRegistrationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserUuid      string                 `protobuf:"bytes,1,opt,name=user_uuid,json=userUuid,proto3" json:"user_uuid,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebAuthnBeginRegistrationRequest) Reset() {
+	*x = WebAuthnBeginRegistrationRequest{}
+	mi := &file_grpc_auth_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebAuthnBeginRegistrationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebAuthnBeginRegistrationRequest) ProtoMessage() {}
+
+func (x *WebAuthnBeginRegistrationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_auth_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebAuthnBeginRegistrationRequest.ProtoReflect.Descriptor instead.
+func (*WebAuthnBeginRegistrationRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_auth_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *WebAuthnBeginRegistrationRequest) GetUserUuid() string {
+	if x != nil {
+		return x.UserUuid
+	}
+	return ""
+}
+
+func (x *WebAuthnBeginRegistrationRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type WebAuthnBeginRegistrationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OptionsJson   []byte                 `protobuf:"bytes,1,opt,name=options_json,json=optionsJson,proto3" json:"options_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebAuthnBeginRegistrationResponse) Reset() {
+	*x = WebAuthnBeginRegistrationResponse{}
+	mi := &file_grpc_auth_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebAuthnBeginRegistrationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebAuthnBeginRegistrationResponse) ProtoMessage() {}
+
+func (x *WebAuthnBeginRegistrationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_auth_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebAuthnBeginRegistrationResponse.ProtoReflect.Descriptor instead.
+func (*WebAuthnBeginRegistrationResponse) Descriptor() ([]byte, []int) {
+	return file_grpc_auth_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *WebAuthnBeginRegistrationResponse) GetOptionsJson() []byte {
+	if x != nil {
+		return x.OptionsJson
+	}
+	return nil
+}
+
+type WebAuthnFinishRegistrationRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserUuid        string                 `protobuf:"bytes,1,opt,name=user_uuid,json=userUuid,proto3" json:"user_uuid,omitempty"`
+	SessionId       string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RawResponseJson []byte                 `protobuf:"bytes,3,opt,name=raw_response_json,json=rawResponseJson,proto3" json:"raw_response_json,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *WebAuthnFinishRegistrationRequest) Reset() {
+	*x = WebAuthnFinishRegistrationRequest{}
+	mi := &file_grpc_auth_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebAuthnFinishRegistrationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebAuthnFinishRegistrationRequest) ProtoMessage() {}
+
+func (x *WebAuthnFinishRegistrationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_auth_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebAuthnFinishRegistrationRequest.ProtoReflect.Descriptor instead.
+func (*WebAuthnFinishRegistrationRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_auth_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *WebAuthnFinishRegistrationRequest) GetUserUuid() string {
+	if x != nil {
+		return x.UserUuid
+	}
+	return ""
+}
+
+func (x *WebAuthnFinishRegistrationRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *WebAuthnFinishRegistrationRequest) GetRawResponseJson() []byte {
+	if x != nil {
+		return x.RawResponseJson
+	}
+	return nil
+}
+
+type WebAuthnFinishRegistrationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebAuthnFinishRegistrationResponse) Reset() {
+	*x = WebAuthnFinishRegistrationResponse{}
+	mi := &file_grpc_auth_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebAuthnFinishRegistrationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebAuthnFinishRegistrationResponse) ProtoMessage() {}
+
+func (x *WebAuthnFinishRegistrationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_auth_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebAuthnFinishRegistrationResponse.ProtoReflect.Descriptor instead.
+func (*WebAuthnFinishRegistrationResponse) Descriptor() ([]byte, []int) {
+	return file_grpc_auth_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *WebAuthnFinishRegistrationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+type WebAuthnBeginLoginRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebAuthnBeginLoginRequest) Reset() {
+	*x = WebAuthnBeginLoginRequest{}
+	mi := &file_grpc_auth_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebAuthnBeginLoginRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebAuthnBeginLoginRequest) ProtoMessage() {}
+
+func (x *WebAuthnBeginLoginRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_auth_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebAuthnBeginLoginRequest.ProtoReflect.Descriptor instead.
+func (*WebAuthnBeginLoginRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_auth_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *WebAuthnBeginLoginRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *WebAuthnBeginLoginRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type WebAuthnBeginLoginResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OptionsJson   []byte                 `protobuf:"bytes,1,opt,name=options_json,json=optionsJson,proto3" json:"options_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebAuthnBeginLoginResponse) Reset() {
+	*x = WebAuthnBeginLoginResponse{}
+	mi := &file_grpc_auth_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebAuthnBeginLoginResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebAuthnBeginLoginResponse) ProtoMessage() {}
+
+func (x *WebAuthnBeginLoginResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_auth_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebAuthnBeginLoginResponse.ProtoReflect.Descriptor instead.
+func (*WebAuthnBeginLoginResponse) Descriptor() ([]byte, []int) {
+	return file_grpc_auth_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *WebAuthnBeginLoginResponse) GetOptionsJson() []byte {
+	if x != nil {
+		return x.OptionsJson
+	}
+	return nil
+}
+
+type WebAuthnFinishLoginRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Email           string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	SessionId       string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RawResponseJson []byte                 `protobuf:"bytes,3,opt,name=raw_response_json,json=rawResponseJson,proto3" json:"raw_response_json,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *WebAuthnFinishLoginRequest) Reset() {
+	*x = WebAuthnFinishLoginRequest{}
+	mi := &file_grpc_auth_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebAuthnFinishLoginRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebAuthnFinishLoginRequest) ProtoMessage() {}
+
+func (x *WebAuthnFinishLoginRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_auth_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebAuthnFinishLoginRequest.ProtoReflect.Descriptor instead.
+func (*WebAuthnFinishLoginRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_auth_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *WebAuthnFinishLoginRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *WebAuthnFinishLoginRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *WebAuthnFinishLoginRequest) GetRawResponseJson() []byte {
+	if x != nil {
+		return x.RawResponseJson
+	}
+	return nil
+}
+
 var File_grpc_auth_proto protoreflect.FileDescriptor
 
 const file_grpc_auth_proto_rawDesc = "" +
@@ -273,11 +629,39 @@ const file_grpc_auth_proto_rawDesc = "" +
 	"\rLogoutRequest\x12#\n" +
 	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"*\n" +
 	"\x0eLogoutResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xb4\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"^\n" +
+	" WebAuthnBeginRegistrationRequest\x12\x1b\n" +
+	"\tuser_uuid\x18\x01 \x01(\tR\buserUuid\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"F\n" +
+	"!WebAuthnBeginRegistrationResponse\x12!\n" +
+	"\foptions_json\x18\x01 \x01(\fR\voptionsJson\"\x8b\x01\n" +
+	"!WebAuthnFinishRegistrationRequest\x12\x1b\n" +
+	"\tuser_uuid\x18\x01 \x01(\tR\buserUuid\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12*\n" +
+	"\x11raw_response_json\x18\x03 \x01(\fR\x0frawResponseJson\">\n" +
+	"\"WebAuthnFinishRegistrationResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"P\n" +
+	"\x19WebAuthnBeginLoginRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"?\n" +
+	"\x1aWebAuthnBeginLoginResponse\x12!\n" +
+	"\foptions_json\x18\x01 \x01(\fR\voptionsJson\"}\n" +
+	"\x1aWebAuthnFinishLoginRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12*\n" +
+	"\x11raw_response_json\x18\x03 \x01(\fR\x0frawResponseJson2\xba\x04\n" +
 	"\vAuthService\x120\n" +
 	"\x05Login\x12\x12.auth.LoginRequest\x1a\x13.auth.LoginResponse\x12>\n" +
 	"\fRefreshToken\x12\x19.auth.RefreshTokenRequest\x1a\x13.auth.LoginResponse\x123\n" +
-	"\x06Logout\x12\x13.auth.LogoutRequest\x1a\x14.auth.LogoutResponseB7Z5github.com/tumlumtala/contracts/generated/auth;authpbb\x06proto3"
+	"\x06Logout\x12\x13.auth.LogoutRequest\x1a\x14.auth.LogoutResponse\x12l\n" +
+	"\x19WebAuthnBeginRegistration\x12&.auth.WebAuthnBeginRegistrationRequest\x1a'.auth.WebAuthnBeginRegistrationResponse\x12o\n" +
+	"\x1aWebAuthnFinishRegistration\x12'.auth.WebAuthnFinishRegistrationRequest\x1a(.auth.WebAuthnFinishRegistrationResponse\x12W\n" +
+	"\x12WebAuthnBeginLogin\x12\x1f.auth.WebAuthnBeginLoginRequest\x1a .auth.WebAuthnBeginLoginResponse\x12L\n" +
+	"\x13WebAuthnFinishLogin\x12 .auth.WebAuthnFinishLoginRequest\x1a\x13.auth.LoginResponseB7Z5github.com/tumlumtala/contracts/generated/auth;authpbb\x06proto3"
 
 var (
 	file_grpc_auth_proto_rawDescOnce sync.Once
@@ -291,26 +675,41 @@ func file_grpc_auth_proto_rawDescGZIP() []byte {
 	return file_grpc_auth_proto_rawDescData
 }
 
-var file_grpc_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_grpc_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_grpc_auth_proto_goTypes = []any{
-	(*LoginRequest)(nil),        // 0: auth.LoginRequest
-	(*LoginResponse)(nil),       // 1: auth.LoginResponse
-	(*RefreshTokenRequest)(nil), // 2: auth.RefreshTokenRequest
-	(*LogoutRequest)(nil),       // 3: auth.LogoutRequest
-	(*LogoutResponse)(nil),      // 4: auth.LogoutResponse
+	(*LoginRequest)(nil),                       // 0: auth.LoginRequest
+	(*LoginResponse)(nil),                      // 1: auth.LoginResponse
+	(*RefreshTokenRequest)(nil),                // 2: auth.RefreshTokenRequest
+	(*LogoutRequest)(nil),                      // 3: auth.LogoutRequest
+	(*LogoutResponse)(nil),                     // 4: auth.LogoutResponse
+	(*WebAuthnBeginRegistrationRequest)(nil),   // 5: auth.WebAuthnBeginRegistrationRequest
+	(*WebAuthnBeginRegistrationResponse)(nil),  // 6: auth.WebAuthnBeginRegistrationResponse
+	(*WebAuthnFinishRegistrationRequest)(nil),  // 7: auth.WebAuthnFinishRegistrationRequest
+	(*WebAuthnFinishRegistrationResponse)(nil), // 8: auth.WebAuthnFinishRegistrationResponse
+	(*WebAuthnBeginLoginRequest)(nil),          // 9: auth.WebAuthnBeginLoginRequest
+	(*WebAuthnBeginLoginResponse)(nil),         // 10: auth.WebAuthnBeginLoginResponse
+	(*WebAuthnFinishLoginRequest)(nil),         // 11: auth.WebAuthnFinishLoginRequest
 }
 var file_grpc_auth_proto_depIdxs = []int32{
-	0, // 0: auth.AuthService.Login:input_type -> auth.LoginRequest
-	2, // 1: auth.AuthService.RefreshToken:input_type -> auth.RefreshTokenRequest
-	3, // 2: auth.AuthService.Logout:input_type -> auth.LogoutRequest
-	1, // 3: auth.AuthService.Login:output_type -> auth.LoginResponse
-	1, // 4: auth.AuthService.RefreshToken:output_type -> auth.LoginResponse
-	4, // 5: auth.AuthService.Logout:output_type -> auth.LogoutResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: auth.AuthService.Login:input_type -> auth.LoginRequest
+	2,  // 1: auth.AuthService.RefreshToken:input_type -> auth.RefreshTokenRequest
+	3,  // 2: auth.AuthService.Logout:input_type -> auth.LogoutRequest
+	5,  // 3: auth.AuthService.WebAuthnBeginRegistration:input_type -> auth.WebAuthnBeginRegistrationRequest
+	7,  // 4: auth.AuthService.WebAuthnFinishRegistration:input_type -> auth.WebAuthnFinishRegistrationRequest
+	9,  // 5: auth.AuthService.WebAuthnBeginLogin:input_type -> auth.WebAuthnBeginLoginRequest
+	11, // 6: auth.AuthService.WebAuthnFinishLogin:input_type -> auth.WebAuthnFinishLoginRequest
+	1,  // 7: auth.AuthService.Login:output_type -> auth.LoginResponse
+	1,  // 8: auth.AuthService.RefreshToken:output_type -> auth.LoginResponse
+	4,  // 9: auth.AuthService.Logout:output_type -> auth.LogoutResponse
+	6,  // 10: auth.AuthService.WebAuthnBeginRegistration:output_type -> auth.WebAuthnBeginRegistrationResponse
+	8,  // 11: auth.AuthService.WebAuthnFinishRegistration:output_type -> auth.WebAuthnFinishRegistrationResponse
+	10, // 12: auth.AuthService.WebAuthnBeginLogin:output_type -> auth.WebAuthnBeginLoginResponse
+	1,  // 13: auth.AuthService.WebAuthnFinishLogin:output_type -> auth.LoginResponse
+	7,  // [7:14] is the sub-list for method output_type
+	0,  // [0:7] is the sub-list for method input_type
+	0,  // [0:0] is the sub-list for extension type_name
+	0,  // [0:0] is the sub-list for extension extendee
+	0,  // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_grpc_auth_proto_init() }
@@ -324,7 +723,7 @@ func file_grpc_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_grpc_auth_proto_rawDesc), len(file_grpc_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

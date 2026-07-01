@@ -33,6 +33,8 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import BoltIcon from "@mui/icons-material/Bolt";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import FingerprintIcon from "@mui/icons-material/Fingerprint";
 import { Suspense, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import PersonIcon from "@mui/icons-material/Person";
@@ -55,6 +57,8 @@ const PUBLIC_NAV_ITEMS = [
   { label: "Tin nhắn", icon: <ChatIcon />, path: "/messenger" },
   { label: "Đoán từ", icon: <ExtensionIcon />, path: "/wordmatch" },
   { label: "Nối từ", icon: <BoltIcon />, path: "/word-chain" },
+  { label: "Auto Task", icon: <AssignmentIcon />, path: "/auto-task" },
+  { label: "Bảo mật", icon: <FingerprintIcon />, path: "/settings/security" },
 ];
 
 // Items gated by permission

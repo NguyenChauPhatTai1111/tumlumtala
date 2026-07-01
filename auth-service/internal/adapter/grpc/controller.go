@@ -14,17 +14,27 @@ import (
 
 type AuthController struct {
 	authpb.UnimplementedAuthServiceServer
-	login   *usecase.LoginUseCase
-	refresh *usecase.RefreshTokenUseCase
-	logout  *usecase.LogoutUseCase
+	login              *usecase.LoginUseCase
+	refresh            *usecase.RefreshTokenUseCase
+	logout             *usecase.LogoutUseCase
+	webAuthnRegister   *usecase.WebAuthnRegistrationUseCase
+	webAuthnLogin      *usecase.WebAuthnLoginUseCase
 }
 
 func NewAuthController(
 	login *usecase.LoginUseCase,
 	refresh *usecase.RefreshTokenUseCase,
 	logout *usecase.LogoutUseCase,
+	webAuthnRegister *usecase.WebAuthnRegistrationUseCase,
+	webAuthnLogin *usecase.WebAuthnLoginUseCase,
 ) *AuthController {
-	return &AuthController{login: login, refresh: refresh, logout: logout}
+	return &AuthController{
+		login:            login,
+		refresh:          refresh,
+		logout:           logout,
+		webAuthnRegister: webAuthnRegister,
+		webAuthnLogin:    webAuthnLogin,
+	}
 }
 
 func mapError(err error) error {
@@ -76,4 +86,53 @@ func (c *AuthController) Logout(ctx context.Context, req *authpb.LogoutRequest) 
 		return nil, mapError(err)
 	}
 	return &authpb.LogoutResponse{Success: true}, nil
+}
+
+func (c *AuthController) WebAuthnBeginRegistration(ctx context.Context, req *authpb.WebAuthnBeginRegistrationRequest) (*authpb.WebAuthnBeginRegistrationResponse, error) {
+	out, err := c.webAuthnRegister.Begin(ctx, dto.WebAuthnBeginRegistrationInput{
+		UserUUID:  req.GetUserUuid(),
+		SessionID: req.GetSessionId(),
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return &authpb.WebAuthnBeginRegistrationResponse{OptionsJson: out.OptionsJSON}, nil
+}
+
+func (c *AuthController) WebAuthnFinishRegistration(ctx context.Context, req *authpb.WebAuthnFinishRegistrationRequest) (*authpb.WebAuthnFinishRegistrationResponse, error) {
+	err := c.webAuthnRegister.Finish(ctx, dto.WebAuthnFinishRegistrationInput{
+		UserUUID:        req.GetUserUuid(),
+		SessionID:       req.GetSessionId(),
+		RawResponseJSON: req.GetRawResponseJson(),
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return &authpb.WebAuthnFinishRegistrationResponse{Success: true}, nil
+}
+
+func (c *AuthController) WebAuthnBeginLogin(ctx context.Context, req *authpb.WebAuthnBeginLoginRequest) (*authpb.WebAuthnBeginLoginResponse, error) {
+	out, err := c.webAuthnLogin.Begin(ctx, dto.WebAuthnBeginLoginInput{
+		Email:     req.GetEmail(),
+		SessionID: req.GetSessionId(),
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return &authpb.WebAuthnBeginLoginResponse{OptionsJson: out.OptionsJSON}, nil
+}
+
+func (c *AuthController) WebAuthnFinishLogin(ctx context.Context, req *authpb.WebAuthnFinishLoginRequest) (*authpb.LoginResponse, error) {
+	pair, err := c.webAuthnLogin.Finish(ctx, dto.WebAuthnFinishLoginInput{
+		Email:           req.GetEmail(),
+		SessionID:       req.GetSessionId(),
+		RawResponseJSON: req.GetRawResponseJson(),
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return &authpb.LoginResponse{
+		AccessToken:  pair.AccessToken,
+		RefreshToken: pair.RefreshToken,
+	}, nil
 }

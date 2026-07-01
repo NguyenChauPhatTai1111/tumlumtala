@@ -3,10 +3,11 @@ import FavoriteIcon from "@mui/icons-material/Favorite";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
-import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { Avatar, Box, CircularProgress, IconButton, Tooltip, Typography } from "@mui/material";
 import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
 import type { MediaItem } from "@pages/music/types";
 import { formatCompactNumber, formatDisplayName, formatDuration } from "@pages/music/utils";
+import { resolveSpotifyTrackPlayback } from "@services/musicService";
 import { usePlayerStore } from "@store/playerStore";
 import { formatRelativeTimeAgo } from "@utils/dateTime";
 import { useState } from "react";
@@ -30,15 +31,37 @@ export const MediaRow = ({
     const liked = likedItems.some((entry) => entry.id === item.id);
     const likeMutation = useLikeMusicMutation(item, liked);
     const [hovered, setHovered] = useState(false);
+    const [resolvingSpotify, setResolvingSpotify] = useState(false);
     const publishedDate = formatRelativeTimeAgo(item.publishedAt);
 
-    const handlePlay = () => {
+    const handlePlay = async () => {
         if (active && isPlaying) {
             pause();
             return;
         }
         if (active) {
             resume();
+            return;
+        }
+        if (item.provider === "spotify") {
+            if (resolvingSpotify) return;
+            setResolvingSpotify(true);
+            try {
+                const playable = await resolveSpotifyTrackPlayback(item);
+                if (playable) {
+                    play(
+                        playable,
+                        queue.map((entry) => (entry.id === item.id ? playable : entry)),
+                    );
+                    return;
+                }
+                const spotifyURL =
+                    item.externalUrl ??
+                    `https://open.spotify.com/track/${item.sourceId.replace(/^spotify:/, "")}`;
+                window.open(spotifyURL, "_blank", "noopener,noreferrer");
+            } finally {
+                setResolvingSpotify(false);
+            }
             return;
         }
         play(item, queue);
@@ -77,11 +100,13 @@ export const MediaRow = ({
                         size="small"
                         onClick={(e) => {
                             e.stopPropagation();
-                            handlePlay();
+                            void handlePlay();
                         }}
                         sx={{ color: "text.primary", p: 0, width: 16, height: 16 }}
                     >
-                        {active && isPlaying ? (
+                        {resolvingSpotify ? (
+                            <CircularProgress size={13} color="inherit" />
+                        ) : active && isPlaying ? (
                             <PauseIcon sx={{ fontSize: 16 }} />
                         ) : (
                             <PlayArrowIcon sx={{ fontSize: 16 }} />

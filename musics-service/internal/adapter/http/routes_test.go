@@ -23,6 +23,7 @@ func TestRegisterRoutesExposesCompleteMusicAPI(t *testing.T) {
 		"GET /api/v1/music/recent",
 		"POST /api/v1/music/recent",
 		"GET /api/v1/music/search-history",
+		"GET /api/v1/music/search/tracks",
 		"POST /api/v1/music/search-history",
 		"GET /api/v1/music/playlists",
 		"POST /api/v1/music/playlists",

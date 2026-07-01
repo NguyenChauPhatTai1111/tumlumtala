@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -21,6 +22,10 @@ type AuthService interface {
 	Login(context.Context, domain.LoginInput) (domain.TokenPair, error)
 	RefreshToken(context.Context, domain.RefreshInput) (domain.TokenPair, error)
 	Logout(context.Context, domain.LogoutInput) error
+	WebAuthnBeginRegistration(context.Context, domain.WebAuthnBeginRegistrationInput) (domain.WebAuthnBeginRegistrationOutput, error)
+	WebAuthnFinishRegistration(context.Context, domain.WebAuthnFinishRegistrationInput) error
+	WebAuthnBeginLogin(context.Context, domain.WebAuthnBeginLoginInput) (domain.WebAuthnBeginLoginOutput, error)
+	WebAuthnFinishLogin(context.Context, domain.WebAuthnFinishLoginInput) (domain.TokenPair, error)
 }
 
 type AuthHandler struct {
@@ -97,6 +102,104 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"email":   claims.Email,
 		"role":    claims.Role,
 	})
+}
+
+// WebAuthnBeginRegistration — POST /auth/webauthn/register/begin (authenticated)
+func (h *AuthHandler) WebAuthnBeginRegistration(c *gin.Context) {
+	var req WebAuthnBeginRegistrationRequest
+	if err := validator.BindJSON(c, &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	out, err := h.service.WebAuthnBeginRegistration(c.Request.Context(), domain.WebAuthnBeginRegistrationInput{
+		UserUUID:  req.UserUUID,
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	// OptionsJSON is already valid JSON — return it verbatim so the browser
+	// can pass it directly to navigator.credentials.create().
+	var options json.RawMessage = out.OptionsJSON
+	response.OK(c, http.StatusOK, gin.H{"options": options})
+}
+
+// WebAuthnFinishRegistration — POST /auth/webauthn/register/finish (authenticated)
+func (h *AuthHandler) WebAuthnFinishRegistration(c *gin.Context) {
+	var req WebAuthnFinishRegistrationRequest
+	if err := validator.BindJSON(c, &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	credJSON, err := json.Marshal(req.Credential)
+	if err != nil {
+		response.ErrorCode(c, http.StatusBadRequest, "BAD_REQUEST", "invalid credential")
+		return
+	}
+
+	if err := h.service.WebAuthnFinishRegistration(c.Request.Context(), domain.WebAuthnFinishRegistrationInput{
+		UserUUID:        req.UserUUID,
+		SessionID:       req.SessionID,
+		RawResponseJSON: credJSON,
+	}); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, http.StatusOK, gin.H{"registered": true})
+}
+
+// WebAuthnBeginLogin — POST /auth/webauthn/login/begin (public)
+func (h *AuthHandler) WebAuthnBeginLogin(c *gin.Context) {
+	var req WebAuthnBeginLoginRequest
+	if err := validator.BindJSON(c, &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	out, err := h.service.WebAuthnBeginLogin(c.Request.Context(), domain.WebAuthnBeginLoginInput{
+		Email:     req.Email,
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	var options json.RawMessage = out.OptionsJSON
+	response.OK(c, http.StatusOK, gin.H{"options": options})
+}
+
+// WebAuthnFinishLogin — POST /auth/webauthn/login/finish (public)
+func (h *AuthHandler) WebAuthnFinishLogin(c *gin.Context) {
+	var req WebAuthnFinishLoginRequest
+	if err := validator.BindJSON(c, &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	credJSON, err := json.Marshal(req.Credential)
+	if err != nil {
+		response.ErrorCode(c, http.StatusBadRequest, "BAD_REQUEST", "invalid credential")
+		return
+	}
+
+	pair, err := h.service.WebAuthnFinishLogin(c.Request.Context(), domain.WebAuthnFinishLoginInput{
+		Email:           req.Email,
+		SessionID:       req.SessionID,
+		RawResponseJSON: credJSON,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	setRefreshCookie(c, pair.RefreshToken)
+	response.OK(c, http.StatusOK, gin.H{"access_token": pair.AccessToken})
 }
 
 func setRefreshCookie(c *gin.Context, token string) {

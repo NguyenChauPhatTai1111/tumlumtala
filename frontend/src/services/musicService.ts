@@ -1,5 +1,6 @@
 import type { AxiosResponse } from "axios";
 import axios from "axios";
+import { apiClient } from "@api/client";
 import type {
     AudiusPlaylist,
     AudiusTrack,
@@ -80,8 +81,8 @@ export const getAudiusCoverPhoto = (user: AudiusUser) =>
 export const getPlaylistArtwork = (playlist: AudiusPlaylist) => getArtwork(playlist.artwork);
 
 export const toAudioMediaItem = (track: AudiusTrack): MediaItem => ({
-    id: `audio:${track.id}`,
-    sourceId: track.id,
+    id: `audio:${track.provider === "spotify" ? "spotify:" : ""}${track.id}`,
+    sourceId: `${track.provider === "spotify" ? "spotify:" : ""}${track.id}`,
     title: track.title,
     artist: track.user.name || track.user.handle,
     artistId: track.user.id,
@@ -89,7 +90,7 @@ export const toAudioMediaItem = (track: AudiusTrack): MediaItem => ({
     type: "audio",
     thumbnail: getArtwork(track.artwork),
     duration: track.duration,
-    streamUrl: getAudiusStreamUrl(track.id),
+    streamUrl: track.provider === "spotify" ? undefined : getAudiusStreamUrl(track.id),
     publishedAt: track.created_at,
     viewCount: track.play_count,
     genre: track.genre,
@@ -108,6 +109,8 @@ export const toAudioMediaItem = (track: AudiusTrack): MediaItem => ({
           }
         : undefined,
     playlistIds: track.playlists_containing_track?.map(String),
+    provider: track.provider ?? "audius",
+    externalUrl: track.external_url,
 });
 
 export const toVideoMediaItem = (video: YouTubeVideo): MediaItem => ({
@@ -184,6 +187,24 @@ export const searchTracks = async (
         if (isRateLimited(error)) return [];
         throw error;
     }
+};
+
+export const searchPreferredTracks = async (
+    query: string,
+    options: { limit?: number; offset?: number } = {},
+): Promise<AudiusTrack[]> => {
+    if (!query.trim()) return [];
+    const limit = Math.min(Math.max(options.limit ?? 10, 1), 10);
+    const offset = Math.max(options.offset ?? 0, 0);
+    try {
+        const response = await apiClient.get<{ data: AudiusTrack[] }>("/music/search/tracks", {
+            params: { q: query, limit, offset },
+        });
+        if (response.data.data.length > 0) return response.data.data;
+    } catch {
+        // Spotify is optional. Audius remains the playable fallback.
+    }
+    return searchTracks(query, { limit, offset });
 };
 
 // ─── Users / Artists ──────────────────────────────────────────────────────────
@@ -462,6 +483,44 @@ export const searchYouTubeVideos = async (
     };
 };
 
+export const resolveSpotifyTrackPlayback = async (item: MediaItem): Promise<MediaItem | null> => {
+    if (item.provider !== "spotify") return item;
+
+    const normalize = (value: string) =>
+        value
+            .normalize("NFD")
+            .replace(/\p{Diacritic}/gu, "")
+            .toLowerCase()
+            .replace(/[^\p{Letter}\p{Number}]+/gu, " ")
+            .trim();
+    const title = normalize(item.title);
+    const artist = normalize(item.artist);
+    const result = await searchYouTubeVideos(
+        `${item.artist} - ${item.title} official audio`,
+        { maxResults: 8 },
+    );
+    const ranked = result.videos
+        .map((video) => {
+            const candidate = normalize(`${video.title} ${video.channelTitle}`);
+            let score = 0;
+            if (candidate.includes(title)) score += 8;
+            if (candidate.includes(artist)) score += 6;
+            if (/\bofficial\b|\baudio\b|\bmv\b/.test(candidate)) score += 2;
+            if (/\bcover\b|\bkaraoke\b|\breaction\b|\bremix\b/.test(candidate)) score -= 5;
+            return { video, score };
+        })
+        .sort((a, b) => b.score - a.score || (b.video.viewCount ?? 0) - (a.video.viewCount ?? 0));
+
+    const best = ranked[0];
+    if (!best || best.score < 8) return null;
+    return {
+        ...item,
+        videoId: best.video.id,
+        streamUrl: undefined,
+        duration: item.duration ?? best.video.duration,
+    };
+};
+
 // ─── Lyrics ───────────────────────────────────────────────────────────────────
 
 export interface LyricsLine {
@@ -715,10 +774,70 @@ function hasCommonTags(a: string[], b: string[]): boolean {
     return a.some((t) => b.includes(t));
 }
 
+function spotifyMediaToRecommended(items: import("@pages/music/types").MediaItem[]): RecommendedTrack[] {
+    const seen = new Set<string>();
+    const result: RecommendedTrack[] = [];
+    for (const item of items) {
+        // sourceId = "spotify:XXX" — use raw Spotify ID as AudiusTrack.id to keep keys unique
+        const rawId = item.sourceId.replace(/^spotify:/, "");
+        if (seen.has(rawId)) continue;
+        seen.add(rawId);
+        result.push({
+            id: rawId,
+            provider: "spotify" as const,
+            external_url: item.externalUrl,
+            title: item.title,
+            duration: item.duration ?? 0,
+            created_at: item.publishedAt,
+            genre: item.genre,
+            mood: item.mood,
+            tags: item.tags,
+            user: {
+                id: item.artistId ?? "",
+                name: item.artist,
+                handle: item.artistId ?? "",
+            },
+            artwork: { "480x480": item.thumbnail },
+            score: 100,
+            reasons: ["spotify_recommendation"],
+        });
+    }
+    return result;
+}
+
 export const getRecommendations = async (
     seedTrackId: string,
     limit = 12,
 ): Promise<RecommendedTrack[]> => {
+    // Spotify-first: if seed is a Spotify track or we can try Spotify recommendations
+    const isSpotifySeed = seedTrackId.startsWith("spotify:");
+    const spotifyTrackId = isSpotifySeed ? seedTrackId.replace(/^spotify:/, "") : null;
+
+    if (spotifyTrackId) {
+        try {
+            const { getSpotifyRecommendations } = await import("@services/musicBackendService");
+            const items = await getSpotifyRecommendations({ seedTrack: spotifyTrackId, limit });
+            if (items.length > 0) return spotifyMediaToRecommended(items);
+        } catch {
+            // fall through to Audius
+        }
+        // Seed is Spotify but recommendations failed; try Audius search with title as fallback
+        return [];
+    }
+
+    // Try Spotify recommendations with seed as Audius ID (search Spotify by keyword after fetching track info)
+    try {
+        const seed = await getTrack(seedTrackId);
+        if (seed) {
+            const { getSpotifyRecommendations } = await import("@services/musicBackendService");
+            const seedGenre = seed.genre ?? undefined;
+            const items = await getSpotifyRecommendations({ seedGenre, limit });
+            if (items.length > 0) return spotifyMediaToRecommended(items);
+        }
+    } catch {
+        // fall through to Audius
+    }
+
     // 1. Fetch seed track detail
     const seed = await getTrack(seedTrackId);
     if (!seed) return [];

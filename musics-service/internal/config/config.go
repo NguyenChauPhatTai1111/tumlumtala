@@ -13,12 +13,19 @@ type Config struct {
 	JWTSecret    string
 	KafkaBrokers []string
 	MusicAI      MusicAIConfig
+	Spotify      SpotifyConfig
 }
 
 type MusicAIConfig struct {
 	Endpoint string
 	APIKey   string
 	Model    string
+}
+
+type SpotifyConfig struct {
+	ClientID     string
+	ClientSecret string
+	Market       string
 }
 
 type DatabaseConfig struct {
@@ -44,6 +51,11 @@ func Load() (*Config, error) {
 			Endpoint: strings.TrimRight(os.Getenv("MUSIC_AI_ENDPOINT"), "/"),
 			APIKey:   os.Getenv("MUSIC_AI_API_KEY"),
 			Model:    getEnv("MUSIC_AI_MODEL", "music-intent"),
+		},
+		Spotify: SpotifyConfig{
+			ClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
+			ClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+			Market:       getEnv("SPOTIFY_MARKET", "VN"),
 		},
 		DB: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),

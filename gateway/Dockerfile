@@ -14,10 +14,11 @@ RUN go build -o /app/bin/gateway ./cmd/api
 
 FROM alpine:latest
 
+RUN apk add --no-cache ca-certificates tzdata
+
 WORKDIR /app
 
 COPY --from=builder /app/bin/gateway .
-COPY gateway/words /app/words
 
 EXPOSE 8080
 

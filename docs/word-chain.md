@@ -26,7 +26,7 @@
 - Người chơi có thể chỉ nhập âm thứ hai; server tự ghép với âm bắt đầu. Nhập đầy đủ hai âm vẫn hợp lệ.
 - Âm đầu của câu trả lời phải trùng âm cuối của câu trả lời trước.
 - Một cụm từ không được dùng lại trong cùng ván.
-- Cụm từ phải có trong bộ từ điển của trò chơi, sau đó Groq xác nhận nghĩa và trả về lời giải thích ngắn.
+- Groq trực tiếp xác nhận cụm từ có nghĩa và trả về lời giải thích ngắn; trò chơi không dùng danh sách từ điển cục bộ.
 - Mỗi cụm từ hợp lệ cộng 1 vào tổng số từ cá nhân.
 - Mỗi câu trả lời nhận từ 10 đến 100 điểm tốc độ; trả lời càng sớm trong 15 giây thì điểm càng cao.
 - Tổng số từ và tổng điểm tốc độ được lưu riêng trong Redis và cộng dồn qua mọi ván.
@@ -84,4 +84,4 @@ LLM_API_KEY
 LLM_MODEL
 ```
 
-Không có fallback sang từ điển. Nếu Groq không khả dụng, lượt hiện tại vẫn giữ nguyên và người chơi được phép thử lại trong thời gian còn lại.
+Không có fallback sang từ điển cục bộ. Nếu Groq không khả dụng, lượt hiện tại vẫn giữ nguyên và người chơi được phép thử lại trong thời gian còn lại.

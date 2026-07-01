@@ -12,8 +12,8 @@ type Handler struct {
 	svc *wordMatchService
 }
 
-func NewHandler(dictDir, llmURL, llmKey, llmModel string) *Handler {
-	return &Handler{svc: newWordMatchService(dictDir, llmURL, llmKey, llmModel)}
+func NewHandler(llmURL, llmKey, llmModel string) *Handler {
+	return &Handler{svc: newWordMatchService(llmURL, llmKey, llmModel)}
 }
 
 func (h *Handler) Round(c *gin.Context) {

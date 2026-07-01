@@ -95,33 +95,81 @@ export const mediaItemToBackendPayload = (item: MediaItem) => ({
     tags: item.tags,
 });
 
-export const fromBackendMediaItem = (item: BackendMediaItem): MediaItem => ({
-    id: `${item.type}:${item.source_id}`,
-    sourceId: item.source_id,
-    type: item.type,
-    title: item.title,
-    artist: item.artist,
-    thumbnail: item.thumbnail,
-    streamUrl: item.stream_url,
-    videoId: item.video_id,
-    duration: item.duration,
-    viewCount: item.view_count,
-    genre: item.genre,
-    mood: item.mood,
-    energy: item.energy,
-    bpm: item.tempo,
-    musical_key: item.musical_key,
-    isInstrumental: item.is_instrumental,
-    vocalGender: item.vocal_gender,
-    likeCount: item.like_count,
-    repostCount: item.repost_count,
-    tags: item.tags,
-});
+export const fromBackendMediaItem = (item: BackendMediaItem): MediaItem => {
+    const isSpotify = item.source_id.startsWith("spotify:");
+    return {
+        id: `${item.type}:${item.source_id}`,
+        sourceId: item.source_id,
+        type: item.type,
+        title: item.title,
+        artist: item.artist,
+        thumbnail: item.thumbnail,
+        streamUrl: item.stream_url,
+        videoId: item.video_id,
+        duration: item.duration,
+        viewCount: item.view_count,
+        genre: item.genre,
+        mood: item.mood,
+        energy: item.energy,
+        bpm: item.tempo,
+        musical_key: item.musical_key,
+        isInstrumental: item.is_instrumental,
+        vocalGender: item.vocal_gender,
+        likeCount: item.like_count,
+        repostCount: item.repost_count,
+        tags: item.tags,
+        provider: isSpotify ? "spotify" : item.type === "audio" ? "audius" : undefined,
+        externalUrl: isSpotify
+            ? `https://open.spotify.com/track/${item.source_id.replace(/^spotify:/, "")}`
+            : undefined,
+    };
+};
 
 const unwrap = <T>(res: { data: T } | T): T =>
     res && typeof res === "object" && "data" in (res as object)
         ? (res as { data: T }).data
         : (res as T);
+
+interface SpotifyTrackResponse {
+    id: string;
+    provider: string;
+    title: string;
+    duration: number;
+    created_at?: string;
+    user: { id: string; name: string };
+    artwork: { "150x150"?: string; "480x480"?: string; "1000x1000"?: string };
+    external_url: string;
+}
+
+export const getSpotifyRecommendations = async (params: {
+    seedTrack?: string;
+    seedArtist?: string;
+    seedGenre?: string;
+    limit?: number;
+}): Promise<MediaItem[]> => {
+    const query = new URLSearchParams();
+    if (params.seedTrack) query.set("seed_track", params.seedTrack);
+    if (params.seedArtist) query.set("seed_artist", params.seedArtist);
+    if (params.seedGenre) query.set("seed_genre", params.seedGenre);
+    query.set("limit", String(params.limit ?? 12));
+    const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
+        `${PREFIX}/recommendations?${query.toString()}`,
+    );
+    const tracks = unwrap(res.data);
+    return tracks.map((t) => ({
+        id: `audio:spotify:${t.id}`,
+        sourceId: `spotify:${t.id}`,
+        type: "audio" as const,
+        title: t.title,
+        artist: t.user.name,
+        artistId: t.user.id,
+        thumbnail: t.artwork["480x480"] ?? t.artwork["1000x1000"] ?? t.artwork["150x150"] ?? "",
+        duration: t.duration,
+        publishedAt: t.created_at,
+        provider: "spotify" as const,
+        externalUrl: t.external_url,
+    }));
+};
 
 export const getLikedMusic = async (): Promise<MediaItem[]> => {
     const res = await apiClient.get<{ data: LikedTrackRow[] }>(`${PREFIX}/liked`);

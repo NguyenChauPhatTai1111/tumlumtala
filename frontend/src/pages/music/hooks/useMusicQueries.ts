@@ -36,7 +36,7 @@ import {
     getTrackLyrics,
     searchArtists,
     searchPlaylists,
-    searchTracks,
+    searchPreferredTracks,
     searchYouTubeVideos,
 } from "@services/musicService";
 
@@ -146,10 +146,11 @@ export const useSimilarArtistsQuery = (artist: AudiusUser | null) =>
 export const useTracksQuery = (searchKeyword: string, enabled: boolean) =>
     useInfiniteQuery({
         queryKey: ["music", "tracks", searchKeyword],
-        queryFn: ({ pageParam }) => searchTracks(searchKeyword, { limit: 50, offset: pageParam }),
+        queryFn: ({ pageParam }) =>
+            searchPreferredTracks(searchKeyword, { limit: 10, offset: pageParam }),
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) =>
-            lastPage.length === 50 ? allPages.length * 50 : undefined,
+            lastPage.length === 10 ? allPages.length * 10 : undefined,
         enabled,
         retry: false,
     });

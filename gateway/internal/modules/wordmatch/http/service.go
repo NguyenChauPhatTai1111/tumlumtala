@@ -1,23 +1,17 @@
 package http
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
-	"unicode"
-
-	"golang.org/x/text/unicode/norm"
 )
 
 const totalChoices = 9
@@ -25,136 +19,219 @@ const totalChoices = 9
 type WordMatchRound struct {
 	BaseWord     string   `json:"baseWord"`
 	Choices      []string `json:"choices"`
-	CorrectWords []string `json:"correctWords"` // always has exactly 1 correct answer now
+	CorrectWords []string `json:"correctWords"`
 }
 
 type wordMatchService struct {
-	dictDir   string
-	llmURL    string
-	llmKey    string
-	llmModel  string
-	allWords  []string
-	once      sync.Once
+	llmURL   string
+	llmKey   string
+	llmModel string
+	client   *http.Client
 }
 
-func newWordMatchService(dictDir, llmURL, llmKey, llmModel string) *wordMatchService {
+type generatedRound struct {
+	BaseWord    string   `json:"baseWord"`
+	CorrectWord string   `json:"correctWord"`
+	Decoys      []string `json:"decoys"`
+}
+
+func newWordMatchService(llmURL, llmKey, llmModel string) *wordMatchService {
 	return &wordMatchService{
-		dictDir:  dictDir,
-		llmURL:   llmURL,
-		llmKey:   llmKey,
-		llmModel: llmModel,
+		llmURL:   strings.TrimRight(strings.TrimSpace(llmURL), "/"),
+		llmKey:   strings.TrimSpace(llmKey),
+		llmModel: strings.TrimSpace(llmModel),
+		client:   &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
-// newRound generates a round. If baseWord is provided, uses it as the starting syllable.
-// Otherwise picks a random one. Always has exactly 1 correct answer.
+// newRound asks Groq to create the complete round. No local dictionary is used.
 func (s *wordMatchService) newRound(ctx context.Context, baseWord string) (WordMatchRound, error) {
-	all, err := s.loadWords()
-	if err != nil {
-		return WordMatchRound{}, fmt.Errorf("không tải được từ điển: %w", err)
+	requestedBase := normalizeWord(baseWord)
+	if requestedBase != "" && len(strings.Fields(requestedBase)) != 1 {
+		return WordMatchRound{}, errors.New("âm tiết nối tiếp không hợp lệ")
 	}
 
-	base := strings.TrimSpace(baseWord)
-	if base == "" {
-		base, err = s.pickBase(all)
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		generated, err := s.generateRound(ctx, requestedBase)
 		if err != nil {
-			return WordMatchRound{}, err
+			lastErr = err
+			continue
 		}
-	}
-
-	valid := wordsStartingWith(all, base)
-	if len(valid) == 0 {
-		// Fallback: pick a new random base if the provided one has no matches
-		base, err = s.pickBase(all)
-		if err != nil {
-			return WordMatchRound{}, err
+		round, err := buildRound(generated, requestedBase)
+		if err == nil {
+			return round, nil
 		}
-		valid = wordsStartingWith(all, base)
+		lastErr = err
 	}
+	return WordMatchRound{}, fmt.Errorf("Groq không tạo được vòng chơi hợp lệ: %w", lastErr)
+}
 
-	// Pick exactly 1 correct answer randomly from valid words.
-	// Decoys are guaranteed NOT to be real words (checked against full dictionary).
-	correct, err := sampleN(valid, 1)
+func (s *wordMatchService) generateRound(ctx context.Context, baseWord string) (generatedRound, error) {
+	baseInstruction := "Tự chọn một âm tiết tiếng Việt thông dụng làm baseWord."
+	if baseWord != "" {
+		baseInstruction = fmt.Sprintf(`Bắt buộc dùng chính xác "%s" làm baseWord.`, baseWord)
+	}
+	prompt := fmt.Sprintf(`Tạo một vòng chơi đoán từ ghép tiếng Việt phù hợp với người dùng hiện nay (năm %d).
+%s
+
+Chỉ trả về JSON:
+{"baseWord":"âm","correctWord":"âm nhạc","decoys":["âm ..."]}
+
+Quy tắc:
+- correctWord gồm đúng hai âm tiết, bắt đầu bằng baseWord, là từ/cụm từ tiếng Việt có nghĩa và được sử dụng thực tế.
+- Ưu tiên từ quen thuộc trong đời sống hiện đại: công nghệ, đời sống số, học tập, công việc, giải trí, sức khỏe, tài chính, môi trường và xã hội.
+- Có thể dùng thuật ngữ mới hoặc từ vay mượn đã được người Việt sử dụng rộng rãi, nhưng phải viết theo cách phổ biến và tự nhiên.
+- Không chọn từ cổ, từ địa phương hiếm, từ Hán Việt khó hiểu, thuật ngữ chuyên ngành quá sâu hoặc cụm từ tuy đúng nhưng ít người hiện nay sử dụng.
+- Nếu có nhiều đáp án đúng, hãy âm thầm so sánh ít nhất 5 ứng viên và chọn từ dễ nhận biết nhất với người dùng phổ thông.
+- Ưu tiên correctWord có âm tiết thứ hai tiếp tục ghép được với những từ thông dụng khác để vòng sau không bị bí.
+- decoys có đúng 8 phần tử khác nhau, mỗi phần tử gồm đúng hai âm tiết và bắt đầu bằng baseWord.
+- Mỗi decoy phải là tổ hợp không có nghĩa, không phải từ tiếng Việt, tên riêng, từ viết tắt hoặc biến thể chính tả của một từ thật.
+- correctWord không được xuất hiện trong decoys.
+- Tất cả viết thường, đúng chính tả; không thêm nhận xét ngoài JSON.`, time.Now().Year(), baseInstruction)
+
+	content, err := s.chat(
+		ctx,
+		"Bạn là biên tập viên tiếng Việt hiện đại, am hiểu cách dùng từ phổ biến trong đời sống và văn hóa số hiện nay.",
+		prompt,
+		700,
+		0.4,
+		true,
+	)
 	if err != nil {
-		return WordMatchRound{}, err
+		return generatedRound{}, err
+	}
+	var result generatedRound
+	if err := decodeJSONContent(content, &result); err != nil {
+		return generatedRound{}, fmt.Errorf("Groq không trả về JSON vòng chơi hợp lệ: %w", err)
+	}
+	return result, nil
+}
+
+func buildRound(generated generatedRound, requestedBase string) (WordMatchRound, error) {
+	base := normalizeWord(generated.BaseWord)
+	if requestedBase != "" {
+		if base != "" && base != requestedBase {
+			return WordMatchRound{}, errors.New("Groq đã thay đổi âm tiết được yêu cầu")
+		}
+		base = requestedBase
+	}
+	if len(strings.Fields(base)) != 1 {
+		return WordMatchRound{}, errors.New("baseWord phải có đúng một âm tiết")
 	}
 
-	decoys, err := s.buildDecoys(base, valid, all, totalChoices-1)
-	if err != nil {
-		return WordMatchRound{}, err
+	correct := normalizeWord(generated.CorrectWord)
+	if !isTwoSyllableChoice(correct, base) {
+		return WordMatchRound{}, errors.New("đáp án đúng không khớp với âm tiết gốc")
 	}
 
-	choices := append(append([]string{}, correct...), decoys...)
+	seen := map[string]struct{}{correct: {}}
+	decoys := make([]string, 0, totalChoices-1)
+	for _, raw := range generated.Decoys {
+		decoy := normalizeWord(raw)
+		if !isTwoSyllableChoice(decoy, base) {
+			continue
+		}
+		if _, exists := seen[decoy]; exists {
+			continue
+		}
+		seen[decoy] = struct{}{}
+		decoys = append(decoys, decoy)
+	}
+	if len(decoys) != totalChoices-1 {
+		return WordMatchRound{}, fmt.Errorf("cần 8 đáp án nhiễu hợp lệ, nhận được %d", len(decoys))
+	}
+
+	choices := append([]string{correct}, decoys...)
 	if err := shuffle(choices); err != nil {
 		return WordMatchRound{}, err
 	}
-
 	return WordMatchRound{
 		BaseWord:     base,
 		Choices:      choices,
-		CorrectWords: correct,
+		CorrectWords: []string{correct},
 	}, nil
 }
 
+func isTwoSyllableChoice(choice, base string) bool {
+	parts := strings.Fields(choice)
+	return len(parts) == 2 && parts[0] == base
+}
+
+func normalizeWord(word string) string {
+	return strings.ToLower(strings.Join(strings.Fields(word), " "))
+}
+
 func (s *wordMatchService) explain(ctx context.Context, words []string) (string, error) {
-	if s.llmURL == "" || len(words) == 0 {
-		return "Không có dịch vụ giải thích từ.", nil
+	if len(words) == 0 {
+		return "Không có từ cần giải thích.", nil
 	}
-
-	list := strings.Join(words, ", ")
-	prompt := fmt.Sprintf(
-		"Giải thích ngắn gọn nghĩa của các từ tiếng Việt sau (mỗi từ một dòng, format: từ - nghĩa): %s",
-		list,
+	content, err := s.chat(
+		ctx,
+		"Bạn là chuyên gia từ vựng tiếng Việt. Giải thích ngắn gọn, chính xác và chỉ ra rõ nếu tổ hợp không có nghĩa.",
+		fmt.Sprintf(
+			"Giải thích các tổ hợp sau, mỗi tổ hợp một dòng theo định dạng “từ - nghĩa”; nếu vô nghĩa hãy ghi rõ: %s",
+			strings.Join(words, ", "),
+		),
+		512,
+		0.2,
+		false,
 	)
-
-	type msg struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}
-	type reqBody struct {
-		Model     string  `json:"model"`
-		Messages  []msg   `json:"messages"`
-		MaxTokens int     `json:"max_tokens"`
-		Temp      float32 `json:"temperature"`
-	}
-	body, _ := json.Marshal(reqBody{
-		Model: s.llmModel,
-		Messages: []msg{
-			{Role: "system", Content: "Bạn là từ điển tiếng Việt. Giải thích từ ngắn gọn, chính xác."},
-			{Role: "user", Content: prompt},
-		},
-		MaxTokens: 512,
-		Temp:      0.3,
-	})
-
-	endpoint := strings.TrimRight(s.llmURL, "/")
-	if !strings.HasSuffix(endpoint, "/chat/completions") {
-		if strings.HasSuffix(endpoint, "/v1") {
-			endpoint += "/chat/completions"
-		} else {
-			endpoint += "/v1/chat/completions"
-		}
-	}
-
-	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "Không thể kết nối dịch vụ giải thích.", nil
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if s.llmKey != "" {
-		req.Header.Set("Authorization", "Bearer "+s.llmKey)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "Không thể lấy giải thích lúc này.", nil
 	}
-	defer resp.Body.Close()
+	return strings.TrimSpace(content), nil
+}
 
-	raw, _ := io.ReadAll(resp.Body)
+func (s *wordMatchService) chat(
+	ctx context.Context,
+	systemPrompt, userPrompt string,
+	maxTokens int,
+	temperature float64,
+	jsonResponse bool,
+) (string, error) {
+	if s.llmURL == "" || s.llmKey == "" || s.llmModel == "" {
+		return "", errors.New("Groq chưa được cấu hình")
+	}
+	endpoint := s.llmURL
+	if !strings.HasSuffix(endpoint, "/chat/completions") {
+		endpoint += "/chat/completions"
+	}
+	bodyData := map[string]any{
+		"model": s.llmModel,
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
+		},
+		"max_tokens":  maxTokens,
+		"temperature": temperature,
+	}
+	if jsonResponse {
+		bodyData["response_format"] = map[string]string{"type": "json_object"}
+	}
+	body, err := json.Marshal(bodyData)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.llmKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("Groq trả về HTTP %d", resp.StatusCode)
+	}
 	var out struct {
 		Choices []struct {
 			Message struct {
@@ -163,173 +240,30 @@ func (s *wordMatchService) explain(ctx context.Context, words []string) (string,
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil || len(out.Choices) == 0 {
-		return "Không thể phân tích kết quả giải thích.", nil
+		return "", errors.New("phản hồi Groq không hợp lệ")
 	}
-	return strings.TrimSpace(out.Choices[0].Message.Content), nil
+	content := strings.TrimSpace(out.Choices[0].Message.Content)
+	if content == "" {
+		return "", errors.New("Groq trả về nội dung trống")
+	}
+	return content, nil
 }
 
-func (s *wordMatchService) loadWords() ([]string, error) {
-	var loadErr error
-	s.once.Do(func() {
-		s.allWords, loadErr = readWordsFromDir(s.dictDir)
-	})
-	return s.allWords, loadErr
+func decodeJSONContent(content string, target any) error {
+	content = strings.TrimSpace(content)
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	return json.Unmarshal([]byte(strings.TrimSpace(content)), target)
 }
 
-func readWordsFromDir(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	var words []string
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".txt") {
-			continue
-		}
-		f, err := os.Open(filepath.Join(dir, e.Name()))
-		if err != nil {
-			continue
-		}
-		sc := bufio.NewScanner(f)
-		for sc.Scan() {
-			line := strings.TrimSpace(sc.Text())
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			words = append(words, normalizeWord(line))
-		}
-		f.Close()
-	}
-	return words, nil
-}
-
-func normalizeWord(w string) string {
-	return strings.ToLower(strings.TrimSpace(w))
-}
-
-func (s *wordMatchService) pickBase(all []string) (string, error) {
-	seen := map[string]struct{}{}
-	var syllables []string
-	for _, w := range all {
-		parts := strings.Fields(w)
-		if len(parts) < 2 {
-			continue
-		}
-		if _, ok := seen[parts[0]]; !ok {
-			seen[parts[0]] = struct{}{}
-			syllables = append(syllables, parts[0])
-		}
-	}
-	if len(syllables) == 0 {
-		return "", fmt.Errorf("không tìm thấy âm tiết phù hợp")
-	}
-	for attempt := 0; attempt < 100; attempt++ {
-		idx, err := randN(int64(len(syllables)))
-		if err != nil {
-			return "", err
-		}
-		candidate := syllables[idx]
-		if len(wordsStartingWith(all, candidate)) >= 1 {
-			return candidate, nil
-		}
-	}
-	return "", fmt.Errorf("không tìm được từ gốc sau nhiều lần thử")
-}
-
-func wordsStartingWith(all []string, base string) []string {
-	prefix := base + " "
-	var out []string
-	for _, w := range all {
-		if strings.HasPrefix(w, prefix) {
-			out = append(out, w)
-		}
-	}
-	return out
-}
-
-func (s *wordMatchService) buildDecoys(base string, valid []string, all []string, n int) ([]string, error) {
-	// allWordsSet: every word in dictionary — decoys must NOT be in here
-	allWordsSet := make(map[string]struct{}, len(all))
-	for _, w := range all {
-		allWordsSet[w] = struct{}{}
-	}
-
-	// Collect second syllables that don't form a real word with base
-	secondPool := map[string]struct{}{}
-	for _, w := range all {
-		parts := strings.Fields(w)
-		if len(parts) >= 2 {
-			candidate := base + " " + parts[1]
-			if _, real := allWordsSet[candidate]; !real {
-				secondPool[parts[1]] = struct{}{}
-			}
-		}
-	}
-
-	pool := make([]string, 0, len(secondPool))
-	for syl := range secondPool {
-		pool = append(pool, syl)
-	}
-	if err := shuffle(pool); err != nil {
-		return nil, err
-	}
-
-	seen := map[string]struct{}{}
-	var decoys []string
-	for _, syl := range pool {
-		if len(decoys) >= n {
-			break
-		}
-		candidate := base + " " + syl
-		if _, real := allWordsSet[candidate]; real {
-			continue
-		}
-		if _, ok := seen[candidate]; ok {
-			continue
-		}
-		seen[candidate] = struct{}{}
-		decoys = append(decoys, candidate)
-	}
-
-	// Fallback pads that are unlikely to form real words
-	pads := []string{"lạc", "xoàng", "thùng", "quặng", "nhắng", "vặt", "phắng", "khuếch"}
-	for _, pad := range pads {
-		if len(decoys) >= n {
-			break
-		}
-		candidate := base + " " + pad
-		if _, real := allWordsSet[candidate]; real {
-			continue
-		}
-		if _, ok := seen[candidate]; ok {
-			continue
-		}
-		seen[candidate] = struct{}{}
-		decoys = append(decoys, candidate)
-	}
-
-	return decoys, nil
-}
-
-func sampleN(pool []string, n int) ([]string, error) {
-	if n >= len(pool) {
-		return pool, nil
-	}
-	cp := make([]string, len(pool))
-	copy(cp, pool)
-	if err := shuffle(cp); err != nil {
-		return nil, err
-	}
-	return cp[:n], nil
-}
-
-func shuffle(s []string) error {
-	for i := len(s) - 1; i > 0; i-- {
+func shuffle(values []string) error {
+	for i := len(values) - 1; i > 0; i-- {
 		j, err := randN(int64(i + 1))
 		if err != nil {
 			return err
 		}
-		s[i], s[j] = s[j], s[i]
+		values[i], values[j] = values[j], values[i]
 	}
 	return nil
 }
@@ -338,33 +272,9 @@ func randN(n int64) (int64, error) {
 	if n <= 0 {
 		return 0, nil
 	}
-	v, err := rand.Int(rand.Reader, big.NewInt(n))
+	value, err := rand.Int(rand.Reader, big.NewInt(n))
 	if err != nil {
 		return 0, err
 	}
-	return v.Int64(), nil
+	return value.Int64(), nil
 }
-
-// latinBaseInitial extracts the base latin letter of a Vietnamese syllable (for bucketing).
-func latinBaseInitial(token string) string {
-	for _, r := range token {
-		r = unicode.ToLower(r)
-		if r == 'đ' {
-			return "d"
-		}
-		decomposed := norm.NFD.String(string(r))
-		for _, dr := range decomposed {
-			if unicode.Is(unicode.Mn, dr) {
-				continue
-			}
-			if dr >= 'a' && dr <= 'z' {
-				return string(dr)
-			}
-			return ""
-		}
-	}
-	return ""
-}
-
-// suppress unused warning
-var _ = latinBaseInitial

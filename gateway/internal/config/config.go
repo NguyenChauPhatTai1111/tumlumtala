@@ -17,6 +17,7 @@ func (r RedisConfig) Addr() string { return r.Host + ":" + r.Port }
 
 type Config struct {
 	AppPort                  string
+	BindAddr                 string
 	HostPort                 string
 	Environment              string
 	AppVersion               string
@@ -41,15 +42,16 @@ type Config struct {
 	Redis                    RedisConfig
 	LocalUploadDir           string
 	LocalUploadBaseURL       string
-	WordMatchDictDir         string
 	LLMBaseURL               string
 	LLMAPIKey                string
 	LLMModel                 string
+	RedmineAPIKey            string
 }
 
 func Load() Config {
 	return Config{
 		AppPort:                  getEnv("APP_PORT", "8080"),
+		BindAddr:                 getEnv("BIND_ADDR", ""),
 		HostPort:                 getEnv("HOST_PORT", "8888"),
 		Environment:              getEnv("APP_ENV", "local"),
 		AppVersion:               getEnv("APP_VERSION", "local"),
@@ -79,10 +81,10 @@ func Load() Config {
 		},
 		LocalUploadDir:     getEnv("LOCAL_UPLOAD_DIR", "/app/uploads"),
 		LocalUploadBaseURL: getEnv("LOCAL_UPLOAD_BASE_URL", "/uploads"),
-		WordMatchDictDir:   getEnv("WORDMATCH_DICT_DIR", "/app/words"),
 		LLMBaseURL:         getEnv("LLM_BASE_URL", ""),
 		LLMAPIKey:          getEnv("LLM_API_KEY", ""),
 		LLMModel:           getEnv("LLM_MODEL", "llama3"),
+		RedmineAPIKey:      getEnv("REDMINE_API_KEY", ""),
 	}
 }
 

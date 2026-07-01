@@ -108,9 +108,11 @@ export function useConversationsPaginated(pageSize = 10) {
 	}, [pageSize]);
 
 	const patchConversation = useCallback(
-		(id: number, patch: Partial<Conversation>) => {
+		(id: number, patch: Partial<Conversation> | ((c: Conversation) => Partial<Conversation>)) => {
 			setConversations((prev) => {
-				const next = prev.map((c) => (c.id === id ? { ...c, ...patch } : c));
+				const next = prev.map((c) =>
+					c.id === id ? { ...c, ...(typeof patch === "function" ? patch(c) : patch) } : c,
+				);
 				conversationsRef.current = next;
 				return next;
 			});
@@ -139,6 +141,17 @@ export function useConversationsPaginated(pageSize = 10) {
 		});
 	}, []);
 
+	// Move an existing conversation to the top of the list without changing its data.
+	const moveToTop = useCallback((id: number) => {
+		setConversations((prev) => {
+			const idx = prev.findIndex((c) => c.id === id);
+			if (idx <= 0) return prev;
+			const next = [prev[idx], ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+			conversationsRef.current = next;
+			return next;
+		});
+	}, []);
+
 	return {
 		conversations,
 		hasMore,
@@ -150,5 +163,6 @@ export function useConversationsPaginated(pageSize = 10) {
 		patchConversation,
 		removeConversation,
 		prependConversation,
+		moveToTop,
 	};
 }

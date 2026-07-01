@@ -21,6 +21,8 @@ func RegisterRoutes(r *gin.Engine, h *Handler, jwtSecret string) {
 		music.POST("/recent", h.AddRecent)
 
 		music.GET("/search-history", h.ListSearchHistory)
+		music.GET("/search/tracks", h.SearchSpotifyTracks)
+		music.GET("/recommendations", h.GetSpotifyRecommendations)
 		music.POST("/search-history", h.AddSearchHistory)
 		music.DELETE("/search-history", h.ClearSearchHistory)
 		music.DELETE("/search-history/:id", h.DeleteSearchHistory)

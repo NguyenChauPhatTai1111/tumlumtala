@@ -11,16 +11,10 @@ type Routes struct {
 
 func NewRoutes(
 	redisClient *redis.Client,
-	dictionaryDirectory, llmURL, llmKey, llmModel string,
-) (*Routes, error) {
-	validator, err := newLexiconValidator(
-		dictionaryDirectory,
-		newGroqValidator(llmURL, llmKey, llmModel),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &Routes{handler: newHandler(newHub(validator, redisClient))}, nil
+	llmURL, llmKey, llmModel string,
+) *Routes {
+	validator := newGroqValidator(llmURL, llmKey, llmModel)
+	return &Routes{handler: newHandler(newHub(validator, redisClient))}
 }
 
 func (r *Routes) Register(router *gin.RouterGroup) {

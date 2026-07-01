@@ -1213,7 +1213,7 @@ export default function MusicPage() {
     const trendingAlbumsQuery = useTrendingAlbumsQuery();
     const undergroundQuery = useUndergroundTrendingQuery();
 
-    // Seed = bài nghe gần nhất (chỉ audio Audius, không phải YouTube)
+    // Seed = bài nghe gần nhất (audio từ bất kỳ provider, không phải YouTube video)
     const seedItem = recentItems.find((i) => i.type === "audio");
     const recommendationsQuery = useRecommendationsQuery(seedItem?.sourceId);
     const artistRadioQuery = useArtistRadioQuery(selectedArtist);

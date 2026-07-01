@@ -19,9 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_Login_FullMethodName        = "/auth.AuthService/Login"
-	AuthService_RefreshToken_FullMethodName = "/auth.AuthService/RefreshToken"
-	AuthService_Logout_FullMethodName       = "/auth.AuthService/Logout"
+	AuthService_Login_FullMethodName                      = "/auth.AuthService/Login"
+	AuthService_RefreshToken_FullMethodName               = "/auth.AuthService/RefreshToken"
+	AuthService_Logout_FullMethodName                     = "/auth.AuthService/Logout"
+	AuthService_WebAuthnBeginRegistration_FullMethodName  = "/auth.AuthService/WebAuthnBeginRegistration"
+	AuthService_WebAuthnFinishRegistration_FullMethodName = "/auth.AuthService/WebAuthnFinishRegistration"
+	AuthService_WebAuthnBeginLogin_FullMethodName         = "/auth.AuthService/WebAuthnBeginLogin"
+	AuthService_WebAuthnFinishLogin_FullMethodName        = "/auth.AuthService/WebAuthnFinishLogin"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -31,6 +35,11 @@ type AuthServiceClient interface {
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
+	// WebAuthn / Passkey (Face ID) ceremonies
+	WebAuthnBeginRegistration(ctx context.Context, in *WebAuthnBeginRegistrationRequest, opts ...grpc.CallOption) (*WebAuthnBeginRegistrationResponse, error)
+	WebAuthnFinishRegistration(ctx context.Context, in *WebAuthnFinishRegistrationRequest, opts ...grpc.CallOption) (*WebAuthnFinishRegistrationResponse, error)
+	WebAuthnBeginLogin(ctx context.Context, in *WebAuthnBeginLoginRequest, opts ...grpc.CallOption) (*WebAuthnBeginLoginResponse, error)
+	WebAuthnFinishLogin(ctx context.Context, in *WebAuthnFinishLoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 }
 
 type authServiceClient struct {
@@ -71,6 +80,46 @@ func (c *authServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts 
 	return out, nil
 }
 
+func (c *authServiceClient) WebAuthnBeginRegistration(ctx context.Context, in *WebAuthnBeginRegistrationRequest, opts ...grpc.CallOption) (*WebAuthnBeginRegistrationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebAuthnBeginRegistrationResponse)
+	err := c.cc.Invoke(ctx, AuthService_WebAuthnBeginRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) WebAuthnFinishRegistration(ctx context.Context, in *WebAuthnFinishRegistrationRequest, opts ...grpc.CallOption) (*WebAuthnFinishRegistrationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebAuthnFinishRegistrationResponse)
+	err := c.cc.Invoke(ctx, AuthService_WebAuthnFinishRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) WebAuthnBeginLogin(ctx context.Context, in *WebAuthnBeginLoginRequest, opts ...grpc.CallOption) (*WebAuthnBeginLoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebAuthnBeginLoginResponse)
+	err := c.cc.Invoke(ctx, AuthService_WebAuthnBeginLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) WebAuthnFinishLogin(ctx context.Context, in *WebAuthnFinishLoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, AuthService_WebAuthnFinishLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -78,6 +127,11 @@ type AuthServiceServer interface {
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	RefreshToken(context.Context, *RefreshTokenRequest) (*LoginResponse, error)
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
+	// WebAuthn / Passkey (Face ID) ceremonies
+	WebAuthnBeginRegistration(context.Context, *WebAuthnBeginRegistrationRequest) (*WebAuthnBeginRegistrationResponse, error)
+	WebAuthnFinishRegistration(context.Context, *WebAuthnFinishRegistrationRequest) (*WebAuthnFinishRegistrationResponse, error)
+	WebAuthnBeginLogin(context.Context, *WebAuthnBeginLoginRequest) (*WebAuthnBeginLoginResponse, error)
+	WebAuthnFinishLogin(context.Context, *WebAuthnFinishLoginRequest) (*LoginResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -96,6 +150,18 @@ func (UnimplementedAuthServiceServer) RefreshToken(context.Context, *RefreshToke
 }
 func (UnimplementedAuthServiceServer) Logout(context.Context, *LogoutRequest) (*LogoutResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedAuthServiceServer) WebAuthnBeginRegistration(context.Context, *WebAuthnBeginRegistrationRequest) (*WebAuthnBeginRegistrationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WebAuthnBeginRegistration not implemented")
+}
+func (UnimplementedAuthServiceServer) WebAuthnFinishRegistration(context.Context, *WebAuthnFinishRegistrationRequest) (*WebAuthnFinishRegistrationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WebAuthnFinishRegistration not implemented")
+}
+func (UnimplementedAuthServiceServer) WebAuthnBeginLogin(context.Context, *WebAuthnBeginLoginRequest) (*WebAuthnBeginLoginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WebAuthnBeginLogin not implemented")
+}
+func (UnimplementedAuthServiceServer) WebAuthnFinishLogin(context.Context, *WebAuthnFinishLoginRequest) (*LoginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WebAuthnFinishLogin not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -172,6 +238,78 @@ func _AuthService_Logout_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_WebAuthnBeginRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WebAuthnBeginRegistrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).WebAuthnBeginRegistration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_WebAuthnBeginRegistration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).WebAuthnBeginRegistration(ctx, req.(*WebAuthnBeginRegistrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_WebAuthnFinishRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WebAuthnFinishRegistrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).WebAuthnFinishRegistration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_WebAuthnFinishRegistration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).WebAuthnFinishRegistration(ctx, req.(*WebAuthnFinishRegistrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_WebAuthnBeginLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WebAuthnBeginLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).WebAuthnBeginLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_WebAuthnBeginLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).WebAuthnBeginLogin(ctx, req.(*WebAuthnBeginLoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_WebAuthnFinishLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WebAuthnFinishLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).WebAuthnFinishLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_WebAuthnFinishLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).WebAuthnFinishLogin(ctx, req.(*WebAuthnFinishLoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +328,22 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Logout",
 			Handler:    _AuthService_Logout_Handler,
+		},
+		{
+			MethodName: "WebAuthnBeginRegistration",
+			Handler:    _AuthService_WebAuthnBeginRegistration_Handler,
+		},
+		{
+			MethodName: "WebAuthnFinishRegistration",
+			Handler:    _AuthService_WebAuthnFinishRegistration_Handler,
+		},
+		{
+			MethodName: "WebAuthnBeginLogin",
+			Handler:    _AuthService_WebAuthnBeginLogin_Handler,
+		},
+		{
+			MethodName: "WebAuthnFinishLogin",
+			Handler:    _AuthService_WebAuthnFinishLogin_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
