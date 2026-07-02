@@ -352,9 +352,6 @@ function ArtistDirectory({
                     <Typography noWrap fontWeight={750}>
                         {formatDisplayName(artist.name)}
                     </Typography>
-                    <Typography noWrap variant="caption" sx={{ color: "text.secondary" }}>
-                        @{artist.handle}
-                    </Typography>
                 </Box>
             ))}
         </Box>

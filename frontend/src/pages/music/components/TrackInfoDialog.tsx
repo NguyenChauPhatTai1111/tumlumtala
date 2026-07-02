@@ -35,7 +35,8 @@ import {
     getSpotifyArtistDiscography,
     getSpotifyTrack,
 } from "@services/musicBackendService";
-import { useLyricsQuery } from "@pages/music/hooks/useMusicQueries";
+import { useAudioFeaturesQuery, useLyricsQuery } from "@pages/music/hooks/useMusicQueries";
+import { AudioDNAPanel } from "./AudioDNAPanel";
 import { type ReactNode, useMemo } from "react";
 
 const ACCENT = "#f97316";
@@ -178,6 +179,8 @@ export function TrackInfoPanelContent({
             }),
         );
     };
+
+    const audioFeaturesQuery = useAudioFeaturesQuery(isSpotify ? spotifyRawId : null);
 
     const isLoading = item ? (isSpotify ? spotifyTrackQuery.isLoading : trackQuery.isLoading) : false;
 
@@ -390,6 +393,18 @@ export function TrackInfoPanelContent({
                                     </Stack>
                                 )}
                             </Box>
+                        )}
+
+                        {isSpotify && (
+                            <>
+                                <Divider sx={{ mx: 2.5 }} />
+                                <Box sx={{ px: 2.5, py: 2 }}>
+                                    <AudioDNAPanel
+                                        features={audioFeaturesQuery.data ?? null}
+                                        loading={audioFeaturesQuery.isLoading}
+                                    />
+                                </Box>
+                            </>
                         )}
 
                         <Divider sx={{ mx: 2.5 }} />

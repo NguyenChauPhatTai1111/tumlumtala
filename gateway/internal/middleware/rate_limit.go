@@ -18,6 +18,22 @@ func RateLimit(limitPerMinute int) gin.HandlerFunc {
 	var mu sync.Mutex
 	clients := make(map[string]rateState)
 
+	// Purge expired entries every minute to prevent unbounded memory growth.
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			now := time.Now()
+			mu.Lock()
+			for ip, state := range clients {
+				if now.After(state.resetTime) {
+					delete(clients, ip)
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+
 	return func(c *gin.Context) {
 		if limitPerMinute <= 0 {
 			c.Next()

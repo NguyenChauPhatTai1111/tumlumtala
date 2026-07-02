@@ -1,6 +1,7 @@
 import { UserSearchDialog } from "@components/messenger";
 import { Box, useMediaQuery, useTheme } from "@mui/material";
 import { useLocation } from "react-router-dom";
+import { useAppErrorStore } from "@store/appErrorStore";
 import { MiniChatWindow } from "./miniMessenger/MiniChatWindow";
 import { MiniConversationRail } from "./miniMessenger/MiniConversationRail";
 import { useMiniMessenger } from "./miniMessenger/hooks/useMiniMessenger";
@@ -9,6 +10,7 @@ export function MiniMessenger() {
 	const theme = useTheme();
 	const isSmallScreen = useMediaQuery(theme.breakpoints.down("md"));
 	const location = useLocation();
+	const hasBlockingError = useAppErrorStore((s) => s.hasBlockingError);
 
 	const {
 		currentUserId,
@@ -33,6 +35,7 @@ export function MiniMessenger() {
 	if (
 		!currentUserId ||
 		isSmallScreen ||
+		hasBlockingError ||
 		location.pathname.startsWith("/messenger")
 	) {
 		return null;

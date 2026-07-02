@@ -19,8 +19,17 @@ import {
     searchSpotifyPlaylists,
 } from "@services/musicBackendService";
 
-const AUDIUS_API = "https://discoveryprovider.audius.co/v1";
+const AUDIUS_API = "https://api.audius.co/v1";
 const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
+
+// Some providers (YouTube, Spotify) return text (title, description) with HTML entities
+// already escaped (e.g. "&#39;", "&amp;"), so it must be decoded before rendering as plain text.
+export const decodeHtmlEntities = (value: string): string => {
+    if (!value || !value.includes("&")) return value;
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = value;
+    return textarea.value;
+};
 
 interface AudiusResponse<T> {
     data: T;
@@ -50,6 +59,11 @@ interface YouTubeVideoStatsResponse {
         id: string;
         contentDetails?: { duration?: string };
         statistics?: { viewCount?: string };
+        status?: {
+            embeddable?: boolean;
+            privacyStatus?: string;
+            uploadStatus?: string;
+        };
     }>;
 }
 
@@ -386,6 +400,8 @@ export const searchYouTubeVideos = async (
                 part: "snippet",
                 q: query,
                 type: "video",
+                videoEmbeddable: "true",
+                videoSyndicated: "true",
                 maxResults: options.maxResults ?? 25,
                 ...(options.pageToken ? { pageToken: options.pageToken } : {}),
             },
@@ -399,8 +415,8 @@ export const searchYouTubeVideos = async (
         .filter((item) => item.id.videoId)
         .map<YouTubeVideo>((item) => ({
             id: item.id.videoId ?? "",
-            title: item.snippet.title,
-            channelTitle: item.snippet.channelTitle,
+            title: decodeHtmlEntities(item.snippet.title),
+            channelTitle: decodeHtmlEntities(item.snippet.channelTitle),
             thumbnail:
                 item.snippet.thumbnails.high?.url ??
                 item.snippet.thumbnails.medium?.url ??
@@ -417,7 +433,7 @@ export const searchYouTubeVideos = async (
         const response = await axios.get<YouTubeVideoStatsResponse>(`${YOUTUBE_API}/videos`, {
             params: {
                 key,
-                part: "statistics,contentDetails",
+                part: "statistics,contentDetails,status",
                 id: videos.map((v) => v.id).join(","),
             },
         });
@@ -438,9 +454,22 @@ export const searchYouTubeVideos = async (
             parseYouTubeDuration(item.contentDetails?.duration),
         ]),
     );
+    const hasStatusData = statsRes.items.length > 0;
+    const playableIds = new Set(
+        statsRes.items
+            .filter(
+                (item) =>
+                    item.status?.embeddable !== false &&
+                    item.status?.privacyStatus !== "private" &&
+                    item.status?.uploadStatus !== "deleted" &&
+                    item.status?.uploadStatus !== "rejected",
+            )
+            .map((item) => item.id),
+    );
 
     return {
         videos: videos
+            .filter((video) => !hasStatusData || playableIds.has(video.id))
             .map((v) => ({
                 ...v,
                 duration: durationsById.get(v.id),
@@ -451,8 +480,12 @@ export const searchYouTubeVideos = async (
     };
 };
 
-export const resolveSpotifyTrackPlayback = async (item: MediaItem): Promise<MediaItem | null> => {
+export const resolveSpotifyTrackPlayback = async (
+    item: MediaItem,
+    excludedVideoIds: Iterable<string> = [],
+): Promise<MediaItem | null> => {
     if (item.provider !== "spotify") return item;
+    const excludedIds = new Set(excludedVideoIds);
 
     const normalize = (value: string) =>
         value
@@ -461,26 +494,68 @@ export const resolveSpotifyTrackPlayback = async (item: MediaItem): Promise<Medi
             .toLowerCase()
             .replace(/[^\p{Letter}\p{Number}]+/gu, " ")
             .trim();
-    const title = normalize(item.title);
-    const artist = normalize(item.artist);
+
+    const rankVideos = (videos: Awaited<ReturnType<typeof searchYouTubeVideos>>["videos"]) => {
+        const title = normalize(item.title);
+        const artist = normalize(item.artist);
+        const expectedDuration = item.duration ?? 0;
+        // Use first artist name only (before comma/feat) for better matching
+        const primaryArtist = normalize(item.artist.split(/[,&(]/)[0].trim());
+        return videos
+            .filter((video) => {
+                if (excludedIds.has(video.id)) return false;
+                if (!video.duration || expectedDuration < 30) return true;
+                return (
+                    video.duration >= Math.max(30, expectedDuration * 0.35) &&
+                    video.duration <= expectedDuration * 2.25
+                );
+            })
+            .map((video) => {
+                const candidate = normalize(`${video.title} ${video.channelTitle}`);
+                let score = 0;
+                if (candidate.includes(title)) score += 8;
+                else if (title.split(" ").filter(w => w.length > 3).every(w => candidate.includes(w))) score += 5;
+                if (candidate.includes(artist)) score += 6;
+                else if (candidate.includes(primaryArtist)) score += 4;
+                if (/\bofficial\b|\baudio\b|\bmv\b/.test(candidate)) score += 2;
+                if (/\bcover\b|\bkaraoke\b|\breaction\b/.test(candidate)) score -= 5;
+                // Penalize remixes only when original has no "remix" in title
+                if (/\bremix\b/.test(candidate) && !/\bremix\b/.test(normalize(item.title))) score -= 4;
+                if (expectedDuration > 0 && video.duration) {
+                    const durationDelta =
+                        Math.abs(video.duration - expectedDuration) / expectedDuration;
+                    if (durationDelta <= 0.12) score += 6;
+                    else if (durationDelta <= 0.25) score += 3;
+                    else if (durationDelta > 0.55) score -= 8;
+                }
+                return { video, score };
+            })
+            .sort((a, b) => b.score - a.score || (b.video.viewCount ?? 0) - (a.video.viewCount ?? 0));
+    };
+
+    // Primary search
     const result = await searchYouTubeVideos(
         `${item.artist} - ${item.title} official audio`,
         { maxResults: 8 },
     );
-    const ranked = result.videos
-        .map((video) => {
-            const candidate = normalize(`${video.title} ${video.channelTitle}`);
-            let score = 0;
-            if (candidate.includes(title)) score += 8;
-            if (candidate.includes(artist)) score += 6;
-            if (/\bofficial\b|\baudio\b|\bmv\b/.test(candidate)) score += 2;
-            if (/\bcover\b|\bkaraoke\b|\breaction\b|\bremix\b/.test(candidate)) score -= 5;
-            return { video, score };
-        })
-        .sort((a, b) => b.score - a.score || (b.video.viewCount ?? 0) - (a.video.viewCount ?? 0));
+    let ranked = rankVideos(result.videos);
+    let best = ranked[0];
 
-    const best = ranked[0];
-    if (!best || best.score < 8) return null;
+    // Fallback: simpler query if no confident match
+    if (!best || best.score < 6) {
+        const fallback = await searchYouTubeVideos(
+            `${item.title} ${item.artist.split(/[,&(]/)[0].trim()}`,
+            { maxResults: 5 },
+        );
+        const fallbackRanked = rankVideos(fallback.videos);
+        if (!best || (fallbackRanked[0] && fallbackRanked[0].score > best.score)) {
+            ranked = fallbackRanked;
+            best = ranked[0];
+        }
+    }
+
+    // Accept any result that has at least a title match (score >= 5)
+    if (!best || best.score < 5) return null;
     return {
         ...item,
         videoId: best.video.id,

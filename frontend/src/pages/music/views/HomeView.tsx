@@ -1,23 +1,28 @@
-import { Box, Chip, Skeleton, Stack, Typography } from "@mui/material";
+import { alpha, Box, Chip, Stack, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
     getSpotifyCategories,
     getSpotifyCategoryPlaylists,
     getSpotifyFeaturedPlaylists,
     getSpotifyNewReleases,
 } from "@services/musicBackendService";
+import type { MusicMood } from "@services/musicBackendService";
 import { usePlayerStore } from "@store/playerStore";
 import { HScrollSection } from "../components/HScrollSection";
 import { ArtistCard } from "../components/ArtistCard";
+import { MediaItemCard } from "../components/MediaItemCard";
 import { PlaylistCard } from "../components/PlaylistCard";
 import { TrackCard } from "../components/TrackCard";
 import { SpotifyCollectionCard } from "../components/SpotifyCards";
+import { MoodFilterBar } from "../components/MoodFilterBar";
+import { ChartsPanel } from "../components/ChartsPanel";
 import { SP_GREEN } from "../constants";
 import { formatDisplayName } from "../utils";
 import { useMusicContext } from "../MusicContext";
 import {
     useBackendRecentQuery,
+    useGenreTracksQuery,
     useRecommendationsQuery,
     useTrendingAlbumsQuery,
     useTrendingArtistsQuery,
@@ -25,17 +30,14 @@ import {
     useTrendingQuery,
     useUndergroundTrendingQuery,
 } from "../hooks/useMusicQueries";
-import type { TrendingGenre, TrendingTimeFilter } from "../types";
-import { useMemo } from "react";
 
 export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElement | null> }) {
     const { selectArtist, selectPlaylist } = useMusicContext();
     const { currentItem, recentItems } = usePlayerStore();
-    const [trendingGenre, setTrendingGenre] = useState<TrendingGenre>("All");
-    const [trendingTime, setTrendingTime] = useState<TrendingTimeFilter>("week");
     const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+    const [activeMood, setActiveMood] = useState<MusicMood | null>(null);
 
-    const trendingQuery = useTrendingQuery({ genre: trendingGenre, time: trendingTime });
+    const trendingQuery = useTrendingQuery({ genre: "All", time: "week" });
     const trendingArtistsQuery = useTrendingArtistsQuery();
     const trendingPlaylistsQuery = useTrendingPlaylistsQuery();
     const trendingAlbumsQuery = useTrendingAlbumsQuery();
@@ -50,6 +52,19 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
     }, [currentItem, backendRecentQuery.data, recentItems]);
 
     const recommendationsQuery = useRecommendationsQuery(seedItem?.sourceId);
+
+    const recentTracks = useMemo(() => {
+        const items = backendRecentQuery.data?.length ? backendRecentQuery.data : recentItems;
+        return items.filter((i) => i.type === "audio").slice(0, 20);
+    }, [backendRecentQuery.data, recentItems]);
+
+    const seedGenre = useMemo(() => {
+        const genre = seedItem?.genre ?? recentTracks.find((i) => i.genre)?.genre;
+        return genre?.trim() || "pop";
+    }, [seedItem, recentTracks]);
+
+    const genreTracksQuery = useGenreTracksQuery(seedGenre);
+    const genreTracks = genreTracksQuery.data ?? [];
 
     const newReleasesQuery = useQuery({
         queryKey: ["spotify", "new-releases"],
@@ -66,10 +81,15 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
         queryFn: () => getSpotifyCategories(20),
         staleTime: 60 * 60 * 1000,
     });
+    const categories = categoriesQuery.data ?? [];
+    const resolvedCategoryId =
+        activeCategoryId && categories.some((category) => category.id === activeCategoryId)
+            ? activeCategoryId
+            : (categories[0]?.id ?? null);
     const categoryPlaylistsQuery = useQuery({
-        queryKey: ["spotify", "category-playlists", activeCategoryId],
-        queryFn: () => getSpotifyCategoryPlaylists(activeCategoryId!, 20),
-        enabled: Boolean(activeCategoryId),
+        queryKey: ["spotify", "category-playlists", resolvedCategoryId],
+        queryFn: () => getSpotifyCategoryPlaylists(resolvedCategoryId!, 20),
+        enabled: Boolean(resolvedCategoryId),
         staleTime: 15 * 60 * 1000,
     });
 
@@ -79,6 +99,8 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
     const trendingAlbums = trendingAlbumsQuery.data ?? [];
     const undergroundTracks = undergroundQuery.data ?? [];
     const recommendations = recommendationsQuery.data ?? [];
+    const activeCategory =
+        categories.find((category) => category.id === resolvedCategoryId) ?? categories[0];
 
     const recommendationReason = (reasons: string[]) => {
         if (reasons.includes("same_album")) return "Cùng album";
@@ -92,62 +114,54 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
     return (
         <Box
             ref={scrollRef}
-            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+            sx={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+                minHeight: 0,
+                overflow: "auto",
+                p: { xs: 2, md: 3 },
+                "& > *": { flexShrink: 0 },
+            }}
         >
-            <Box sx={{ mb: 3 }}>
-                <Typography
-                    sx={{ fontWeight: 900, fontSize: { xs: 24, md: 30 }, color: "text.primary", mb: 2 }}
-                >
-                    Chào mừng trở lại
-                </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
-                    {(["All", "Electronic", "Hip-Hop/Rap", "Pop", "Rock", "R&B/Soul", "Jazz", "House", "Techno", "Ambient", "Latin"] as TrendingGenre[]).map((g) => (
-                        <Chip
-                            key={g}
-                            label={g}
-                            size="small"
-                            onClick={() => setTrendingGenre(g)}
-                            sx={{
-                                bgcolor: trendingGenre === g ? SP_GREEN : "action.hover",
-                                color: trendingGenre === g ? "black" : "text.secondary",
-                                fontWeight: trendingGenre === g ? 700 : 400,
-                                "&:hover": { bgcolor: trendingGenre === g ? "#fb923c" : "action.selected" },
-                            }}
-                        />
-                    ))}
-                </Stack>
-                <Stack direction="row" spacing={0.75}>
-                    {([["week", "Tuần này"], ["month", "Tháng này"], ["allTime", "Mọi thời đại"]] as [TrendingTimeFilter, string][]).map(([t, label]) => (
-                        <Chip
-                            key={t}
-                            label={label}
-                            size="small"
-                            onClick={() => setTrendingTime(t)}
-                            sx={{
-                                bgcolor: trendingTime === t ? "action.selected" : "transparent",
-                                color: trendingTime === t ? "text.primary" : "text.disabled",
-                                border: "1px solid",
-                                borderColor: "divider",
-                                fontWeight: trendingTime === t ? 700 : 400,
-                                "&:hover": { bgcolor: "action.hover" },
-                            }}
-                        />
-                    ))}
-                </Stack>
-            </Box>
+            <MoodFilterBar activeMood={activeMood} onMoodChange={setActiveMood} />
+
+            <ChartsPanel />
 
             {seedItem && (
+                <Box sx={{ order: -2, flexShrink: 0 }}>
+                    <HScrollSection
+                        title={`Vì bạn đã nghe "${formatDisplayName(seedItem.title)}"`}
+                        loading={recommendationsQuery.isLoading}
+                    >
+                        {recommendations.map((track) => (
+                            <TrackCard
+                                key={track.id}
+                                track={track}
+                                queue={recommendations}
+                                recommendationReason={recommendationReason(track.reasons)}
+                            />
+                        ))}
+                    </HScrollSection>
+                </Box>
+            )}
+
+            {recentTracks.length > 0 && (
+                <HScrollSection title="Đã nghe gần đây" loading={backendRecentQuery.isLoading}>
+                    {recentTracks.map((item) => (
+                        <MediaItemCard key={item.id} item={item} queue={recentTracks} />
+                    ))}
+                </HScrollSection>
+            )}
+
+            {(genreTracksQuery.isLoading || genreTracks.length > 0) && (
                 <HScrollSection
-                    title={`Vì bạn đã nghe "${formatDisplayName(seedItem.title)}"`}
-                    loading={recommendationsQuery.isLoading}
+                    title={`Cùng thể loại "${formatDisplayName(seedGenre)}"`}
+                    meta="Tìm theo genre từ Spotify"
+                    loading={genreTracksQuery.isLoading}
                 >
-                    {recommendations.map((track) => (
-                        <TrackCard
-                            key={track.id}
-                            track={track}
-                            queue={recommendations}
-                            recommendationReason={recommendationReason(track.reasons)}
-                        />
+                    {genreTracks.map((track) => (
+                        <TrackCard key={track.id} track={track} queue={genreTracks} />
                     ))}
                 </HScrollSection>
             )}
@@ -194,40 +208,131 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
                 ))}
             </HScrollSection>
 
-            {(categoriesQuery.data ?? []).length > 0 && (
-                <Box sx={{ mb: 4 }}>
-                    <Typography sx={{ fontWeight: 800, fontSize: 18, mb: 1.5 }}>
-                        Khám phá theo thể loại
-                    </Typography>
-                    <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: "auto", pb: 0.5 }}>
-                        {(categoriesQuery.data ?? []).map((cat) => (
-                            <Chip
-                                key={cat.id}
-                                label={cat.name}
-                                onClick={() => setActiveCategoryId((prev) => prev === cat.id ? null : cat.id)}
+            {categories.length > 0 && (
+                <Box
+                    component="section"
+                    sx={{
+                        position: "relative",
+                        flexShrink: 0,
+                        overflow: "hidden",
+                        order: -1,
+                        mb: 4,
+                        p: { xs: 2, md: 2.5 },
+                        borderRadius: 3,
+                        border: "1px solid",
+                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.16),
+                        bgcolor: (theme) =>
+                            theme.palette.mode === "light"
+                                ? alpha(theme.palette.primary.main, 0.035)
+                                : alpha(theme.palette.common.white, 0.025),
+                        backgroundImage: (theme) =>
+                            `radial-gradient(circle at 92% 0%, ${alpha(
+                                theme.palette.primary.main,
+                                theme.palette.mode === "light" ? 0.1 : 0.08,
+                            )}, transparent 34%)`,
+                    }}
+                >
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "flex-end",
+                            justifyContent: "space-between",
+                            gap: 2,
+                            mb: 2,
+                        }}
+                    >
+                        <Box>
+                            <Typography
                                 sx={{
-                                    flexShrink: 0,
-                                    fontWeight: 700,
-                                    bgcolor: activeCategoryId === cat.id ? "text.primary" : "action.selected",
-                                    color: activeCategoryId === cat.id ? "background.default" : "text.primary",
+                                    fontSize: { xs: 22, md: 26 },
+                                    fontWeight: 900,
+                                    letterSpacing: "-0.035em",
                                 }}
-                            />
-                        ))}
+                            >
+                                Khám phá theo thể loại
+                            </Typography>
+                            <Typography sx={{ mt: 0.35, color: "text.secondary", fontSize: 13 }}>
+                                Chọn một không gian âm nhạc, rồi bắt đầu từ playlist phù hợp.
+                            </Typography>
+                        </Box>
+                        <Typography
+                            sx={{
+                                display: { xs: "none", sm: "block" },
+                                color: "text.disabled",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                            }}
+                        >
+                            {categories.length} thể loại
+                        </Typography>
+                    </Box>
+
+                    <Stack
+                        direction="row"
+                        useFlexGap
+                        flexWrap="wrap"
+                        gap={1}
+                        sx={{ mb: 2.5 }}
+                    >
+                        {categories.map((category) => {
+                            const selected = category.id === activeCategory?.id;
+                            return (
+                                <Chip
+                                    key={category.id}
+                                    label={category.name}
+                                    clickable
+                                    onClick={() => setActiveCategoryId(category.id)}
+                                    aria-pressed={selected}
+                                    sx={{
+                                        height: 36,
+                                        borderRadius: "18px",
+                                        border: "1px solid",
+                                        borderColor: selected
+                                            ? SP_GREEN
+                                            : alpha(SP_GREEN, 0.2),
+                                        bgcolor: selected ? SP_GREEN : "action.selected",
+                                        color: selected ? "#17120f" : "text.primary",
+                                        fontWeight: 750,
+                                        transition:
+                                            "transform 200ms ease, border-color 200ms ease, background-color 200ms ease",
+                                        "& .MuiChip-label": { px: 1.75 },
+                                        "&:hover": {
+                                            transform: "translateY(-1px)",
+                                            borderColor: SP_GREEN,
+                                            bgcolor: selected ? "#fb923c" : alpha(SP_GREEN, 0.12),
+                                        },
+                                        "&:active": { transform: "translateY(0) scale(.97)" },
+                                        "&:focus-visible": {
+                                            outline: `2px solid ${SP_GREEN}`,
+                                            outlineOffset: 2,
+                                        },
+                                    }}
+                                />
+                            );
+                        })}
                     </Stack>
-                    {activeCategoryId && (
-                        categoryPlaylistsQuery.isLoading ? (
-                            <Stack direction="row" spacing={2}>
-                                {Array.from({ length: 6 }).map((_, i) => (
-                                    <Skeleton key={i} variant="rounded" width={160} height={200} />
-                                ))}
-                            </Stack>
-                        ) : (
-                            <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 }, "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 } }}>
+
+                    {activeCategory && (
+                        <Box sx={{ pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
+                            <HScrollSection
+                                title={`Playlist ${activeCategory.name}`}
+                                meta="Tuyển chọn từ Spotify"
+                                loading={categoryPlaylistsQuery.isLoading}
+                                mb={0}
+                            >
                                 {(categoryPlaylistsQuery.data ?? []).map((item) => (
                                     <SpotifyCollectionCard key={item.id} item={item} />
                                 ))}
-                            </Box>
-                        )
+                            </HScrollSection>
+                            {!categoryPlaylistsQuery.isLoading &&
+                                (categoryPlaylistsQuery.data ?? []).length === 0 && (
+                                    <Typography sx={{ py: 2, color: "text.disabled", fontSize: 13 }}>
+                                        Chưa có playlist phù hợp cho thể loại này.
+                                    </Typography>
+                                )}
+                        </Box>
                     )}
                 </Box>
             )}

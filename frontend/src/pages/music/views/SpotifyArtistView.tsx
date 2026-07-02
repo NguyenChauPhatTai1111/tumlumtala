@@ -16,6 +16,7 @@ import { useState } from "react";
 import { getSpotifyAlbumTracks, getSpotifyArtistAllAlbums } from "@services/musicBackendService";
 import type { SpotifyArtistResponse } from "@services/musicBackendService";
 import { usePlayerStore } from "@store/playerStore";
+import { HScrollSection } from "../components/HScrollSection";
 import { TrackOptionsButton } from "../components/TrackOptionsButton";
 import { AlbumCard, RelatedArtistCard, SpotifyCollectionCard } from "../components/SpotifyCards";
 import { SP_GREEN } from "../constants";
@@ -338,43 +339,62 @@ export function SpotifyArtistView({
             {/* Discography */}
             {discography.length > 0 && (
                 <Box sx={{ mb: 5 }}>
-                    {sectionLabel("Discography", albums_total > discography.length ? `${albums_total} releases` : undefined)}
-                    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                        {([
-                            ["popular", "Popular releases"],
-                            ["albums", "Albums"],
-                            ["singles", "Singles and EPs"],
-                        ] as const).map(([value, label]) => (
-                            <Chip
-                                key={value}
-                                label={label}
-                                onClick={() => setDiscographyTab(value)}
-                                sx={{
-                                    bgcolor: discographyTab === value ? "text.primary" : "action.selected",
-                                    color: discographyTab === value ? "background.default" : "text.primary",
-                                    fontWeight: 700,
-                                }}
-                            />
-                        ))}
-                    </Stack>
-                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 }, "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 } }}>
+                    <HScrollSection
+                        title="Discography"
+                        meta={
+                            albums_total > discography.length
+                                ? `${albums_total} releases`
+                                : undefined
+                        }
+                        mb={0}
+                        headerContent={
+                            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                                {([
+                                    ["popular", "Popular releases"],
+                                    ["albums", "Albums"],
+                                    ["singles", "Singles and EPs"],
+                                ] as const).map(([value, label]) => (
+                                    <Chip
+                                        key={value}
+                                        label={label}
+                                        onClick={() => setDiscographyTab(value)}
+                                        sx={{
+                                            bgcolor:
+                                                discographyTab === value
+                                                    ? "text.primary"
+                                                    : "action.selected",
+                                            color:
+                                                discographyTab === value
+                                                    ? "background.default"
+                                                    : "text.primary",
+                                            fontWeight: 700,
+                                        }}
+                                    />
+                                ))}
+                            </Stack>
+                        }
+                    >
                         {visibleDiscography.map((album) => (
                             <AlbumCard key={album.id} album={album} />
                         ))}
-                    </Box>
+                    </HScrollSection>
                 </Box>
             )}
 
             {/* Featuring */}
             {featuring.length > 0 && (
-                <Box sx={{ mb: 4 }}>
-                    {sectionLabel("Featuring " + artist.name, appears_total > featuring.length ? `${appears_total} releases` : undefined)}
-                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 }, "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 } }}>
-                        {featuring.map((album) => (
-                            <AlbumCard key={album.id} album={album} />
-                        ))}
-                    </Box>
-                </Box>
+                <HScrollSection
+                    title={`Featuring ${artist.name}`}
+                    meta={
+                        appears_total > featuring.length
+                            ? `${appears_total} releases`
+                            : undefined
+                    }
+                >
+                    {featuring.map((album) => (
+                        <AlbumCard key={album.id} album={album} />
+                    ))}
+                </HScrollSection>
             )}
 
             {/* About */}
@@ -456,25 +476,19 @@ export function SpotifyArtistView({
             </Box>
 
             {playlists.length > 0 && (
-                <Box sx={{ mb: 5 }}>
-                    {sectionLabel("Artist Playlists")}
-                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1 }}>
-                        {playlists.map((playlist) => (
-                            <SpotifyCollectionCard key={playlist.id} item={playlist} />
-                        ))}
-                    </Box>
-                </Box>
+                <HScrollSection title="Artist Playlists">
+                    {playlists.map((playlist) => (
+                        <SpotifyCollectionCard key={playlist.id} item={playlist} />
+                    ))}
+                </HScrollSection>
             )}
 
             {related_artists.length > 0 && (
-                <Box sx={{ mb: 5 }}>
-                    {sectionLabel("Fans also like")}
-                    <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1 }}>
-                        {related_artists.map((relatedArtist) => (
-                            <RelatedArtistCard key={relatedArtist.id} artist={relatedArtist} />
-                        ))}
-                    </Box>
-                </Box>
+                <HScrollSection title="Fans also like">
+                    {related_artists.map((relatedArtist) => (
+                        <RelatedArtistCard key={relatedArtist.id} artist={relatedArtist} />
+                    ))}
+                </HScrollSection>
             )}
         </Box>
     );

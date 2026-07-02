@@ -12,12 +12,16 @@ import {
     getMusicPlaylists,
     getMusicSearchHistory,
     getRecentMusic,
+    getSpotifyAudioFeatures,
+    getSpotifyChartsByMarket,
+    getSpotifyMoodRecommendations,
     getSpotifyPlaylistTracks,
+    getSpotifyTracksByGenre,
     likeMusic,
     removeMusicLibraryItem,
     unlikeMusic,
 } from "@services/musicBackendService";
-import type { AddMusicLibraryItem } from "@services/musicBackendService";
+import type { AddMusicLibraryItem, MusicMood } from "@services/musicBackendService";
 import {
     getArtistAlbums,
     getArtistFollowers,
@@ -106,6 +110,15 @@ export const useUndergroundTrendingQuery = () =>
         retry: false,
     });
 
+export const useGenreTracksQuery = (genre: string | undefined) =>
+    useQuery({
+        queryKey: ["music", "genre-tracks", genre],
+        queryFn: () => getSpotifyTracksByGenre(genre!),
+        enabled: Boolean(genre),
+        staleTime: 15 * 60 * 1000,
+        retry: false,
+    });
+
 export const useRecommendationsQuery = (seedTrackId: string | undefined) =>
     useQuery({
         queryKey: ["music", "recommendations", seedTrackId],
@@ -187,12 +200,12 @@ export const usePlaylistsQuery = (searchKeyword: string, enabled: boolean) =>
 const isAudiusId = (id: string | undefined): boolean =>
     Boolean(id) && !id!.startsWith("spotify:") && id!.length <= 13;
 
-export const useSpotifyPlaylistTracksQuery = (playlistId: string | undefined) =>
+export const useSpotifyPlaylistTracksQuery = (playlistId: string | undefined, playlistName?: string) =>
     useQuery({
         queryKey: ["spotify-playlist-tracks", playlistId],
         queryFn: async () => {
             if (!playlistId) return { tracks: [], total: 0 };
-            return getSpotifyPlaylistTracks(playlistId, 50, 0);
+            return getSpotifyPlaylistTracks(playlistId, 50, 0, playlistName);
         },
         enabled: Boolean(playlistId),
         staleTime: 5 * 60 * 1000,
@@ -390,6 +403,35 @@ export const useDeleteSearchHistoryMutation = () => {
         },
     });
 };
+
+// ─── Audio Features ───────────────────────────────────────────────────────────
+
+export const useAudioFeaturesQuery = (spotifyTrackId: string | null | undefined) =>
+    useQuery({
+        queryKey: ["music", "audio-features", spotifyTrackId],
+        queryFn: () => getSpotifyAudioFeatures(spotifyTrackId!),
+        enabled: Boolean(spotifyTrackId),
+        staleTime: 60 * 60 * 1000,
+        retry: false,
+    });
+
+export const useMoodRecommendationsQuery = (mood: MusicMood | null, seedGenre?: string) =>
+    useQuery({
+        queryKey: ["music", "mood-recommendations", mood, seedGenre],
+        queryFn: () => getSpotifyMoodRecommendations({ mood: mood!, seedGenre, limit: 24 }),
+        enabled: Boolean(mood),
+        staleTime: 10 * 60 * 1000,
+        retry: false,
+    });
+
+export const useChartsQuery = (market: string | null) =>
+    useQuery({
+        queryKey: ["music", "charts", market],
+        queryFn: () => getSpotifyChartsByMarket(market!, 20),
+        enabled: Boolean(market),
+        staleTime: 15 * 60 * 1000,
+        retry: false,
+    });
 
 export const useClearSearchHistoryMutation = () => {
     const queryClient = useQueryClient();

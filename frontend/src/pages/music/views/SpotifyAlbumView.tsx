@@ -5,7 +5,6 @@ import {
     Avatar,
     Box,
     Button,
-    Skeleton,
     Stack,
     Typography,
 } from "@mui/material";
@@ -14,6 +13,7 @@ import { useState } from "react";
 import { getSpotifyAlbumTracks, getSpotifyArtistDiscography } from "@services/musicBackendService";
 import type { SpotifyAlbumDetail } from "@services/musicBackendService";
 import { usePlayerStore } from "@store/playerStore";
+import { HScrollSection } from "../components/HScrollSection";
 import { TrackOptionsButton } from "../components/TrackOptionsButton";
 import { AlbumCard } from "../components/SpotifyCards";
 import { SP_GREEN } from "../constants";
@@ -243,31 +243,16 @@ export function SpotifyAlbumView({
             )}
 
             <Box sx={{ mt: 5 }}>
-                <Typography sx={{ mb: 2, fontWeight: 900, fontSize: 22 }}>
-                    More by {data.artist_name}
-                </Typography>
-                {artistQuery.isLoading ? (
-                    <Stack direction="row" spacing={2}>
-                        {Array.from({ length: 5 }).map((_, index) => (
-                            <Skeleton key={index} variant="rounded" width={140} height={180} />
-                        ))}
-                    </Stack>
-                ) : moreByArtist.length > 0 ? (
-                    <Box
-                        sx={{
-                            display: "flex",
-                            gap: 2,
-                            overflowX: "auto",
-                            pb: 1,
-                            "&::-webkit-scrollbar": { height: 4 },
-                            "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 },
-                        }}
-                    >
-                        {moreByArtist.map((album) => (
-                            <AlbumCard key={album.id} album={album} />
-                        ))}
-                    </Box>
-                ) : (
+                <HScrollSection
+                    title={`More by ${data.artist_name}`}
+                    loading={artistQuery.isLoading}
+                    mb={0}
+                >
+                    {moreByArtist.map((album) => (
+                        <AlbumCard key={album.id} album={album} />
+                    ))}
+                </HScrollSection>
+                {!artistQuery.isLoading && moreByArtist.length === 0 && (
                     <Typography sx={{ color: "text.disabled", fontSize: 13 }}>
                         Chưa có thêm bản phát hành nào.
                     </Typography>

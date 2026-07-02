@@ -151,6 +151,7 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 
 	authService := authservice.NewAuthService(authgrpc.NewAuthClient(grpcRegistry.Clients.Auth))
 	userService := userservice.NewUserService(usergrpc.NewUserClient(grpcRegistry.Clients.User))
+	cachedUserChecker := middleware.NewCachedUserChecker(userService, redisClient)
 	authHandler := authhttp.NewAuthHandler(authService)
 
 	var avatarUploader userhttp.AvatarUploader
@@ -196,7 +197,7 @@ func buildRouter(cfg config.Config, log zerolog.Logger, grpcRegistry *sharedgrpc
 	})))
 	httproutes.RegisterRoutes(router, httproutes.RegisterOptions{
 		Logger:    log,
-		Auth:      middleware.Auth(jwtVerifier, userService),
+		Auth:      middleware.Auth(jwtVerifier, cachedUserChecker),
 		Timeout:   middleware.Timeout(cfg.RequestTimeout),
 		RateLimit: middleware.RateLimit(cfg.RateLimitPerMin),
 	},

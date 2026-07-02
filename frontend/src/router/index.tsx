@@ -2,11 +2,6 @@
 import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@components/layout/AppLayout";
-import { LoginPage } from "@pages/auth/Login";
-import { RegisterPage } from "@pages/auth/Register";
-import { UsersPage } from "@pages/users/UsersPage";
-import { DashboardPage } from "@pages/DashboardPage";
-import { LandingPage } from "@pages/LandingPage";
 import NotFound from "@pages/NotFound";
 import { AuthGuard, GuestGuard } from "./AuthGuard";
 import MoviePageWrapper from "./MoviePageWrapper";
@@ -15,6 +10,11 @@ import MusicPageWrapper from "./MusicPageWrapper";
 import { RouteErrorPage } from "@components/common/RouteErrorPage";
 import { PermissionRoute } from "@components/common/PermissionRoute";
 
+const LoginPage = lazy(() => import("@pages/auth/Login").then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import("@pages/auth/Register").then((m) => ({ default: m.RegisterPage })));
+const LandingPage = lazy(() => import("@pages/LandingPage").then((m) => ({ default: m.LandingPage })));
+const DashboardPage = lazy(() => import("@pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const UsersPage = lazy(() => import("@pages/users/UsersPage").then((m) => ({ default: m.UsersPage })));
 const MoviePage = lazy(() => import("@pages/movie/MoviePage"));
 const WordMatchPage = lazy(() => import("@pages/wordmatch/WordMatchPage").then((m) => ({ default: m.WordMatchPage })));
 const WordChainPage = lazy(() => import("@pages/wordchain/WordChainPage"));
@@ -26,8 +26,8 @@ export const router = createBrowserRouter([
     element: <GuestGuard />,
     errorElement: <RouteErrorPage />,
     children: [
-      { path: "/login", element: <LoginPage /> },
-      { path: "/register", element: <RegisterPage /> },
+      { path: "/login", element: <Suspense fallback={null}><LoginPage /></Suspense> },
+      { path: "/register", element: <Suspense fallback={null}><RegisterPage /></Suspense> },
     ],
   },
   {
@@ -39,7 +39,7 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         errorElement: <RouteErrorPage />,
         children: [
-          { path: "/", element: <LandingPage /> },
+          { path: "/", element: <Suspense fallback={null}><LandingPage /></Suspense> },
           { path: "/wordmatch", element: <Suspense fallback={null}><WordMatchPage /></Suspense> },
           { path: "/word-chain", element: <Suspense fallback={null}><WordChainPage /></Suspense> },
           { path: "/auto-task", element: <Suspense fallback={null}><AutoTaskPage /></Suspense> },
@@ -48,7 +48,7 @@ export const router = createBrowserRouter([
             path: "/dashboard",
             element: (
               <PermissionRoute resource="dashboard">
-                <DashboardPage />
+                <Suspense fallback={null}><DashboardPage /></Suspense>
               </PermissionRoute>
             ),
           },
@@ -56,7 +56,7 @@ export const router = createBrowserRouter([
             path: "/users",
             element: (
               <PermissionRoute resource="user">
-                <UsersPage />
+                <Suspense fallback={null}><UsersPage /></Suspense>
               </PermissionRoute>
             ),
           },

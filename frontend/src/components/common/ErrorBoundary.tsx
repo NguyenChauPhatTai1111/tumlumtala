@@ -5,6 +5,7 @@ import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { Box, Button, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import React, { type ReactElement, type ReactNode } from "react";
+import { useAppErrorStore } from "@store/appErrorStore";
 
 interface Props {
   children: ReactNode;
@@ -51,6 +52,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
+    // Hide persistent overlays (bottom player, mini chat) while the error page shows.
+    useAppErrorStore.getState().setBlockingError(true);
+  }
+
+  public componentWillUnmount() {
+    if (this.state.hasError) {
+      useAppErrorStore.getState().setBlockingError(false);
+    }
   }
 
   public render(): ReactElement {
@@ -345,6 +354,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               startIcon={<HomeRoundedIcon />}
               color="error"
               onClick={() => {
+                useAppErrorStore.getState().setBlockingError(false);
                 this.setState({ hasError: false, error: null });
                 window.location.href = "/";
               }}

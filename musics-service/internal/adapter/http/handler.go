@@ -171,12 +171,17 @@ func (h *Handler) GetSpotifyDiscovery(c *gin.Context) {
 	)
 	switch section {
 	case "tracks":
-		data, err = h.spotify.DiscoverTracks(
-			c.Request.Context(),
-			c.Query("genre"),
-			c.DefaultQuery("time", "week"),
-			limit,
-		)
+		market := strings.ToUpper(strings.TrimSpace(c.Query("market")))
+		if market != "" {
+			data, err = h.spotify.DiscoverTracksByMarket(c.Request.Context(), market, limit)
+		} else {
+			data, err = h.spotify.DiscoverTracks(
+				c.Request.Context(),
+				c.Query("genre"),
+				c.DefaultQuery("time", "week"),
+				limit,
+			)
+		}
 	case "artists":
 		data, err = h.spotify.DiscoverArtists(c.Request.Context(), limit)
 	case "albums":
@@ -189,7 +194,9 @@ func (h *Handler) GetSpotifyDiscovery(c *gin.Context) {
 	}
 	if err != nil {
 		log.Printf("spotify discovery %s error: %v", section, err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy dữ liệu khám phá Spotify", http.StatusBadGateway))
+		// Return empty list instead of error — discovery is non-critical
+		c.Header("X-Music-Provider", "spotify")
+		responses.ResponseSuccess(c, http.StatusOK, "lấy dữ liệu khám phá Spotify thành công", responses.ResponseData{Data: data})
 		return
 	}
 	c.Header("X-Music-Provider", "spotify")
@@ -209,11 +216,23 @@ func (h *Handler) GetSpotifyTrack(c *gin.Context) {
 	track, err := h.spotify.GetTrack(c.Request.Context(), trackID)
 	if err != nil {
 		log.Printf("spotify get track error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin bài hát", http.StatusBadGateway))
+		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin bài hát", http.StatusServiceUnavailable))
 		return
 	}
 	c.Header("X-Music-Provider", "spotify")
 	responses.ResponseSuccess(c, http.StatusOK, "lấy thông tin bài hát thành công", responses.ResponseData{Data: track})
+}
+
+// moodSearchQuery maps mood names (sent via query params as target_* combos) to Spotify search queries.
+// The /recommendations and /audio-features endpoints were removed from Spotify Web API in Nov 2024,
+// so we approximate mood-based discovery using genre + keyword search instead.
+var moodSearchQueries = map[string][]string{
+	"happy":   {`genre:"pop" mood:happy`, `genre:"dance pop"`, `genre:"funk"`},
+	"sad":     {`genre:"sad indie"`, `genre:"acoustic" mood:sad`, `genre:"blues"`},
+	"focus":   {`genre:"ambient"`, `genre:"classical"`, `genre:"lo-fi"`},
+	"workout": {`genre:"edm"`, `genre:"hip-hop" energy:high`, `genre:"rock"`},
+	"chill":   {`genre:"chill"`, `genre:"indie pop"`, `genre:"chillwave"`},
+	"party":   {`genre:"dance"`, `genre:"electro pop"`, `genre:"disco"`},
 }
 
 func (h *Handler) GetSpotifyRecommendations(c *gin.Context) {
@@ -224,12 +243,31 @@ func (h *Handler) GetSpotifyRecommendations(c *gin.Context) {
 	seedArtist := strings.TrimSpace(c.Query("seed_artist"))
 	seedGenre := strings.TrimSpace(c.Query("seed_genre"))
 	seedTrack := strings.TrimSpace(c.Query("seed_track"))
+	mood := strings.TrimSpace(c.Query("mood"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "12"))
 	if limit < 1 {
 		limit = 12
 	}
+
+	// Mood-based: use curated search queries (Spotify removed /recommendations Nov 2024).
+	if mood != "" {
+		queries, ok := moodSearchQueries[mood]
+		if !ok {
+			queries = []string{`genre:"pop"`}
+		}
+		tracks, err := h.spotify.SearchTracksByQueries(c.Request.Context(), queries, limit)
+		if err != nil {
+			log.Printf("spotify mood search error (mood=%s): %v", mood, err)
+			responses.ResponseSuccess(c, http.StatusOK, "Spotify tạm không khả dụng", responses.ResponseData{Data: []spotify.Track{}})
+			return
+		}
+		c.Header("X-Music-Provider", "spotify")
+		responses.ResponseSuccess(c, http.StatusOK, "lấy gợi ý thành công", responses.ResponseData{Data: tracks})
+		return
+	}
+
 	if seedTrack == "" && seedArtist == "" && seedGenre == "" {
-		responses.ResponseError(c, responses.ErrBadRequest("cần ít nhất một trong seed_track, seed_artist hoặc seed_genre"))
+		responses.ResponseError(c, responses.ErrBadRequest("cần ít nhất một trong mood, seed_track, seed_artist hoặc seed_genre"))
 		return
 	}
 
@@ -256,7 +294,7 @@ func (h *Handler) GetSpotifyArtist(c *gin.Context) {
 	detail, err := h.spotify.GetArtist(c.Request.Context(), artistID)
 	if err != nil {
 		log.Printf("spotify get artist error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin nghệ sĩ", http.StatusBadGateway))
+		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin nghệ sĩ", http.StatusServiceUnavailable))
 		return
 	}
 
@@ -386,10 +424,10 @@ func (h *Handler) GetSpotifyArtistDiscography(c *gin.Context) {
 	artist, err := h.spotify.GetArtist(c.Request.Context(), artistID)
 	if err != nil {
 		log.Printf("spotify get artist for discography error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin nghệ sĩ", http.StatusBadGateway))
+		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin nghệ sĩ", http.StatusServiceUnavailable))
 		return
 	}
-	albums, total, err := h.spotify.GetArtistAlbums(c.Request.Context(), artistID, 50, 0)
+	albums, total, err := h.spotify.GetArtistAlbums(c.Request.Context(), artistID, 20, 0)
 	if err != nil || len(albums) == 0 {
 		if err != nil {
 			log.Printf("spotify get artist discography fallback to search: %v", err)
@@ -411,7 +449,7 @@ func (h *Handler) GetSpotifyArtistDiscography(c *gin.Context) {
 			total = len(albums)
 			err = nil
 		} else if err != nil {
-			responses.ResponseError(c, responses.NewError("Không thể lấy discography nghệ sĩ", http.StatusBadGateway))
+			responses.ResponseError(c, responses.NewError("Không thể lấy discography nghệ sĩ", http.StatusServiceUnavailable))
 			return
 		}
 	}
@@ -437,7 +475,7 @@ func (h *Handler) GetSpotifyAlbum(c *gin.Context) {
 	album, err := h.spotify.GetAlbum(c.Request.Context(), albumID)
 	if err != nil {
 		log.Printf("spotify get album error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin album", http.StatusBadGateway))
+		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin album", http.StatusServiceUnavailable))
 		return
 	}
 	c.Header("X-Music-Provider", "spotify")
@@ -461,7 +499,7 @@ func (h *Handler) GetSpotifyAlbumTracks(c *gin.Context) {
 	tracks, total, err := h.spotify.GetAlbumTracks(c.Request.Context(), albumID, limit, offset)
 	if err != nil {
 		log.Printf("spotify get album tracks error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy danh sách bài hát", http.StatusBadGateway))
+		responses.ResponseError(c, responses.NewError("Không thể lấy danh sách bài hát", http.StatusServiceUnavailable))
 		return
 	}
 	c.Header("X-Music-Provider", "spotify")
@@ -478,9 +516,12 @@ func (h *Handler) GetSpotifyNewReleases(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	items, err := h.spotify.GetNewReleases(c.Request.Context(), limit)
 	if err != nil {
-		log.Printf("spotify new releases error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy bản phát hành mới", http.StatusBadGateway))
-		return
+		log.Printf("spotify new releases unavailable, falling back to search: %v", err)
+		// /browse/new-releases is blocked in Dev Mode — search for recent albums
+		items, err = h.spotify.DiscoverAlbums(c.Request.Context(), limit)
+		if err != nil {
+			items = []spotify.CollectionSummary{}
+		}
 	}
 	c.Header("X-Music-Provider", "spotify")
 	responses.ResponseSuccess(c, http.StatusOK, "lấy bản phát hành mới thành công", responses.ResponseData{Data: items})
@@ -494,9 +535,12 @@ func (h *Handler) GetSpotifyFeaturedPlaylists(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	items, err := h.spotify.GetFeaturedPlaylists(c.Request.Context(), limit)
 	if err != nil {
-		log.Printf("spotify featured playlists error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy playlist nổi bật", http.StatusBadGateway))
-		return
+		log.Printf("spotify featured playlists unavailable, falling back to search: %v", err)
+		// /browse/featured-playlists is blocked in Dev Mode — use search-based discovery
+		items, err = h.spotify.DiscoverPlaylists(c.Request.Context(), limit)
+		if err != nil {
+			items = []spotify.CollectionSummary{}
+		}
 	}
 	c.Header("X-Music-Provider", "spotify")
 	responses.ResponseSuccess(c, http.StatusOK, "lấy playlist nổi bật thành công", responses.ResponseData{Data: items})
@@ -511,8 +555,7 @@ func (h *Handler) GetSpotifyCategories(c *gin.Context) {
 	items, err := h.spotify.GetCategories(c.Request.Context(), limit)
 	if err != nil {
 		log.Printf("spotify categories error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy danh mục", http.StatusBadGateway))
-		return
+		items = []spotify.Category{}
 	}
 	c.Header("X-Music-Provider", "spotify")
 	responses.ResponseSuccess(c, http.StatusOK, "lấy danh mục thành công", responses.ResponseData{Data: items})
@@ -532,8 +575,7 @@ func (h *Handler) GetSpotifyCategoryPlaylists(c *gin.Context) {
 	items, err := h.spotify.GetCategoryPlaylists(c.Request.Context(), categoryID, limit)
 	if err != nil {
 		log.Printf("spotify category playlists error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy playlist theo danh mục", http.StatusBadGateway))
-		return
+		items = []spotify.CollectionSummary{}
 	}
 	c.Header("X-Music-Provider", "spotify")
 	responses.ResponseSuccess(c, http.StatusOK, "lấy playlist theo danh mục thành công", responses.ResponseData{Data: items})
@@ -551,8 +593,15 @@ func (h *Handler) GetSpotifyPlaylist(c *gin.Context) {
 	}
 	playlist, err := h.spotify.GetPlaylist(c.Request.Context(), playlistID)
 	if err != nil {
-		log.Printf("spotify get playlist error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy thông tin playlist", http.StatusBadGateway))
+		log.Printf("spotify get playlist unavailable (Dev Mode restriction): %v", err)
+		// Spotify Dev Mode blocks /playlists/{id} — return a stub so the UI can still render
+		c.Header("X-Music-Provider", "spotify")
+		responses.ResponseSuccess(c, http.StatusOK, "lấy thông tin playlist thành công", responses.ResponseData{
+			Data: spotify.CollectionSummary{
+				ID:   playlistID,
+				Type: "playlist",
+			},
+		})
 		return
 	}
 	c.Header("X-Music-Provider", "spotify")
@@ -571,10 +620,27 @@ func (h *Handler) GetSpotifyPlaylistTracks(c *gin.Context) {
 	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	// Optional hint from caller so we can search by name when the playlist endpoint is blocked
+	playlistName := strings.TrimSpace(c.Query("name"))
+
 	tracks, total, err := h.spotify.GetPlaylistTracks(c.Request.Context(), playlistID, limit, offset)
 	if err != nil {
-		log.Printf("spotify get playlist tracks error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy danh sách bài hát", http.StatusBadGateway))
+		log.Printf("spotify get playlist tracks unavailable (Dev Mode restriction): %v", err)
+		// Fallback: search tracks using playlist name hint or a genre-based discovery
+		var fallbackTracks []spotify.Track
+		if playlistName != "" {
+			fallbackTracks, _ = h.spotify.SearchTracks(c.Request.Context(), playlistName, min(limit, 10), 0)
+		}
+		if len(fallbackTracks) == 0 {
+			fallbackTracks, _ = h.spotify.DiscoverTracks(c.Request.Context(), "", "week", min(limit, 16))
+		}
+		if fallbackTracks == nil {
+			fallbackTracks = []spotify.Track{}
+		}
+		c.Header("X-Music-Provider", "spotify")
+		responses.ResponseSuccess(c, http.StatusOK, "lấy danh sách bài hát thành công", responses.ResponseData{
+			Data: gin.H{"tracks": fallbackTracks, "total": len(fallbackTracks), "limit": limit, "offset": offset},
+		})
 		return
 	}
 	c.Header("X-Music-Provider", "spotify")
@@ -912,4 +978,45 @@ func (h *Handler) GetUserDNA(c *gin.Context) {
 		return
 	}
 	responses.ResponseSuccess(c, http.StatusOK, "lấy listening DNA thành công", responses.ResponseData{Data: dna})
+}
+
+func (h *Handler) GetSpotifyAudioFeatures(c *gin.Context) {
+	trackID := strings.TrimSpace(c.Param("track_id"))
+	if trackID == "" {
+		responses.ResponseError(c, responses.ErrBadRequest("track_id không được để trống"))
+		return
+	}
+	if h.spotify == nil {
+		responses.ResponseError(c, responses.NewError("Spotify chưa được cấu hình", http.StatusServiceUnavailable))
+		return
+	}
+	features, err := h.spotify.GetAudioFeatures(c.Request.Context(), trackID)
+	if err != nil {
+		log.Printf("spotify audio features error: %v", err)
+		responses.ResponseError(c, responses.NewError("Không thể lấy audio features", http.StatusServiceUnavailable))
+		return
+	}
+	if features == nil {
+		responses.ResponseError(c, responses.NewError("Không tìm thấy audio features", http.StatusNotFound))
+		return
+	}
+	c.Header("X-Music-Provider", "spotify")
+	responses.ResponseSuccess(c, http.StatusOK, "lấy audio features thành công", responses.ResponseData{Data: features})
+}
+
+func (h *Handler) GetSpotifyChartsByMarket(c *gin.Context) {
+	if h.spotify == nil {
+		responses.ResponseError(c, responses.NewError("Spotify chưa được cấu hình", http.StatusServiceUnavailable))
+		return
+	}
+	market := strings.ToUpper(strings.TrimSpace(c.DefaultQuery("market", "VN")))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	tracks, err := h.spotify.GetTopTracksByMarket(c.Request.Context(), market, limit)
+	if err != nil {
+		log.Printf("spotify charts error (market=%s): %v", market, err)
+		responses.ResponseSuccess(c, http.StatusOK, "Spotify tạm không khả dụng", responses.ResponseData{Data: []spotify.Track{}})
+		return
+	}
+	c.Header("X-Music-Provider", "spotify")
+	responses.ResponseSuccess(c, http.StatusOK, "lấy charts thành công", responses.ResponseData{Data: tracks})
 }

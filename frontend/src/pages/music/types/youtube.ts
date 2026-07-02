@@ -26,6 +26,10 @@ export type YouTubeApi = {
 			playerVars?: Record<string, string | number>;
 			events?: {
 				onReady?: (event: { target: YouTubePlayer }) => void;
+				onError?: (event: {
+					data: number;
+					target: YouTubePlayer;
+				}) => void;
 				onStateChange?: (event: {
 					data: number;
 					target: YouTubePlayer;
