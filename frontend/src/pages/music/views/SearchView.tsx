@@ -1,6 +1,7 @@
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import SearchIcon from "@mui/icons-material/Search";
 import { Box, Button, Chip, CircularProgress, Stack, Typography } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 import { usePlayerStore } from "@store/playerStore";
 import { IntersectionSentinel } from "../components/IntersectionSentinel";
@@ -11,16 +12,20 @@ import {
     useBackendSearchHistoryQuery,
     useClearSearchHistoryMutation,
     useDeleteSearchHistoryMutation,
+    useGenreTracksQuery,
     useTracksQuery,
 } from "../hooks/useMusicQueries";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useMemo, useState } from "react";
 import { toAudioMediaItem } from "@services/musicService";
+import { getSpotifyCategories } from "@services/musicBackendService";
+import { dedupeMediaItems } from "../utils";
 
 export function SearchView() {
     const { keyword, setKeyword } = useMusicContext();
     const { recentItems } = usePlayerStore();
     const [tracksScrollEl, setTracksScrollEl] = useState<HTMLDivElement | null>(null);
+    const [selectedGenre, setSelectedGenre] = useState("all");
 
     const debouncedKeyword = useDebouncedValue(keyword, 650);
     const searchKeyword = debouncedKeyword.trim();
@@ -29,11 +34,29 @@ export function SearchView() {
     const backendSearchHistoryQuery = useBackendSearchHistoryQuery();
     const deleteSearchHistoryMutation = useDeleteSearchHistoryMutation();
     const clearSearchHistoryMutation = useClearSearchHistoryMutation();
-    const tracksQuery = useTracksQuery(searchKeyword, hasSearchKeyword);
+    const categoriesQuery = useQuery({
+        queryKey: ["spotify", "categories", 50],
+        queryFn: () => getSpotifyCategories(50),
+        staleTime: 60 * 60 * 1000,
+    });
+    const categories = categoriesQuery.data ?? [];
+    const selectedCategory = categories.find((category) => category.id === selectedGenre);
+    const tracksQuery = useTracksQuery(
+        searchKeyword,
+        hasSearchKeyword && selectedGenre === "all",
+    );
+    const genreTracksQuery = useGenreTracksQuery(
+        hasSearchKeyword ? selectedCategory?.name : undefined,
+        searchKeyword,
+    );
+    const activeTracksQuery = selectedGenre === "all" ? tracksQuery : genreTracksQuery;
 
     const searchTrackItems = useMemo(
-        () => (tracksQuery.data?.pages.flat() ?? []).map(toAudioMediaItem),
-        [tracksQuery.data],
+        () =>
+            dedupeMediaItems(
+                (activeTracksQuery.data?.pages.flat() ?? []).map(toAudioMediaItem),
+            ),
+        [activeTracksQuery.data],
     );
 
     return (
@@ -138,7 +161,70 @@ export function SearchView() {
                             pb: { xs: 2, md: 3 },
                         }}
                     >
-                        {tracksQuery.isFetching && !searchTrackItems.length ? (
+                        <Box
+                            component="section"
+                            aria-label="Lọc kết quả theo thể loại"
+                            sx={{
+                                position: "sticky",
+                                top: 0,
+                                zIndex: 2,
+                                py: 1.5,
+                                mb: 1,
+                                bgcolor: "background.default",
+                                borderBottom: "1px solid",
+                                borderColor: "divider",
+                            }}
+                        >
+                            <Typography
+                                sx={{
+                                    mb: 1,
+                                    color: "text.secondary",
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                Lọc theo thể loại
+                            </Typography>
+                            <Stack direction="row" useFlexGap flexWrap="wrap" gap={0.75}>
+                                {[
+                                    { id: "all", name: "Tất cả", icon: "" },
+                                    ...categories,
+                                ].map((category) => {
+                                    const selected = selectedGenre === category.id;
+                                    return (
+                                        <Chip
+                                            key={category.id}
+                                            label={category.name}
+                                            clickable
+                                            aria-pressed={selected}
+                                            onClick={() => setSelectedGenre(category.id)}
+                                            sx={{
+                                                height: 32,
+                                                border: "1px solid",
+                                                borderColor: selected ? SP_GREEN : "divider",
+                                                bgcolor: selected ? SP_GREEN : "action.hover",
+                                                color: selected ? "#17120f" : "text.primary",
+                                                fontWeight: 700,
+                                                transition:
+                                                    "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
+                                                "&:hover": {
+                                                    borderColor: SP_GREEN,
+                                                    bgcolor: selected ? SP_GREEN : "action.selected",
+                                                    transform: "translateY(-1px)",
+                                                },
+                                                "&:active": { transform: "scale(.97)" },
+                                                "&:focus-visible": {
+                                                    outline: `2px solid ${SP_GREEN}`,
+                                                    outlineOffset: 2,
+                                                },
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </Stack>
+                        </Box>
+
+                        {activeTracksQuery.isFetching && !searchTrackItems.length ? (
                             <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
                                 <CircularProgress sx={{ color: SP_GREEN }} size={28} />
                             </Box>
@@ -152,21 +238,23 @@ export function SearchView() {
                                     <Fragment key={item.id}>
                                         <MediaRow item={item} queue={searchTrackItems} index={index + 1} />
                                         {index === searchTrackItems.length - 8 &&
-                                            tracksQuery.hasNextPage &&
-                                            !tracksQuery.isFetchingNextPage && (
+                                            activeTracksQuery.hasNextPage &&
+                                            !activeTracksQuery.isFetchingNextPage && (
                                                 <IntersectionSentinel
-                                                    onVisible={() => void tracksQuery.fetchNextPage()}
+                                                    onVisible={() =>
+                                                        void activeTracksQuery.fetchNextPage()
+                                                    }
                                                     root={tracksScrollEl}
                                                 />
                                             )}
                                     </Fragment>
                                 ))}
-                                {tracksQuery.isFetchingNextPage && (
+                                {activeTracksQuery.isFetchingNextPage && (
                                     <Box sx={{ py: 2, display: "flex", justifyContent: "center" }}>
                                         <CircularProgress sx={{ color: SP_GREEN }} size={24} />
                                     </Box>
                                 )}
-                                {!tracksQuery.hasNextPage && searchTrackItems.length > 10 && (
+                                {!activeTracksQuery.hasNextPage && searchTrackItems.length > 10 && (
                                     <Typography sx={{ textAlign: "center", py: 2, fontSize: 12, color: "text.disabled" }}>
                                         Đã hiển thị tất cả {searchTrackItems.length} bài
                                     </Typography>

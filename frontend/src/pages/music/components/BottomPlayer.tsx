@@ -7,7 +7,7 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-
+import LyricsOutlinedIcon from "@mui/icons-material/LyricsOutlined";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RepeatIcon from "@mui/icons-material/Repeat";
@@ -23,9 +23,11 @@ import {
     alpha,
     Avatar,
     Box,
+    CircularProgress,
     IconButton,
     Menu,
     MenuItem,
+    Portal,
     Slider,
     Stack,
     Tooltip,
@@ -40,7 +42,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useLocation } from "react-router-dom";
 import { useAppErrorStore } from "@store/appErrorStore";
 import { usePlayerStore } from "@store/playerStore";
-import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
+import { useLikeMusicMutation, useLyricsQuery } from "@pages/music/hooks/useMusicQueries";
 import { resolveSpotifyTrackPlayback } from "@services/musicService";
 import { TrackInfoButton } from "./TrackInfoDialog";
 import { VolumeCannon } from "./VolumeCannon";
@@ -176,7 +178,6 @@ export const BottomPlayer = () => {
     const audioRecoveryAttemptsRef = useRef(0);
     const failedYoutubeVideoIdsRef = useRef<Set<string>>(new Set());
     const resolvingSpotifyItemRef = useRef<string | null>(null);
-    const preloadingSpotifyItemRef = useRef<string | null>(null);
     const volumeRef = useRef(1);
     const reportProgressRef = useRef(usePlayerStore.getState().reportProgress);
     const youtubeStateRef = useRef({
@@ -204,9 +205,8 @@ export const BottomPlayer = () => {
 
     const {
         currentItem,
-        queue,
-        currentIndex,
         isPlaying,
+        isPlayerDismissed,
         pause,
         resume,
         next,
@@ -217,9 +217,8 @@ export const BottomPlayer = () => {
         toggleRepeat,
         likedItems,
         toggleLike,
-        clearQueue,
+        dismissPlayer,
         updateCurrentItem,
-        updateQueueItem,
         _restoredFromStorage,
     } = usePlayerStore();
     const restoredPlaybackRef = useRef({
@@ -229,6 +228,9 @@ export const BottomPlayer = () => {
 
     const liked = likedItems.some((entry) => entry.id === currentItem?.id);
     const likeMutation = useLikeMusicMutation(currentItem ?? ({} as never), liked);
+    const expandedLyricsQuery = useLyricsQuery(
+        expanded && !isCompact ? currentItem : null,
+    );
 
     const youtubeVideoId = currentItem?.videoId;
     const usesYouTubePlayback = Boolean(youtubeVideoId);
@@ -244,7 +246,8 @@ export const BottomPlayer = () => {
         youtubeControlsVisible ||
         Boolean(speedMenuAnchor) ||
         (currentItem?.type === "video" && !isPlaying);
-    const shouldShowPlayer = Boolean(currentItem) || isMusicRoute;
+    const shouldShowPlayer =
+        !isPlayerDismissed && (Boolean(currentItem) || isMusicRoute);
     const isMessengerRoute = location.pathname.startsWith("/messenger");
     const hideForComposer = isCompact && isMessengerRoute && composerInputFocused;
 
@@ -320,6 +323,15 @@ export const BottomPlayer = () => {
         volumeRef.current = volume;
     }, [volume]);
 
+    useEffect(() => {
+        if (!expanded) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") setExpanded(false);
+        };
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [expanded]);
+
     useEffect(
         () => () => {
             if (youtubeControlsHideTimerRef.current)
@@ -371,7 +383,7 @@ export const BottomPlayer = () => {
     }, [currentItem, isPlaying, needsSpotifyResolution, pause, usesYouTubePlayback]);
 
     useEffect(() => {
-        if (!currentItem || !needsSpotifyResolution) return;
+        if (!currentItem || !needsSpotifyResolution || !isPlaying) return;
 
         const itemId = currentItem.id;
         let disposed = false;
@@ -410,53 +422,7 @@ export const BottomPlayer = () => {
         return () => {
             disposed = true;
         };
-    }, [currentItem, needsSpotifyResolution, next, updateCurrentItem]);
-
-    useEffect(() => {
-        if (!currentItem || !queue.length) return;
-
-        const indexedCurrentItem = queue.findIndex(
-            (entry) => entry.id === currentItem.id,
-        );
-        const activeIndex =
-            indexedCurrentItem >= 0 ? indexedCurrentItem : currentIndex;
-        const nextIndex =
-            activeIndex + 1 < queue.length
-                ? activeIndex + 1
-                : repeat === "all"
-                  ? 0
-                  : -1;
-        const nextItem = nextIndex >= 0 ? queue[nextIndex] : undefined;
-        if (
-            !nextItem ||
-            nextItem.provider !== "spotify" ||
-            nextItem.videoId ||
-            preloadingSpotifyItemRef.current === nextItem.id
-        ) {
-            return;
-        }
-
-        const itemId = nextItem.id;
-        let disposed = false;
-        preloadingSpotifyItemRef.current = itemId;
-
-        void resolveSpotifyTrackPlayback(nextItem)
-            .then((playable) => {
-                if (!disposed && playable) updateQueueItem(playable);
-            })
-            .catch(() => {
-                // The current track keeps playing; unresolved next tracks are handled on demand.
-            })
-            .finally(() => {
-                if (preloadingSpotifyItemRef.current === itemId) {
-                    preloadingSpotifyItemRef.current = null;
-                }
-            });
-
-        return () => {
-            disposed = true;
-        };
-    }, [currentIndex, currentItem, queue, repeat, updateQueueItem]);
+    }, [currentItem, isPlaying, needsSpotifyResolution, next, updateCurrentItem]);
 
     useEffect(() => {
         if (!youtubeVideoId || !youtubeContainerRef.current) {
@@ -816,6 +782,10 @@ export const BottomPlayer = () => {
         setYoutubePlaybackRate(rate);
         setSpeedMenuAnchor(null);
     };
+    const handleDismissPlayer = () => {
+        setExpanded(false);
+        dismissPlayer();
+    };
 
     if (!shouldShowPlayer || hasBlockingError) return null;
 
@@ -1140,158 +1110,416 @@ export const BottomPlayer = () => {
                 }}
             />
 
-            {/* Mobile expanded "Now Playing" view */}
-            {isCompact && expanded && (
-                <Box
-                    sx={{
-                        position: "fixed",
-                        inset: 0,
-                        zIndex: (t) => t.zIndex.modal,
-                        bgcolor: "background.default",
-                        display: "flex",
-                        flexDirection: "column",
-                        px: 3,
-                        py: 2,
-                    }}
-                >
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <IconButton
-                            size="small"
-                            onClick={() => setExpanded(false)}
-                            sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
-                        >
-                            <KeyboardArrowDownIcon />
-                        </IconButton>
-                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>
-                            ĐANG PHÁT
-                        </Typography>
-                        <Tooltip title={liked ? "Bỏ thích" : "Thích"}>
-                            <IconButton
-                                size="small"
-                                onClick={() => {
-                                    if (currentItem) {
-                                        toggleLike(currentItem);
-                                        likeMutation.mutate();
-                                    }
-                                }}
-                                sx={{
-                                    color: liked ? SPOTIFY_GREEN : "text.secondary",
-                                    "&:hover": { color: liked ? "#fb923c" : "text.primary" },
-                                }}
-                            >
-                                {liked ? (
-                                    <FavoriteIcon sx={{ fontSize: 20 }} />
-                                ) : (
-                                    <FavoriteBorderIcon sx={{ fontSize: 20 }} />
-                                )}
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
-
+            {/* Expanded "Now Playing" view */}
+            {expanded && (
+                <Portal>
                     <Box
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Trình phát đang mở rộng"
                         sx={{
-                            flex: 1,
+                            position: "fixed",
+                            inset: 0,
+                            zIndex: (t) => t.zIndex.modal,
+                            bgcolor: "background.default",
                             display: "flex",
                             flexDirection: "column",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 3,
-                            minHeight: 0,
+                            px: { xs: 3, md: 6, lg: 10 },
+                            py: { xs: 2, md: 3 },
                         }}
                     >
-                        <Avatar
-                            variant="rounded"
-                            src={currentItem?.thumbnail}
+                        <Box
                             sx={{
-                                width: "min(78vw, 340px)",
-                                height: "min(78vw, 340px)",
-                                borderRadius: 2,
-                                boxShadow: 8,
+                                width: "100%",
+                                maxWidth: 1120,
+                                mx: "auto",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
                             }}
-                        />
-                        <Box sx={{ textAlign: "center", width: "100%", px: 2 }}>
-                            <Typography noWrap sx={{ fontSize: 20, fontWeight: 700, color: "text.primary" }}>
-                                {formatDisplayName(currentItem?.title) || "Chọn bài hát"}
+                        >
+                            <Tooltip title="Thu gọn trình phát">
+                                <IconButton
+                                    size="small"
+                                    aria-label="Thu gọn trình phát"
+                                    onClick={() => setExpanded(false)}
+                                    sx={{
+                                        color: "text.secondary",
+                                        "&:hover": {
+                                            color: "text.primary",
+                                            bgcolor: "action.hover",
+                                        },
+                                    }}
+                                >
+                                    <KeyboardArrowDownIcon />
+                                </IconButton>
+                            </Tooltip>
+                            <Typography
+                                sx={{
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    color: "text.secondary",
+                                    letterSpacing: "0.08em",
+                                }}
+                            >
+                                ĐANG PHÁT
                             </Typography>
-                            <Typography noWrap sx={{ fontSize: 14, color: "text.secondary", mt: 0.5 }}>
-                                {formatDisplayName(currentItem?.artist)}
-                            </Typography>
+                            <Stack direction="row" spacing={0.5}>
+                                <Tooltip title={liked ? "Bỏ thích" : "Thích"}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                            if (currentItem) {
+                                                toggleLike(currentItem);
+                                                likeMutation.mutate();
+                                            }
+                                        }}
+                                        sx={{
+                                            color: liked ? SPOTIFY_GREEN : "text.secondary",
+                                            "&:hover": {
+                                                color: liked ? "#fb923c" : "text.primary",
+                                            },
+                                        }}
+                                    >
+                                        {liked ? (
+                                            <FavoriteIcon sx={{ fontSize: 20 }} />
+                                        ) : (
+                                            <FavoriteBorderIcon sx={{ fontSize: 20 }} />
+                                        )}
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Đóng trình phát">
+                                    <IconButton
+                                        size="small"
+                                        aria-label="Đóng trình phát"
+                                        onClick={handleDismissPlayer}
+                                        sx={{
+                                            color: "text.secondary",
+                                            "&:hover": { color: "text.primary" },
+                                        }}
+                                    >
+                                        <CloseIcon sx={{ fontSize: 20 }} />
+                                    </IconButton>
+                                </Tooltip>
+                            </Stack>
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: 1,
+                                display: "flex",
+                                flexDirection: { xs: "column", md: "row" },
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: { xs: 3, md: 7 },
+                                minHeight: 0,
+                                width: "100%",
+                                maxWidth: 1000,
+                                mx: "auto",
+                            }}
+                        >
+                            <Avatar
+                                variant="rounded"
+                                src={currentItem?.thumbnail}
+                                sx={{
+                                    width: {
+                                        xs: "min(78vw, 340px)",
+                                        md: "min(38vw, 420px)",
+                                    },
+                                    height: {
+                                        xs: "min(78vw, 340px)",
+                                        md: "min(38vw, 420px)",
+                                    },
+                                    borderRadius: { xs: 2, md: 3 },
+                                    boxShadow: 8,
+                                    flexShrink: 0,
+                                }}
+                            />
+                            {!isCompact ? (
+                                <Box
+                                    sx={{
+                                        width: "100%",
+                                        minWidth: 0,
+                                        height: "min(38vw, 420px)",
+                                        minHeight: 280,
+                                        display: "flex",
+                                        flexDirection: "column",
+                                    }}
+                                >
+                                    <Box sx={{ pb: 2 }}>
+                                        <Typography
+                                            sx={{
+                                                color: "text.primary",
+                                                fontSize: 26,
+                                                fontWeight: 800,
+                                                lineHeight: 1.12,
+                                                letterSpacing: "-0.025em",
+                                                textWrap: "balance",
+                                            }}
+                                        >
+                                            {formatDisplayName(currentItem?.title) ||
+                                                "Chọn bài hát"}
+                                        </Typography>
+                                        <Typography
+                                            sx={{
+                                                mt: 0.75,
+                                                color: "text.secondary",
+                                                fontSize: 16,
+                                            }}
+                                        >
+                                            {formatDisplayName(currentItem?.artist)}
+                                        </Typography>
+                                    </Box>
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 1,
+                                            pb: 1.5,
+                                            mb: 1,
+                                            borderBottom: "1px solid",
+                                            borderColor: "divider",
+                                        }}
+                                    >
+                                        <LyricsOutlinedIcon
+                                            sx={{ color: SPOTIFY_GREEN, fontSize: 20 }}
+                                        />
+                                        <Typography sx={{ fontSize: 15, fontWeight: 750 }}>
+                                            Lời bài hát
+                                        </Typography>
+                                    </Box>
+                                    <Box
+                                        sx={{
+                                            flex: 1,
+                                            minHeight: 0,
+                                            overflowY: "auto",
+                                            pr: 1.5,
+                                            "&::-webkit-scrollbar": { width: 4 },
+                                            "&::-webkit-scrollbar-thumb": {
+                                                bgcolor: alpha(SPOTIFY_GREEN, 0.35),
+                                                borderRadius: 2,
+                                            },
+                                        }}
+                                    >
+                                        {expandedLyricsQuery.isLoading ? (
+                                            <Box
+                                                sx={{
+                                                    height: "100%",
+                                                    display: "grid",
+                                                    placeItems: "center",
+                                                }}
+                                            >
+                                                <CircularProgress
+                                                    size={28}
+                                                    sx={{ color: SPOTIFY_GREEN }}
+                                                />
+                                            </Box>
+                                        ) : !expandedLyricsQuery.data?.lines.length ? (
+                                            <Box
+                                                sx={{
+                                                    height: "100%",
+                                                    display: "grid",
+                                                    placeItems: "center",
+                                                }}
+                                            >
+                                                <Typography
+                                                    sx={{
+                                                        color: "text.disabled",
+                                                        fontSize: 14,
+                                                    }}
+                                                >
+                                                    Bài hát này chưa có lời.
+                                                </Typography>
+                                            </Box>
+                                        ) : (
+                                            <Stack spacing={0.4}>
+                                                {expandedLyricsQuery.data.lines.map(
+                                                    (line, index) => (
+                                                        <Typography
+                                                            key={index}
+                                                            sx={{
+                                                                color: line.text
+                                                                    ? "text.primary"
+                                                                    : "transparent",
+                                                                fontSize: 16,
+                                                                lineHeight: 1.75,
+                                                            }}
+                                                        >
+                                                            {line.text || " "}
+                                                        </Typography>
+                                                    ),
+                                                )}
+                                            </Stack>
+                                        )}
+                                    </Box>
+                                </Box>
+                            ) : (
+                                <Box
+                                    sx={{
+                                        textAlign: { xs: "center", md: "left" },
+                                        width: "100%",
+                                        minWidth: 0,
+                                        px: { xs: 2, md: 0 },
+                                    }}
+                                >
+                                    <Typography
+                                        sx={{
+                                            fontSize: { xs: 20, md: 36 },
+                                            lineHeight: 1.08,
+                                            fontWeight: 800,
+                                            letterSpacing: "-0.035em",
+                                            color: "text.primary",
+                                            textWrap: "balance",
+                                        }}
+                                    >
+                                        {formatDisplayName(currentItem?.title) ||
+                                            "Chọn bài hát"}
+                                    </Typography>
+                                    <Typography
+                                        sx={{
+                                            fontSize: { xs: 14, md: 18 },
+                                            color: "text.secondary",
+                                            mt: 1,
+                                        }}
+                                    >
+                                        {formatDisplayName(currentItem?.artist)}
+                                    </Typography>
+                                </Box>
+                            )}
+                        </Box>
+
+                        <Box sx={{ width: "100%", maxWidth: 720, mx: "auto" }}>
+                            <SpotifySlider
+                                value={currentTime}
+                                max={duration}
+                                onChange={(v) =>
+                                    usesYouTubePlayback ? handleYoutubeSeek(v) : handleAudioSeek(v)
+                                }
+                            />
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    mt: 0.5,
+                                }}
+                            >
+                                <Typography
+                                    sx={{
+                                        fontSize: 11,
+                                        color: "text.secondary",
+                                        fontVariantNumeric: "tabular-nums",
+                                    }}
+                                >
+                                    {formatDuration(currentTime)}
+                                </Typography>
+                                <Typography
+                                    sx={{
+                                        fontSize: 11,
+                                        color: "text.secondary",
+                                        fontVariantNumeric: "tabular-nums",
+                                    }}
+                                >
+                                    {formatDuration(duration)}
+                                </Typography>
+                            </Box>
+
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    mt: 1,
+                                    mb: 2,
+                                }}
+                            >
+                                <IconButton
+                                    onClick={toggleShuffle}
+                                    sx={{
+                                        color: shuffle ? SPOTIFY_GREEN : "text.secondary",
+                                        "&:hover": {
+                                            color: shuffle ? "#fb923c" : "text.primary",
+                                        },
+                                    }}
+                                >
+                                    <ShuffleIcon sx={{ fontSize: 20 }} />
+                                </IconButton>
+                                {!isCompact && (
+                                    <Tooltip title="Lùi 5 giây">
+                                        <IconButton
+                                            onClick={() =>
+                                                usesYouTubePlayback
+                                                    ? handleYoutubeSeekBy(-5)
+                                                    : handleAudioSeekBy(-5)
+                                            }
+                                            sx={{ color: "text.secondary" }}
+                                        >
+                                            <Replay5Icon sx={{ fontSize: 22 }} />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                                <IconButton onClick={previous} sx={{ color: "text.primary" }}>
+                                    <SkipPreviousIcon sx={{ fontSize: 34 }} />
+                                </IconButton>
+                                <IconButton
+                                    onClick={isPlaying ? pause : resume}
+                                    disabled={!currentItem}
+                                    sx={{
+                                        color: "white",
+                                        bgcolor: "#f97316",
+                                        width: 56,
+                                        height: 56,
+                                        "&:hover": { bgcolor: "#ea6a00" },
+                                        "&:disabled": { bgcolor: "action.selected" },
+                                    }}
+                                >
+                                    {isPlaying ? (
+                                        <PauseIcon sx={{ fontSize: 28 }} />
+                                    ) : (
+                                        <PlayArrowIcon sx={{ fontSize: 28 }} />
+                                    )}
+                                </IconButton>
+                                <IconButton onClick={next} sx={{ color: "text.primary" }}>
+                                    <SkipNextIcon sx={{ fontSize: 34 }} />
+                                </IconButton>
+                                {!isCompact && (
+                                    <Tooltip title="Tiến 5 giây">
+                                        <IconButton
+                                            onClick={() =>
+                                                usesYouTubePlayback
+                                                    ? handleYoutubeSeekBy(5)
+                                                    : handleAudioSeekBy(5)
+                                            }
+                                            sx={{ color: "text.secondary" }}
+                                        >
+                                            <Forward5Icon sx={{ fontSize: 22 }} />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                                <IconButton
+                                    onClick={toggleRepeat}
+                                    sx={{
+                                        color:
+                                            repeat !== "off"
+                                                ? SPOTIFY_GREEN
+                                                : "text.secondary",
+                                        "&:hover": {
+                                            color:
+                                                repeat !== "off"
+                                                    ? "#fb923c"
+                                                    : "text.primary",
+                                        },
+                                    }}
+                                >
+                                    {repeat === "one" ? (
+                                        <RepeatOneIcon sx={{ fontSize: 20 }} />
+                                    ) : (
+                                        <RepeatIcon sx={{ fontSize: 20 }} />
+                                    )}
+                                </IconButton>
+                            </Box>
                         </Box>
                     </Box>
-
-                    <Box sx={{ width: "100%" }}>
-                        <SpotifySlider
-                            value={currentTime}
-                            max={duration}
-                            onChange={(v) =>
-                                usesYouTubePlayback ? handleYoutubeSeek(v) : handleAudioSeek(v)
-                            }
-                        />
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
-                            <Typography sx={{ fontSize: 11, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
-                                {formatDuration(currentTime)}
-                            </Typography>
-                            <Typography sx={{ fontSize: 11, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
-                                {formatDuration(duration)}
-                            </Typography>
-                        </Box>
-
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1, mb: 2 }}>
-                            <IconButton
-                                onClick={toggleShuffle}
-                                sx={{
-                                    color: shuffle ? SPOTIFY_GREEN : "text.secondary",
-                                    "&:hover": { color: shuffle ? "#fb923c" : "text.primary" },
-                                }}
-                            >
-                                <ShuffleIcon sx={{ fontSize: 20 }} />
-                            </IconButton>
-                            <IconButton
-                                onClick={previous}
-                                sx={{ color: "text.primary" }}
-                            >
-                                <SkipPreviousIcon sx={{ fontSize: 34 }} />
-                            </IconButton>
-                            <IconButton
-                                onClick={isPlaying ? pause : resume}
-                                disabled={!currentItem}
-                                sx={{
-                                    color: "white",
-                                    bgcolor: "#f97316",
-                                    width: 56,
-                                    height: 56,
-                                    "&:hover": { bgcolor: "#ea6a00" },
-                                    "&:disabled": { bgcolor: "action.selected" },
-                                }}
-                            >
-                                {isPlaying ? (
-                                    <PauseIcon sx={{ fontSize: 28 }} />
-                                ) : (
-                                    <PlayArrowIcon sx={{ fontSize: 28 }} />
-                                )}
-                            </IconButton>
-                            <IconButton
-                                onClick={next}
-                                sx={{ color: "text.primary" }}
-                            >
-                                <SkipNextIcon sx={{ fontSize: 34 }} />
-                            </IconButton>
-                            <IconButton
-                                onClick={toggleRepeat}
-                                sx={{
-                                    color: repeat !== "off" ? SPOTIFY_GREEN : "text.secondary",
-                                    "&:hover": { color: repeat !== "off" ? "#fb923c" : "text.primary" },
-                                }}
-                            >
-                                {repeat === "one" ? (
-                                    <RepeatOneIcon sx={{ fontSize: 20 }} />
-                                ) : (
-                                    <RepeatIcon sx={{ fontSize: 20 }} />
-                                )}
-                            </IconButton>
-                        </Box>
-                    </Box>
-                </Box>
+                </Portal>
             )}
 
             {/* Main player bar */}
@@ -1417,6 +1645,17 @@ export const BottomPlayer = () => {
                                 ) : (
                                     <KeyboardArrowUpIcon fontSize="small" />
                                 )}
+                            </IconButton>
+                            <IconButton
+                                size="small"
+                                aria-label="Đóng trình phát"
+                                onClick={handleDismissPlayer}
+                                sx={{
+                                    color: "text.disabled",
+                                    "&:hover": { color: "text.primary" },
+                                }}
+                            >
+                                <CloseIcon sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Stack>
                     </Box>
@@ -1682,14 +1921,40 @@ export const BottomPlayer = () => {
                             gap: 0.5,
                         }}
                     >
+                        <Tooltip title={expanded ? "Thu gọn trình phát" : "Mở rộng trình phát"}>
+                            <IconButton
+                                size="small"
+                                aria-label={
+                                    expanded ? "Thu gọn trình phát" : "Mở rộng trình phát"
+                                }
+                                aria-expanded={expanded}
+                                disabled={!currentItem}
+                                onClick={() => setExpanded((value) => !value)}
+                                sx={{
+                                    color: "text.secondary",
+                                    transition:
+                                        "color 180ms ease, background-color 180ms ease, transform 180ms ease",
+                                    "&:hover": {
+                                        color: "text.primary",
+                                        bgcolor: "action.hover",
+                                        transform: "translateY(-1px)",
+                                    },
+                                    "&:active": { transform: "scale(.96)" },
+                                }}
+                            >
+                                {expanded ? (
+                                    <KeyboardArrowDownIcon sx={{ fontSize: 20 }} />
+                                ) : (
+                                    <KeyboardArrowUpIcon sx={{ fontSize: 20 }} />
+                                )}
+                            </IconButton>
+                        </Tooltip>
                         <VolumeCannon volume={volume} onVolumeChange={setVolume} />
                         <Tooltip title="Đóng">
                             <IconButton
                                 size="small"
-                                onClick={() => {
-                                    pause();
-                                    clearQueue();
-                                }}
+                                aria-label="Đóng trình phát"
+                                onClick={handleDismissPlayer}
                                 sx={{
                                     color: "text.disabled",
                                     "&:hover": { color: "text.primary" },

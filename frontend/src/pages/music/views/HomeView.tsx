@@ -22,7 +22,6 @@ import { formatDisplayName } from "../utils";
 import { useMusicContext } from "../MusicContext";
 import {
     useBackendRecentQuery,
-    useGenreTracksQuery,
     useRecommendationsQuery,
     useTrendingAlbumsQuery,
     useTrendingArtistsQuery,
@@ -58,14 +57,6 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
         return items.filter((i) => i.type === "audio").slice(0, 20);
     }, [backendRecentQuery.data, recentItems]);
 
-    const seedGenre = useMemo(() => {
-        const genre = seedItem?.genre ?? recentTracks.find((i) => i.genre)?.genre;
-        return genre?.trim() || "pop";
-    }, [seedItem, recentTracks]);
-
-    const genreTracksQuery = useGenreTracksQuery(seedGenre);
-    const genreTracks = genreTracksQuery.data ?? [];
-
     const newReleasesQuery = useQuery({
         queryKey: ["spotify", "new-releases"],
         queryFn: () => getSpotifyNewReleases(20),
@@ -77,8 +68,8 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
         staleTime: 30 * 60 * 1000,
     });
     const categoriesQuery = useQuery({
-        queryKey: ["spotify", "categories"],
-        queryFn: () => getSpotifyCategories(20),
+        queryKey: ["spotify", "categories", 50],
+        queryFn: () => getSpotifyCategories(50),
         staleTime: 60 * 60 * 1000,
     });
     const categories = categoriesQuery.data ?? [];
@@ -154,18 +145,6 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
                 </HScrollSection>
             )}
 
-            {(genreTracksQuery.isLoading || genreTracks.length > 0) && (
-                <HScrollSection
-                    title={`Cùng thể loại "${formatDisplayName(seedGenre)}"`}
-                    meta="Tìm theo genre từ Spotify"
-                    loading={genreTracksQuery.isLoading}
-                >
-                    {genreTracks.map((track) => (
-                        <TrackCard key={track.id} track={track} queue={genreTracks} />
-                    ))}
-                </HScrollSection>
-            )}
-
             <HScrollSection title="Xu hướng" loading={trendingQuery.isLoading}>
                 {trendingTracks.map((track) => (
                     <TrackCard key={track.id} track={track} queue={trendingTracks} />
@@ -174,19 +153,31 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
 
             <HScrollSection title="Nghệ sĩ phổ biến" loading={trendingArtistsQuery.isLoading}>
                 {trendingArtists.map((artist) => (
-                    <ArtistCard key={artist.id} artist={artist} onClick={() => selectArtist(artist)} />
+                    <ArtistCard
+                        key={artist.id}
+                        artist={artist}
+                        onClick={() => selectArtist(artist)}
+                    />
                 ))}
             </HScrollSection>
 
             <HScrollSection title="Album mới nổi bật" loading={trendingAlbumsQuery.isLoading}>
                 {trendingAlbums.map((album) => (
-                    <PlaylistCard key={album.id} playlist={album} onClick={() => selectPlaylist(album)} />
+                    <PlaylistCard
+                        key={album.id}
+                        playlist={album}
+                        onClick={() => selectPlaylist(album)}
+                    />
                 ))}
             </HScrollSection>
 
             <HScrollSection title="Playlist nổi bật" loading={trendingPlaylistsQuery.isLoading}>
                 {trendingPlaylists.map((playlist) => (
-                    <PlaylistCard key={playlist.id} playlist={playlist} onClick={() => selectPlaylist(playlist)} />
+                    <PlaylistCard
+                        key={playlist.id}
+                        playlist={playlist}
+                        onClick={() => selectPlaylist(playlist)}
+                    />
                 ))}
             </HScrollSection>
 
@@ -202,7 +193,7 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
                 ))}
             </HScrollSection>
 
-            <HScrollSection title="Playlist nổi bật từ ban biên tập" loading={featuredPlaylistsQuery.isLoading}>
+            <HScrollSection title="Playlist nổi bật" loading={featuredPlaylistsQuery.isLoading}>
                 {(featuredPlaylistsQuery.data ?? []).map((item) => (
                     <SpotifyCollectionCard key={item.id} item={item} />
                 ))}
@@ -269,13 +260,7 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
                         </Typography>
                     </Box>
 
-                    <Stack
-                        direction="row"
-                        useFlexGap
-                        flexWrap="wrap"
-                        gap={1}
-                        sx={{ mb: 2.5 }}
-                    >
+                    <Stack direction="row" useFlexGap flexWrap="wrap" gap={1} sx={{ mb: 2.5 }}>
                         {categories.map((category) => {
                             const selected = category.id === activeCategory?.id;
                             return (
@@ -289,9 +274,7 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
                                         height: 36,
                                         borderRadius: "18px",
                                         border: "1px solid",
-                                        borderColor: selected
-                                            ? SP_GREEN
-                                            : alpha(SP_GREEN, 0.2),
+                                        borderColor: selected ? SP_GREEN : alpha(SP_GREEN, 0.2),
                                         bgcolor: selected ? SP_GREEN : "action.selected",
                                         color: selected ? "#17120f" : "text.primary",
                                         fontWeight: 750,
@@ -328,7 +311,9 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
                             </HScrollSection>
                             {!categoryPlaylistsQuery.isLoading &&
                                 (categoryPlaylistsQuery.data ?? []).length === 0 && (
-                                    <Typography sx={{ py: 2, color: "text.disabled", fontSize: 13 }}>
+                                    <Typography
+                                        sx={{ py: 2, color: "text.disabled", fontSize: 13 }}
+                                    >
                                         Chưa có playlist phù hợp cho thể loại này.
                                     </Typography>
                                 )}
@@ -336,6 +321,7 @@ export function HomeView({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElem
                     )}
                 </Box>
             )}
+
         </Box>
     );
 }

@@ -240,7 +240,9 @@ export default function MoviePage({
 					overflow: isLandingVisible ? "hidden" : "auto",
 					display: "flex",
 					flexDirection: "column",
-					pt: isLandingVisible ? 0 : "76px",
+					boxSizing: "border-box",
+					pt: "var(--movie-top-bar-height, 80px)",
+					scrollPaddingTop: "var(--movie-top-bar-height, 80px)",
 				}}
 			>
 				<Box

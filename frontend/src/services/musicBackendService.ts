@@ -361,12 +361,21 @@ export const searchSpotifyPlaylists = async (query: string): Promise<AudiusPlayl
 
 export const getSpotifyTracksByGenre = async (
     genre: string,
-    limit = 20,
+    options: { keyword?: string; limit?: number; offset?: number } = {},
 ): Promise<AudiusTrack[]> => {
     if (!genre.trim()) return [];
+    const q = [options.keyword?.trim(), `genre:"${genre.trim()}"`]
+        .filter(Boolean)
+        .join(" ");
     const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
         `${PREFIX}/search/tracks`,
-        { params: { q: `genre:"${genre.trim()}"`, limit } },
+        {
+            params: {
+                q,
+                limit: options.limit ?? 20,
+                offset: options.offset ?? 0,
+            },
+        },
     );
     return unwrap(res.data).map(spotifyTrackToAudius);
 };
@@ -1080,10 +1089,10 @@ export const getSpotifyAudioFeatures = async (
     trackId: string,
 ): Promise<SpotifyAudioFeatures | null> => {
     try {
-        const res = await apiClient.get<{ data: SpotifyAudioFeatures }>(
+        const res = await apiClient.get<{ data?: SpotifyAudioFeatures | null }>(
             `${PREFIX}/tracks/${encodeURIComponent(trackId)}/audio-features`,
         );
-        return unwrap(res.data);
+        return res.data?.data ?? null;
     } catch {
         return null;
     }

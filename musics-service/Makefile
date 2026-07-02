@@ -105,7 +105,7 @@ verify-routes:
 		"GET liked" "POST liked" "DELETE liked/route-check" \
 		"GET recent" "POST recent" \
 		"GET search-history" "POST search-history" \
-		"GET search/tracks" "GET tracks/route-check" "GET artists/route-check" "GET albums/route-check" "GET recommendations" \
+		"GET search/tracks" "GET youtube/search" "GET youtube/videos/route-check" "GET tracks/route-check" "GET artists/route-check" "GET albums/route-check" "GET recommendations" \
 		"GET playlists" "POST playlists" "DELETE playlists/1" "POST playlists/1/tracks" \
 		"GET library" "POST library" "DELETE library/1" \
 		"GET events" "POST events" "GET dna" \

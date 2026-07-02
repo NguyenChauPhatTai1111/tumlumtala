@@ -464,6 +464,7 @@ export default function MusicPage() {
                         display: { xs: "block", lg: "none" },
                         "& .MuiDrawer-paper": {
                             width: { xs: PLAYLIST_PANEL_W, sm: PLAYLIST_PANEL_TABLET_W },
+                            height: "calc(100dvh - var(--persistent-music-player-height, 0px))",
                             bgcolor: "background.default",
                             border: "none",
                         },
@@ -859,6 +860,7 @@ export default function MusicPage() {
                         display: { xs: "block", xl: "none" },
                         "& .MuiDrawer-paper": {
                             width: QUEUE_W,
+                            height: "calc(100dvh - var(--persistent-music-player-height, 0px))",
                             bgcolor: "background.default",
                             border: "none",
                         },
@@ -903,6 +905,7 @@ export default function MusicPage() {
                         display: { xs: "block", xl: "none" },
                         "& .MuiDrawer-paper": {
                             width: LYRICS_W,
+                            height: "calc(100dvh - var(--persistent-music-player-height, 0px))",
                             bgcolor: "background.default",
                             border: "none",
                         },
@@ -942,6 +945,7 @@ export default function MusicPage() {
                         display: { xs: "block", xl: "none" },
                         "& .MuiDrawer-paper": {
                             width: TRACK_INFO_W,
+                            height: "calc(100dvh - var(--persistent-music-player-height, 0px))",
                             bgcolor: "background.default",
                             border: "none",
                         },

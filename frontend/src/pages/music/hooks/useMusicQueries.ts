@@ -42,7 +42,6 @@ import {
     searchArtists,
     searchPlaylists,
     searchPreferredTracks,
-    searchYouTubeVideos,
 } from "@services/musicService";
 
 
@@ -110,10 +109,22 @@ export const useUndergroundTrendingQuery = () =>
         retry: false,
     });
 
-export const useGenreTracksQuery = (genre: string | undefined) =>
-    useQuery({
-        queryKey: ["music", "genre-tracks", genre],
-        queryFn: () => getSpotifyTracksByGenre(genre!),
+const GENRE_TRACKS_PAGE_SIZE = 20;
+
+export const useGenreTracksQuery = (genre: string | undefined, keyword?: string) =>
+    useInfiniteQuery({
+        queryKey: ["music", "genre-tracks", genre, keyword ?? ""],
+        queryFn: ({ pageParam }) =>
+            getSpotifyTracksByGenre(genre!, {
+                keyword,
+                limit: GENRE_TRACKS_PAGE_SIZE,
+                offset: pageParam,
+            }),
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages) =>
+            lastPage.length === GENRE_TRACKS_PAGE_SIZE
+                ? allPages.length * GENRE_TRACKS_PAGE_SIZE
+                : undefined,
         enabled: Boolean(genre),
         staleTime: 15 * 60 * 1000,
         retry: false,
@@ -165,16 +176,6 @@ export const useTracksQuery = (searchKeyword: string, enabled: boolean) =>
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) =>
             lastPage.length === 10 ? allPages.length * 10 : undefined,
-        enabled,
-        retry: false,
-    });
-
-export const useVideosQuery = (searchKeyword: string, enabled: boolean) =>
-    useInfiniteQuery({
-        queryKey: ["music", "videos", searchKeyword],
-        queryFn: ({ pageParam }) => searchYouTubeVideos(searchKeyword, { pageToken: pageParam }),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (lastPage) => lastPage.nextPageToken,
         enabled,
         retry: false,
     });

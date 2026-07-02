@@ -10,6 +10,7 @@ import (
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
+
 	authdomain "github.com/tumlumtala/gateway/internal/modules/auth/domain"
 	apperrors "github.com/tumlumtala/gateway/internal/shared/errors"
 )
@@ -27,8 +28,8 @@ type Verifier struct {
 }
 
 type accessClaims struct {
-	UserID       any    `json:"user_id"`
-	Email        string `json:"email"`
+	UserID    any    `json:"user_id"`
+	Email      string `json:"email"`
 	Role         string `json:"role"`
 	TokenType    string `json:"token_type"`
 	TokenVersion int64  `json:"token_version"`

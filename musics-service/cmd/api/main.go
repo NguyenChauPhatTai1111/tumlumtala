@@ -17,6 +17,7 @@ import (
 	database "github.com/tumlumtala/musics-service/internal/infrastructure/db"
 	kafkainfra "github.com/tumlumtala/musics-service/internal/infrastructure/kafka"
 	"github.com/tumlumtala/musics-service/internal/infrastructure/spotify"
+	"github.com/tumlumtala/musics-service/internal/infrastructure/youtube"
 	historyquery "github.com/tumlumtala/musics-service/internal/module/application/query/history"
 	libraryquery "github.com/tumlumtala/musics-service/internal/module/application/query/library"
 	likedquery "github.com/tumlumtala/musics-service/internal/module/application/query/liked"
@@ -79,6 +80,10 @@ func main() {
 			ClientID:     cfg.Spotify.ClientID,
 			ClientSecret: cfg.Spotify.ClientSecret,
 			Market:       cfg.Spotify.Market,
+		}),
+		youtube.NewService(repo, youtube.Config{
+			APIKey:   cfg.YouTube.APIKey,
+			CacheTTL: cfg.YouTube.CacheTTL,
 		}),
 	)
 

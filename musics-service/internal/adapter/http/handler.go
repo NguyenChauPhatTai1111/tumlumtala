@@ -12,6 +12,7 @@ import (
 	"github.com/tumlumtala/musics-service/internal/common/httpctx"
 	"github.com/tumlumtala/musics-service/internal/common/responses"
 	"github.com/tumlumtala/musics-service/internal/infrastructure/spotify"
+	youtubeinfra "github.com/tumlumtala/musics-service/internal/infrastructure/youtube"
 	eventdto "github.com/tumlumtala/musics-service/internal/module/application/dto/event"
 	librarydto "github.com/tumlumtala/musics-service/internal/module/application/dto/library"
 	mediadto "github.com/tumlumtala/musics-service/internal/module/application/dto/media"
@@ -47,6 +48,7 @@ type Handler struct {
 	listeningUseCase *listeninguc.UseCase
 	intelligence     *intelligenceuc.Service
 	spotify          *spotify.Client
+	youtube          *youtubeinfra.Service
 }
 
 func NewHandler(
@@ -64,6 +66,7 @@ func NewHandler(
 	listeningUseCase *listeninguc.UseCase,
 	intelligence *intelligenceuc.Service,
 	spotifyClient *spotify.Client,
+	youtubeService *youtubeinfra.Service,
 ) *Handler {
 	return &Handler{
 		likedQuery:       likedQuery,
@@ -80,7 +83,88 @@ func NewHandler(
 		listeningUseCase: listeningUseCase,
 		intelligence:     intelligence,
 		spotify:          spotifyClient,
+		youtube:          youtubeService,
 	}
+}
+
+func (h *Handler) SearchYouTubeVideos(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		responses.ResponseError(c, responses.ErrBadRequest("q không được để trống"))
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "8"))
+	if limit < 1 {
+		limit = 8
+	}
+	if limit > 10 {
+		limit = 10
+	}
+	if h.youtube == nil {
+		responses.ResponseError(c, responses.NewError("YouTube chưa được cấu hình", http.StatusServiceUnavailable))
+		return
+	}
+	result, err := h.youtube.Search(c.Request.Context(), query, limit)
+	if err != nil {
+		status := http.StatusBadGateway
+		if err == youtubeinfra.ErrNotConfigured {
+			status = http.StatusServiceUnavailable
+		}
+		log.Printf("youtube search error: %v", err)
+		responses.ResponseError(c, responses.NewError("Không thể tìm video YouTube", status))
+		return
+	}
+	if result.CacheHit {
+		c.Header("X-YouTube-Cache", "HIT")
+	} else {
+		c.Header("X-YouTube-Cache", "MISS")
+	}
+	responses.ResponseSuccess(
+		c,
+		http.StatusOK,
+		"tìm video YouTube thành công",
+		responses.ResponseData{Data: gin.H{
+			"videos":        result.Videos,
+			"nextPageToken": nil,
+		}},
+	)
+}
+
+func (h *Handler) GetYouTubeVideo(c *gin.Context) {
+	videoID := strings.TrimSpace(c.Param("video_id"))
+	if videoID == "" {
+		responses.ResponseError(c, responses.ErrBadRequest("video_id không được để trống"))
+		return
+	}
+	if h.youtube == nil {
+		responses.ResponseError(c, responses.NewError("YouTube chưa được cấu hình", http.StatusServiceUnavailable))
+		return
+	}
+	video, cacheHit, err := h.youtube.GetVideo(c.Request.Context(), videoID)
+	if err != nil {
+		status := http.StatusBadGateway
+		if err == youtubeinfra.ErrNotConfigured {
+			status = http.StatusServiceUnavailable
+		}
+		log.Printf("youtube videos.list error: %v", err)
+		responses.ResponseError(c, responses.NewError("Không thể lấy video YouTube", status))
+		return
+	}
+	if video == nil {
+		responses.ResponseError(c, responses.ErrNotFound("Không tìm thấy video YouTube"))
+		return
+	}
+	if cacheHit {
+		c.Header("X-YouTube-Cache", "HIT")
+	} else {
+		c.Header("X-YouTube-Cache", "MISS")
+	}
+	responses.ResponseSuccess(
+		c,
+		http.StatusOK,
+		"lấy video YouTube thành công",
+		responses.ResponseData{Data: video},
+	)
 }
 
 func (h *Handler) SearchSpotifyTracks(c *gin.Context) {
@@ -993,14 +1077,22 @@ func (h *Handler) GetSpotifyAudioFeatures(c *gin.Context) {
 	features, err := h.spotify.GetAudioFeatures(c.Request.Context(), trackID)
 	if err != nil {
 		log.Printf("spotify audio features error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy audio features", http.StatusServiceUnavailable))
+		// Spotify restricted Audio Features for Development Mode and newer apps
+		// in November 2024. This metadata is optional, so keep playback and the
+		// rest of the track detail usable when the upstream endpoint is blocked.
+		c.Header("X-Music-Provider", "spotify")
+		c.Header("X-Audio-Features-Available", "false")
+		responses.ResponseSuccess(c, http.StatusOK, "audio features không khả dụng", responses.ResponseData{Data: nil})
 		return
 	}
 	if features == nil {
-		responses.ResponseError(c, responses.NewError("Không tìm thấy audio features", http.StatusNotFound))
+		c.Header("X-Music-Provider", "spotify")
+		c.Header("X-Audio-Features-Available", "false")
+		responses.ResponseSuccess(c, http.StatusOK, "audio features không khả dụng", responses.ResponseData{Data: nil})
 		return
 	}
 	c.Header("X-Music-Provider", "spotify")
+	c.Header("X-Audio-Features-Available", "true")
 	responses.ResponseSuccess(c, http.StatusOK, "lấy audio features thành công", responses.ResponseData{Data: features})
 }
 

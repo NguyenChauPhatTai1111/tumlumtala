@@ -1,4 +1,3 @@
-import type { AxiosResponse } from "axios";
 import axios from "axios";
 import { apiClient } from "@api/client";
 import type {
@@ -20,7 +19,6 @@ import {
 } from "@services/musicBackendService";
 
 const AUDIUS_API = "https://api.audius.co/v1";
-const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
 
 // Some providers (YouTube, Spotify) return text (title, description) with HTML entities
 // already escaped (e.g. "&#39;", "&amp;"), so it must be decoded before rendering as plain text.
@@ -35,38 +33,6 @@ interface AudiusResponse<T> {
     data: T;
 }
 
-interface YouTubeSearchItem {
-    id: { videoId?: string };
-    snippet: {
-        title: string;
-        channelTitle: string;
-        publishedAt?: string;
-        thumbnails: {
-            medium?: { url: string };
-            high?: { url: string };
-            default?: { url: string };
-        };
-    };
-}
-
-interface YouTubeSearchResponse {
-    items: YouTubeSearchItem[];
-    nextPageToken?: string;
-}
-
-interface YouTubeVideoStatsResponse {
-    items: Array<{
-        id: string;
-        contentDetails?: { duration?: string };
-        statistics?: { viewCount?: string };
-        status?: {
-            embeddable?: boolean;
-            privacyStatus?: string;
-            uploadStatus?: string;
-        };
-    }>;
-}
-
 const isRateLimited = (error: unknown) =>
     axios.isAxiosError(error) && error.response?.status === 429;
 
@@ -78,14 +44,6 @@ const getArtwork = (artwork?: AudiusTrack["artwork"] | AudiusPlaylist["artwork"]
     artwork?.["150x150"] ??
     artwork?.["1000x1000"] ??
     "/assets/logo/logo.png";
-
-const parseYouTubeDuration = (value?: string) => {
-    if (!value) return undefined;
-    const match = value.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
-    if (!match) return undefined;
-    const [, days = "0", hours = "0", minutes = "0", seconds = "0"] = match;
-    return Number(days) * 86400 + Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
-};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -387,97 +345,28 @@ export const getPlaylistTracks = async (
 
 export const searchYouTubeVideos = async (
     query: string,
-    options: { maxResults?: number; pageToken?: string } = {},
+    options: { maxResults?: number } = {},
 ): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | undefined }> => {
-    const key = import.meta.env.VITE_YOUTUBE_API_KEY;
-    if (!query.trim() || !key) return { videos: [], nextPageToken: undefined };
-
-    let res: AxiosResponse<YouTubeSearchResponse>;
+    if (!query.trim()) return { videos: [], nextPageToken: undefined };
     try {
-        res = await axios.get<YouTubeSearchResponse>(`${YOUTUBE_API}/search`, {
+        const response = await apiClient.get<{
+            data: {
+                videos: YouTubeVideo[];
+                nextPageToken?: string | null;
+            };
+        }>("/music/youtube/search", {
             params: {
-                key,
-                part: "snippet",
                 q: query,
-                type: "video",
-                videoEmbeddable: "true",
-                videoSyndicated: "true",
-                maxResults: options.maxResults ?? 25,
-                ...(options.pageToken ? { pageToken: options.pageToken } : {}),
+                limit: options.maxResults ?? 8,
             },
         });
-    } catch (error) {
-        if (isUnavailable(error)) return { videos: [], nextPageToken: undefined };
-        throw error;
+        return {
+            videos: response.data.data?.videos ?? [],
+            nextPageToken: response.data.data?.nextPageToken ?? undefined,
+        };
+    } catch {
+        return { videos: [], nextPageToken: undefined };
     }
-
-    const videos = res.data.items
-        .filter((item) => item.id.videoId)
-        .map<YouTubeVideo>((item) => ({
-            id: item.id.videoId ?? "",
-            title: decodeHtmlEntities(item.snippet.title),
-            channelTitle: decodeHtmlEntities(item.snippet.channelTitle),
-            thumbnail:
-                item.snippet.thumbnails.high?.url ??
-                item.snippet.thumbnails.medium?.url ??
-                item.snippet.thumbnails.default?.url ??
-                "/assets/logo/logo.png",
-            publishedAt: item.snippet.publishedAt,
-        }));
-
-    const nextPageToken = res.data.nextPageToken;
-    if (!videos.length) return { videos, nextPageToken };
-
-    let statsRes: YouTubeVideoStatsResponse = { items: [] };
-    try {
-        const response = await axios.get<YouTubeVideoStatsResponse>(`${YOUTUBE_API}/videos`, {
-            params: {
-                key,
-                part: "statistics,contentDetails,status",
-                id: videos.map((v) => v.id).join(","),
-            },
-        });
-        statsRes = response.data;
-    } catch (error) {
-        if (!isUnavailable(error)) throw error;
-    }
-
-    const viewsById = new Map(
-        statsRes.items.map((item) => [
-            item.id,
-            Number.parseInt(item.statistics?.viewCount ?? "0", 10),
-        ]),
-    );
-    const durationsById = new Map(
-        statsRes.items.map((item) => [
-            item.id,
-            parseYouTubeDuration(item.contentDetails?.duration),
-        ]),
-    );
-    const hasStatusData = statsRes.items.length > 0;
-    const playableIds = new Set(
-        statsRes.items
-            .filter(
-                (item) =>
-                    item.status?.embeddable !== false &&
-                    item.status?.privacyStatus !== "private" &&
-                    item.status?.uploadStatus !== "deleted" &&
-                    item.status?.uploadStatus !== "rejected",
-            )
-            .map((item) => item.id),
-    );
-
-    return {
-        videos: videos
-            .filter((video) => !hasStatusData || playableIds.has(video.id))
-            .map((v) => ({
-                ...v,
-                duration: durationsById.get(v.id),
-                viewCount: viewsById.get(v.id) ?? 0,
-            }))
-            .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0)),
-        nextPageToken,
-    };
 };
 
 export const resolveSpotifyTrackPlayback = async (

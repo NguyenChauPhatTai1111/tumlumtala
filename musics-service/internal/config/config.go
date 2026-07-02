@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -14,6 +15,7 @@ type Config struct {
 	KafkaBrokers []string
 	MusicAI      MusicAIConfig
 	Spotify      SpotifyConfig
+	YouTube      YouTubeConfig
 }
 
 type MusicAIConfig struct {
@@ -26,6 +28,11 @@ type SpotifyConfig struct {
 	ClientID     string
 	ClientSecret string
 	Market       string
+}
+
+type YouTubeConfig struct {
+	APIKey   string
+	CacheTTL time.Duration
 }
 
 type DatabaseConfig struct {
@@ -57,6 +64,10 @@ func Load() (*Config, error) {
 			ClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
 			Market:       getEnv("SPOTIFY_MARKET", "VN"),
 		},
+		YouTube: YouTubeConfig{
+			APIKey:   os.Getenv("YOUTUBE_API_KEY"),
+			CacheTTL: getDurationEnv("YOUTUBE_CACHE_TTL", 30*24*time.Hour),
+		},
 		DB: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "3306"),
@@ -72,4 +83,16 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getDurationEnv(key string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
+	return duration
 }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { MediaItem } from "@pages/music/types";
+import { dedupeMediaItems, isSameMediaItem } from "@pages/music/utils";
 import {
     mediaItemToEventPayload,
     trackListeningEvent,
@@ -19,6 +20,7 @@ interface PlayerStore {
     queue: MediaItem[];
     currentIndex: number;
     isPlaying: boolean;
+    isPlayerDismissed: boolean;
     shuffle: boolean;
     repeat: "off" | "one" | "all";
     recentItems: MediaItem[];
@@ -40,6 +42,7 @@ interface PlayerStore {
     toggleRepeat: () => void;
     toggleLike: (item: MediaItem) => void;
     clearQueue: () => void;
+    dismissPlayer: () => void;
     appendToQueue: (items: MediaItem[]) => void;
     replaceQueue: (items: MediaItem[], startIndex?: number, context?: PlaybackContext) => void;
     updateCurrentItem: (item: MediaItem) => void;
@@ -113,6 +116,7 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
     queue: [],
     currentIndex: -1,
     isPlaying: false,
+    isPlayerDismissed: false,
     shuffle: false,
     repeat: "off",
     recentItems: [],
@@ -122,9 +126,13 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
     _restoredFromStorage: false,
     playbackContext: { context: "organic" },
 
-    hydrateLibrary: (likedItems, recentItems) => set({ likedItems, recentItems }),
-    setRecentItems: (recentItems) => set({ recentItems }),
-    setLikedItems: (likedItems) => set({ likedItems }),
+    hydrateLibrary: (likedItems, recentItems) =>
+        set({
+            likedItems: dedupeMediaItems(likedItems),
+            recentItems: dedupeMediaItems(recentItems),
+        }),
+    setRecentItems: (recentItems) => set({ recentItems: dedupeMediaItems(recentItems) }),
+    setLikedItems: (likedItems) => set({ likedItems: dedupeMediaItems(likedItems) }),
 
     play: (item, queue, requestedContext) =>
         set((state) => {
@@ -140,19 +148,23 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
                 );
             }
 
-            const nextQueue = queue?.length ? queue : [item, ...state.queue];
+            const nextQueue = dedupeMediaItems(
+                queue?.length ? queue : [item, ...state.queue],
+            );
             const currentIndex = Math.max(
-                nextQueue.findIndex((entry) => entry.id === item.id),
+                nextQueue.findIndex((entry) => isSameMediaItem(entry, item)),
                 0,
             );
+            const nextItem = nextQueue[currentIndex] ?? item;
 
-            firePlayEvent(item, nextContext, state.currentItem?.sourceId);
+            firePlayEvent(nextItem, nextContext, state.currentItem?.sourceId);
 
             return {
-                currentItem: item,
+                currentItem: nextItem,
                 queue: nextQueue,
                 currentIndex,
                 isPlaying: true,
+                isPlayerDismissed: false,
                 _playStartTime: Date.now(),
                 _completedItemId: null,
                 _restoredFromStorage: false,
@@ -272,11 +284,22 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
             playbackContext: { context: "organic" },
         }),
 
+    dismissPlayer: () =>
+        set({
+            queue: [],
+            currentItem: null,
+            currentIndex: -1,
+            isPlaying: false,
+            isPlayerDismissed: true,
+            _playStartTime: null,
+            _completedItemId: null,
+            _restoredFromStorage: false,
+            playbackContext: { context: "organic" },
+        }),
+
     appendToQueue: (items) =>
         set((state) => {
-            const existingIds = new Set(state.queue.map((i) => i.id));
-            const newItems = items.filter((i) => !existingIds.has(i.id));
-            return { queue: [...state.queue, ...newItems] };
+            return { queue: dedupeMediaItems([...state.queue, ...items]) };
         }),
 
     replaceQueue: (items, startIndex = 0, requestedContext) => {
@@ -291,14 +314,22 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
                 state.playbackContext,
             );
         }
-        const item = items[startIndex] ?? items[0];
+        const requestedItem = items[startIndex] ?? items[0];
+        if (!requestedItem) return;
+        const nextQueue = dedupeMediaItems(items);
+        const nextIndex = Math.max(
+            nextQueue.findIndex((entry) => isSameMediaItem(entry, requestedItem)),
+            0,
+        );
+        const item = nextQueue[nextIndex];
         if (!item) return;
         firePlayEvent(item, nextContext, state.currentItem?.sourceId);
         set({
-            queue: items,
+            queue: nextQueue,
             currentItem: item,
-            currentIndex: startIndex,
+            currentIndex: nextIndex,
             isPlaying: true,
+            isPlayerDismissed: false,
             _playStartTime: Date.now(),
             _completedItemId: null,
             _restoredFromStorage: false,
@@ -364,7 +395,30 @@ export const usePlayerStore = create<PlayerStore>()(persist((set, get) => ({
         currentIndex: state.currentIndex,
         shuffle: state.shuffle,
         repeat: state.repeat,
+        isPlayerDismissed: state.isPlayerDismissed,
         // On reload, restore the player without recording a duplicate playback.
         _restoredFromStorage: Boolean(state.currentItem),
     }),
+    merge: (persistedState, currentState) => {
+        const restored = persistedState as Partial<PlayerStore>;
+        const currentItem = restored.currentItem ?? currentState.currentItem;
+        let queue = dedupeMediaItems(restored.queue ?? currentState.queue);
+        if (currentItem && !queue.some((item) => isSameMediaItem(item, currentItem))) {
+            queue = [currentItem, ...queue];
+        }
+        const currentIndex = currentItem
+            ? Math.max(
+                  queue.findIndex((item) => isSameMediaItem(item, currentItem)),
+                  0,
+              )
+            : -1;
+
+        return {
+            ...currentState,
+            ...restored,
+            currentItem,
+            queue,
+            currentIndex,
+        };
+    },
 }));

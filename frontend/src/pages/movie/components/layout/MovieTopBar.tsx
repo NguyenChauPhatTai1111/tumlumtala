@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import type { MovieTab } from "@pages/movie/hooks/useMoviePageState";
 import type { MovieSource } from "@/services/movieService";
+import { useEffect, useRef } from "react";
 
 interface MovieTopBarProps {
 	tab: MovieTab;
@@ -59,9 +60,37 @@ export function MovieTopBar({
 	onMovieSourceChange,
 }: MovieTopBarProps) {
 	const theme = useTheme();
+	const topBarRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const topBar = topBarRef.current;
+		if (!topBar) return;
+
+		const root = document.documentElement;
+		const updateTopBarHeight = () => {
+			const height = Math.ceil(topBar.getBoundingClientRect().height);
+			root.style.setProperty("--movie-top-bar-height", `${height}px`);
+		};
+
+		updateTopBarHeight();
+		window.addEventListener("resize", updateTopBarHeight);
+
+		const resizeObserver =
+			typeof ResizeObserver !== "undefined"
+				? new ResizeObserver(updateTopBarHeight)
+				: null;
+		resizeObserver?.observe(topBar);
+
+		return () => {
+			window.removeEventListener("resize", updateTopBarHeight);
+			resizeObserver?.disconnect();
+			root.style.removeProperty("--movie-top-bar-height");
+		};
+	}, []);
 
 	return (
 		<Box
+			ref={topBarRef}
 			sx={{
 				position: "fixed",
 				top: 0,
