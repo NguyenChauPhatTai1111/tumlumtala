@@ -17,11 +17,17 @@ const FLIGHT_TIMEOUT_MS = 4000;
 const MARBLE_SIZE = 12;
 const RAIL_EDGE_TOLERANCE_PX = 6;
 const PORTAL_Z_INDEX = 2000;
-const RACKET_RESTITUTION = 0.55; // speed kept after the racket smacks the marble back
-const RACKET_SHOW_MS = 450;
+const RACKET_RESTITUTION = 0.32; // speed kept after the racket smacks the marble back
+const RACKET_SWING_MS = 300;
+const RACKET_READY_LEAD_S = 0.3; // wind-up shows when impact is less than this far away
 const ROLL_FRICTION = 340; // px/s² deceleration while rolling on the rail
 const ROLL_STOP_SPEED = 12; // px/s — below this the marble settles
 const ROLL_VOLUME_UPDATE_MS = 70; // throttle live volume updates while rolling
+const PCT_BADGE_HIDE_MS = 10000; // hover badge auto-hides after this long
+const PCT_BADGE_FALL_MS = 950; // how long the broken pieces take to rain off-screen
+const PCT_BADGE_HIT_HALF_W = 16; // marble-vs-badge hit box half extents
+const PCT_BADGE_HIT_HALF_H = 12;
+const PCT_BADGE_OFFSET_Y = 12; // badge center sits about this far above the rail top
 
 type Phase = "idle" | "aiming" | "flying" | "impact";
 type Impact = { type: "hit"; pct: number; color: string } | { type: "miss" };
@@ -56,20 +62,97 @@ export const VolumeCannon = ({
         null,
     );
     // The racket that smacks the marble back when it tries to fly past the rail's end.
+    // "ready" = wind-up pose while the marble closes in, "swing" = the actual smack.
     const racketTimeoutRef = useRef<number | null>(null);
     const racketIdRef = useRef(0);
-    const [racket, setRacket] = useState<(Point & { id: number }) | null>(null);
+    const [racket, setRacket] = useState<(Point & { id: number; pose: "ready" | "swing" }) | null>(
+        null,
+    );
 
-    const showRacket = useCallback((x: number, y: number) => {
-        racketIdRef.current += 1;
-        setRacket({ x, y, id: racketIdRef.current });
-        if (racketTimeoutRef.current) window.clearTimeout(racketTimeoutRef.current);
-        racketTimeoutRef.current = window.setTimeout(() => setRacket(null), RACKET_SHOW_MS);
+    const readyRacket = useCallback((x: number, y: number) => {
+        if (racketTimeoutRef.current) {
+            window.clearTimeout(racketTimeoutRef.current);
+            racketTimeoutRef.current = null;
+        }
+        setRacket((prev) =>
+            prev?.pose === "ready"
+                ? { ...prev, x, y }
+                : { x, y, id: ++racketIdRef.current, pose: "ready" },
+        );
     }, []);
+
+    const hideReadyRacket = useCallback(() => {
+        setRacket((prev) => (prev?.pose === "ready" ? null : prev));
+    }, []);
+
+    const swingRacket = useCallback((x: number, y: number) => {
+        racketIdRef.current += 1;
+        setRacket({ x, y, id: racketIdRef.current, pose: "swing" });
+        if (racketTimeoutRef.current) window.clearTimeout(racketTimeoutRef.current);
+        racketTimeoutRef.current = window.setTimeout(() => setRacket(null), RACKET_SWING_MS);
+    }, []);
+
+    // Hover badge showing the volume % frozen at hover time. A marble smashing into
+    // it (or a shot landing on exactly that number) shatters it: the pieces rain
+    // down past the bottom of the screen via the portal burst below.
+    const badgeHideTimerRef = useRef<number | null>(null);
+    const badgeBurstTimerRef = useRef<number | null>(null);
+    const badgeBurstIdRef = useRef(0);
+    const pctBadgeRef = useRef<{ value: number } | null>(null);
+    const [pctBadge, setPctBadgeState] = useState<{ value: number } | null>(null);
+    const [badgeBurst, setBadgeBurst] = useState<
+        (Point & { value: number; id: number }) | null
+    >(null);
+
+    const setPctBadge = useCallback((next: { value: number } | null) => {
+        pctBadgeRef.current = next;
+        setPctBadgeState(next);
+    }, []);
+
+    const showPctBadge = useCallback(
+        (value: number) => {
+            // A fresh hover always replaces the badge, even while shards still fall.
+            setPctBadge({ value });
+            if (badgeHideTimerRef.current) window.clearTimeout(badgeHideTimerRef.current);
+            badgeHideTimerRef.current = window.setTimeout(
+                () => setPctBadge(null),
+                PCT_BADGE_HIDE_MS,
+            );
+        },
+        [setPctBadge],
+    );
+
+    const shatterPctBadge = useCallback(() => {
+        const badge = pctBadgeRef.current;
+        const railRect = railRef.current?.getBoundingClientRect();
+        if (!badge || !railRect) return;
+        if (badgeHideTimerRef.current) window.clearTimeout(badgeHideTimerRef.current);
+        setPctBadge(null);
+        setBadgeBurst({
+            x: railRect.left + (railRect.width * badge.value) / 100,
+            y: railRect.top - PCT_BADGE_OFFSET_Y,
+            value: badge.value,
+            id: ++badgeBurstIdRef.current,
+        });
+        if (badgeBurstTimerRef.current) window.clearTimeout(badgeBurstTimerRef.current);
+        badgeBurstTimerRef.current = window.setTimeout(
+            () => setBadgeBurst(null),
+            PCT_BADGE_FALL_MS + 100,
+        );
+    }, [setPctBadge]);
+
+    const shatterPctBadgeOnHit = useCallback(
+        (hitPct: number) => {
+            if (pctBadgeRef.current?.value === hitPct) shatterPctBadge();
+        },
+        [shatterPctBadge],
+    );
 
     useEffect(
         () => () => {
             if (racketTimeoutRef.current) window.clearTimeout(racketTimeoutRef.current);
+            if (badgeHideTimerRef.current) window.clearTimeout(badgeHideTimerRef.current);
+            if (badgeBurstTimerRef.current) window.clearTimeout(badgeBurstTimerRef.current);
         },
         [],
     );
@@ -106,10 +189,12 @@ export const VolumeCannon = ({
         (result: Impact) => {
             stopAnimation();
             setTrail([]);
+            setRacket((prev) => (prev?.pose === "ready" ? null : prev));
             setImpact(result);
             setPhase("impact");
             if (result.type === "hit") {
                 onVolumeChange(Math.round(result.pct * 100) / 100);
+                shatterPctBadgeOnHit(Math.round(result.pct * 100));
             } else {
                 setMarble(null);
                 onVolumeChange(0);
@@ -125,7 +210,7 @@ export const VolumeCannon = ({
                 result.type === "hit" ? 650 : 1000,
             );
         },
-        [onVolumeChange, setPhase, stopAnimation],
+        [onVolumeChange, setPhase, shatterPctBadgeOnHit, stopAnimation],
     );
 
     const launch = useCallback(
@@ -146,6 +231,7 @@ export const VolumeCannon = ({
             let rolling = false;
             let fellOffRail = false;
             let lastVolumeUpdate = 0;
+            let racketReadyShown = false;
             setPhase("flying");
             setMarble({ ...pos, color });
             setTrail([]);
@@ -163,7 +249,14 @@ export const VolumeCannon = ({
                     if (pos.x >= railEndX) {
                         pos.x = railEndX;
                         vel.x = -Math.abs(vel.x) * RACKET_RESTITUTION;
-                        showRacket(railEndX, railY - MARBLE_SIZE / 2);
+                        racketReadyShown = false;
+                        swingRacket(railEndX, railY - MARBLE_SIZE / 2);
+                    } else if (vel.x > 0 && (railEndX - pos.x) / vel.x <= RACKET_READY_LEAD_S) {
+                        racketReadyShown = true;
+                        readyRacket(railEndX, railY - MARBLE_SIZE / 2);
+                    } else if (racketReadyShown) {
+                        racketReadyShown = false;
+                        hideReadyRacket();
                     }
 
                     if (pos.x < railRect.left) {
@@ -193,6 +286,19 @@ export const VolumeCannon = ({
                 pos.x += vel.x * dt;
                 pos.y += vel.y * dt;
 
+                // Direct hit on the hover badge: it shatters and rains down the screen.
+                const badge = pctBadgeRef.current;
+                if (badge) {
+                    const badgeX = railRect.left + (railRect.width * badge.value) / 100;
+                    const badgeY = railRect.top - PCT_BADGE_OFFSET_Y;
+                    if (
+                        Math.abs(pos.x - badgeX) <= PCT_BADGE_HIT_HALF_W &&
+                        Math.abs(pos.y - badgeY) <= PCT_BADGE_HIT_HALF_H
+                    ) {
+                        shatterPctBadge();
+                    }
+                }
+
                 // The rail's end is a no-fly line at any height: the racket smacks
                 // the marble back so it can never leave the bar on the right.
                 let bounced = false;
@@ -203,7 +309,22 @@ export const VolumeCannon = ({
                         pos.x = railEndX - (pos.x - railEndX) * RACKET_RESTITUTION;
                         vel.x = -vel.x * RACKET_RESTITUTION;
                         bounced = true;
-                        showRacket(railEndX, yCross);
+                        racketReadyShown = false;
+                        swingRacket(railEndX, yCross);
+                    }
+                }
+
+                // Wind-up: raise the racket when the marble is about to reach the rail's end.
+                if (!bounced) {
+                    const tCross = vel.x > 0 ? (railEndX - pos.x) / vel.x : Infinity;
+                    const yCrossPred =
+                        pos.y + vel.y * tCross + 0.5 * GRAVITY * tCross * tCross;
+                    if (tCross <= RACKET_READY_LEAD_S && yCrossPred <= railY + MARBLE_SIZE / 2) {
+                        racketReadyShown = true;
+                        readyRacket(railEndX, Math.min(yCrossPred, railY - MARBLE_SIZE / 2));
+                    } else if (racketReadyShown) {
+                        racketReadyShown = false;
+                        hideReadyRacket();
                     }
                 }
 
@@ -243,7 +364,7 @@ export const VolumeCannon = ({
             };
             rafRef.current = requestAnimationFrame(tick);
         },
-        [finishShot, onVolumeChange, setPhase, showRacket],
+        [finishShot, hideReadyRacket, onVolumeChange, readyRacket, setPhase, shatterPctBadge, swingRacket],
     );
 
     const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -396,6 +517,7 @@ export const VolumeCannon = ({
             {/* Volume rail — display-only landing zone; the marble is the only way to set volume */}
             <Box
                 ref={railRef}
+                onMouseEnter={() => showPctBadge(Math.round(volume * 100))}
                 sx={{
                     position: "relative",
                     width: RAIL_WIDTH,
@@ -427,8 +549,8 @@ export const VolumeCannon = ({
                                 phase === "impact"
                                     ? "width 0.15s ease-out"
                                     : phase === "flying"
-                                      ? "width 0.09s linear"
-                                      : "none",
+                                        ? "width 0.09s linear"
+                                        : "none",
                         }}
                     />
                 </Box>
@@ -522,11 +644,132 @@ export const VolumeCannon = ({
                         Trượt! Mất tiếng 🔇
                     </Box>
                 )}
+                {/* Hover badge — tilted graffiti chip frozen at hover-time %; the
+                    marble smashing into it makes it shatter and rain off-screen */}
+                {pctBadge && (
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            left: `${pctBadge.value}%`,
+                            bottom: "calc(100% + 4px)",
+                            transform: "translateX(-50%)",
+                            pointerEvents: "none",
+                            animation: "volumePctFloat 1.8s ease-in-out 0.4s infinite alternate",
+                            "@keyframes volumePctFloat": {
+                                from: { transform: "translate(-50%, 0)" },
+                                to: { transform: "translate(-50%, -3px)" },
+                            },
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                px: 0.5,
+                                borderRadius: "7px 2px 7px 2px",
+                                background: "linear-gradient(135deg, #f97316, #f43f5e)",
+                                boxShadow: "0 2px 10px rgba(249, 115, 22, 0.45)",
+                                transform: "rotate(-8deg)",
+                                fontSize: 9,
+                                fontWeight: 900,
+                                lineHeight: 1.4,
+                                color: "#fff",
+                                fontVariantNumeric: "tabular-nums",
+                                textShadow: "0 1px 2px rgba(0,0,0,0.35)",
+                                whiteSpace: "nowrap",
+                                animation: "volumePctPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                                "@keyframes volumePctPop": {
+                                    from: { opacity: 0, transform: "rotate(8deg) scale(0.4)" },
+                                    to: { opacity: 1, transform: "rotate(-8deg) scale(1)" },
+                                },
+                            }}
+                        >
+                            {pctBadge.value}%
+                        </Box>
+                    </Box>
+                )}
             </Box>
 
             {/* Slingshot overlay — portal so the player bar's overflow:hidden doesn't clip anything */}
             {createPortal(
                 <>
+                    {/* Broken badge — characters and chip shards rain down off-screen */}
+                    {badgeBurst && (
+                        <Box
+                            key={badgeBurst.id}
+                            sx={{
+                                position: "fixed",
+                                left: badgeBurst.x,
+                                top: badgeBurst.y,
+                                pointerEvents: "none",
+                                zIndex: PORTAL_Z_INDEX + 2,
+                            }}
+                        >
+                            {[
+                                ...`${badgeBurst.value}%`.split("").map((ch, i, arr) => ({
+                                    ch,
+                                    dx: (i - (arr.length - 1) / 2) * 26,
+                                    spin: (i % 2 ? 1 : -1) * (220 + i * 90),
+                                    delay: i * 25,
+                                    shard: false,
+                                })),
+                                ...[0, 1, 2, 3].map((i) => ({
+                                    ch: "",
+                                    dx: (i - 1.5) * 34,
+                                    spin: (i % 2 ? -1 : 1) * (320 + i * 70),
+                                    delay: i * 18,
+                                    shard: true,
+                                })),
+                            ].map((piece, i) => (
+                                <Box
+                                    key={i}
+                                    component="span"
+                                    style={
+                                        {
+                                            "--fall-x": `${piece.dx}px`,
+                                            "--fall-y": `${window.innerHeight - badgeBurst.y + 40}px`,
+                                            "--fall-r": `${piece.spin}deg`,
+                                        } as React.CSSProperties
+                                    }
+                                    sx={{
+                                        position: "absolute",
+                                        left: 0,
+                                        top: 0,
+                                        display: "inline-block",
+                                        ...(piece.shard
+                                            ? {
+                                                width: 5,
+                                                height: 7,
+                                                borderRadius: "1px",
+                                                background:
+                                                    i % 2
+                                                        ? "#f43f5e"
+                                                        : "#f97316",
+                                            }
+                                            : {
+                                                fontSize: 10,
+                                                fontWeight: 900,
+                                                color: "#fff",
+                                                fontVariantNumeric: "tabular-nums",
+                                                textShadow: "0 1px 2px rgba(0,0,0,0.4)",
+                                            }),
+                                        // Ease-in fall: gravity drags every piece past the screen bottom.
+                                        animation: `volumeBadgeFall ${PCT_BADGE_FALL_MS}ms cubic-bezier(0.45, 0.05, 0.85, 0.5) ${piece.delay}ms forwards`,
+                                        "@keyframes volumeBadgeFall": {
+                                            from: {
+                                                transform:
+                                                    "translate(-50%, -50%) translate(0, 0) rotate(0deg)",
+                                            },
+                                            to: {
+                                                transform:
+                                                    "translate(-50%, -50%) translate(var(--fall-x), var(--fall-y)) rotate(var(--fall-r))",
+                                            },
+                                        },
+                                    }}
+                                >
+                                    {piece.ch}
+                                </Box>
+                            ))}
+                        </Box>
+                    )}
                     {/* Racket flash — swings in to smack the marble back onto the bar */}
                     {racket && (
                         <Box
@@ -538,15 +781,18 @@ export const VolumeCannon = ({
                                 pointerEvents: "none",
                                 zIndex: PORTAL_Z_INDEX + 2,
                                 transformOrigin: "50% 85%",
-                                animation: `volumeRacketSwing ${RACKET_SHOW_MS}ms ease-out forwards`,
+                                animation:
+                                    racket.pose === "swing"
+                                        ? `volumeRacketSwing ${RACKET_SWING_MS}ms ease-out forwards`
+                                        : "volumeRacketReady 0.25s ease-in-out infinite alternate",
                                 "@keyframes volumeRacketSwing": {
                                     "0%": {
-                                        opacity: 0,
-                                        transform: "translate(-50%, -60%) rotate(60deg)",
-                                    },
-                                    "25%": {
                                         opacity: 1,
-                                        transform: "translate(-50%, -60%) rotate(-30deg)",
+                                        transform: "translate(-50%, -60%) rotate(65deg)",
+                                    },
+                                    "20%": {
+                                        opacity: 1,
+                                        transform: "translate(-50%, -60%) rotate(-32deg)",
                                     },
                                     "60%": {
                                         opacity: 1,
@@ -555,6 +801,16 @@ export const VolumeCannon = ({
                                     "100%": {
                                         opacity: 0,
                                         transform: "translate(-50%, -60%) rotate(-18deg)",
+                                    },
+                                },
+                                "@keyframes volumeRacketReady": {
+                                    from: {
+                                        opacity: 0.95,
+                                        transform: "translate(-50%, -60%) rotate(58deg)",
+                                    },
+                                    to: {
+                                        opacity: 1,
+                                        transform: "translate(-50%, -60%) rotate(72deg)",
                                     },
                                 },
                             }}
