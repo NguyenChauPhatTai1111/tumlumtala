@@ -47,6 +47,7 @@ import { useLikeMusicMutation, useLyricsQuery } from "@pages/music/hooks/useMusi
 import { resolveSpotifyTrackPlayback } from "@services/musicService";
 import { TrackInfoButton } from "./TrackInfoDialog";
 import { VolumeCannon } from "./VolumeCannon";
+import { VolumePlaneShooter } from "./VolumePlaneShooter";
 
 const SPOTIFY_GREEN = "#f97316";
 const PLAYBACK_POSITION_STORAGE_KEY = "music-player-position-v1";
@@ -224,6 +225,7 @@ export const BottomPlayer = () => {
     const [youtubeFullscreen, setYoutubeFullscreen] = useState(false);
     const [youtubeControlsVisible, setYoutubeControlsVisible] = useState(false);
     const [expanded, setExpanded] = useState(false);
+    const [planeShooterOpen, setPlaneShooterOpen] = useState(false);
     const [composerInputFocused, setComposerInputFocused] = useState(false);
 
     const {
@@ -346,6 +348,11 @@ export const BottomPlayer = () => {
         volumeRef.current = volume;
         saveVolume(volume);
     }, [volume]);
+
+    // The plane-shooter game only lives inside the expanded now-playing screen.
+    useEffect(() => {
+        if (!expanded) setPlaneShooterOpen(false);
+    }, [expanded]);
 
     useEffect(() => {
         if (!expanded) return;
@@ -1565,10 +1572,32 @@ export const BottomPlayer = () => {
                                             borderColor: "divider",
                                         }}
                                     >
-                                        <VolumeCannon
-                                            volume={volume}
-                                            onVolumeChange={setVolume}
-                                        />
+                                        <Tooltip title="Bắn máy bay để chỉnh âm lượng">
+                                            <IconButton
+                                                onClick={() => setPlaneShooterOpen(true)}
+                                                sx={{
+                                                    color: "text.secondary",
+                                                    "&:hover": { color: "text.primary" },
+                                                }}
+                                            >
+                                                {volume === 0 ? (
+                                                    <VolumeOffIcon sx={{ fontSize: 20 }} />
+                                                ) : (
+                                                    <VolumeUpIcon sx={{ fontSize: 20 }} />
+                                                )}
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Typography
+                                            sx={{
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                color: "text.secondary",
+                                                fontVariantNumeric: "tabular-nums",
+                                                minWidth: 34,
+                                            }}
+                                        >
+                                            {Math.round(volume * 100)}%
+                                        </Typography>
                                     </Box>
                                 )}
                             </Box>
@@ -1576,6 +1605,15 @@ export const BottomPlayer = () => {
                     </Box>
                 </Slide>
             </Portal>
+
+            {/* Plane-shooter volume game (expanded now-playing screen) */}
+            {planeShooterOpen && (
+                <VolumePlaneShooter
+                    volume={volume}
+                    onVolumeChange={setVolume}
+                    onClose={() => setPlaneShooterOpen(false)}
+                />
+            )}
 
             {/* Main player bar */}
             {isCompact ? (
