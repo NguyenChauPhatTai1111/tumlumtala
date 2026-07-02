@@ -49,6 +49,27 @@ import { VolumeCannon } from "./VolumeCannon";
 
 const SPOTIFY_GREEN = "#f97316";
 const PLAYBACK_POSITION_STORAGE_KEY = "music-player-position-v1";
+const VOLUME_STORAGE_KEY = "music-player-volume-v1";
+
+// Chưa từng bắn trúng thì âm lượng bắt đầu ở 0% — phải bắn bi để mở tiếng.
+const getSavedVolume = () => {
+    try {
+        const raw = localStorage.getItem(VOLUME_STORAGE_KEY);
+        if (raw === null) return 0;
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0;
+    } catch {
+        return 0;
+    }
+};
+
+const saveVolume = (value: number) => {
+    try {
+        localStorage.setItem(VOLUME_STORAGE_KEY, String(value));
+    } catch {
+        // Playback must continue even when browser storage is unavailable.
+    }
+};
 
 const getSavedPlaybackPosition = (itemId: string) => {
     try {
@@ -188,7 +209,7 @@ export const BottomPlayer = () => {
         resume: () => {},
     });
 
-    const [volume, setVolume] = useState(1);
+    const [volume, setVolume] = useState(getSavedVolume);
     const [audioCurrentTime, setAudioCurrentTime] = useState(0);
     const [audioDuration, setAudioDuration] = useState(0);
     const [collapsedVideoId, setCollapsedVideoId] = useState<string | null>(null);
@@ -321,6 +342,7 @@ export const BottomPlayer = () => {
 
     useEffect(() => {
         volumeRef.current = volume;
+        saveVolume(volume);
     }, [volume]);
 
     useEffect(() => {
