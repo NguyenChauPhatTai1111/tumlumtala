@@ -1,4 +1,5 @@
 COMPOSE := docker compose
+DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 PORT ?= 25057
 export PORT
 MYSQL_CONTAINER        := tumlumtala-users-mysql
@@ -11,12 +12,13 @@ MIGRATIONS_SNAPSHOT_DIR := internal/infrastructure/db/migrations/snapshots
 
 .NOTPARALLEL:
 
-.PHONY: help up start down wait-db ensure-db fresh-db \
+.PHONY: help up start dev down wait-db ensure-db fresh-db \
 	migrate-up migrate-main migrate-snapshots migrate-fresh build verify-routes
 
 help:
 	@echo "  make up                     Build và start musics-service"
 	@echo "  make start                  Start musics-service (không build lại)"
+	@echo "  make dev                    Start với Air hot reload"
 	@echo "  make down                   Stop musics-service"
 	@echo "  make migrate-up             Chạy tất cả SQL migrations"
 	@echo "  make migrate-fresh          Xóa DB, migrate lại"
@@ -28,6 +30,9 @@ up: migrate-up
 start:
 	@$(COMPOSE) up -d
 	@$(MAKE) verify-routes
+
+dev:
+	@$(DEV_COMPOSE) up -d --build
 
 down:
 	@$(COMPOSE) down --remove-orphans

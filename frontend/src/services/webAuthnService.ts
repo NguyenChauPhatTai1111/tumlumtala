@@ -32,23 +32,24 @@ export async function finishRegistration(
 }
 
 // ── Login (public, no token required) ─────────────────────────────────────────
+// Email is omitted entirely: the authenticator picks the discoverable (resident) credential
+// and the backend resolves which account it belongs to.
 
-export async function beginLogin(email: string, sessionId: string): Promise<PublicKeyCredentialRequestOptionsJSON> {
+export async function beginLogin(sessionId: string): Promise<PublicKeyCredentialRequestOptionsJSON> {
 	const res = await apiRequest(`${BASE}/login/begin`, {
 		method: "POST",
-		data: { email, session_id: sessionId },
+		data: { session_id: sessionId },
 	});
 	return res.data.options as PublicKeyCredentialRequestOptionsJSON;
 }
 
 export async function finishLogin(
-	email: string,
 	sessionId: string,
 	credential: ReturnType<typeof startAuthentication> extends Promise<infer T> ? T : never,
 ): Promise<{ access_token: string }> {
 	const res = await apiRequest(`${BASE}/login/finish`, {
 		method: "POST",
-		data: { email, session_id: sessionId, credential },
+		data: { session_id: sessionId, credential },
 	});
 	return res.data as { access_token: string };
 }
@@ -66,10 +67,10 @@ export async function registerPasskey(userUUID: string): Promise<void> {
 	await finishRegistration(userUUID, sessionId, credential);
 }
 
-export async function loginWithPasskey(email: string): Promise<string> {
+export async function loginWithPasskey(): Promise<string> {
 	const sessionId = newSessionId();
-	const options = await beginLogin(email, sessionId);
+	const options = await beginLogin(sessionId);
 	const credential = await startAuthentication({ optionsJSON: options });
-	const result = await finishLogin(email, sessionId, credential);
+	const result = await finishLogin(sessionId, credential);
 	return result.access_token;
 }

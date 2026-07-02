@@ -1,0 +1,20 @@
+services:
+  notification-api:
+    image: tumlumtala-air-dev:1.65.1
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace/notification-service
+    command: ["air", "-c", "/workspace/.air.toml"]
+    volumes:
+      - ..:/workspace
+
+  notification-worker:
+    image: tumlumtala-air-dev:1.65.1
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace/notification-service
+    command: ["air", "-c", "/workspace/.air.worker.toml"]
+    volumes:
+      - ..:/workspace

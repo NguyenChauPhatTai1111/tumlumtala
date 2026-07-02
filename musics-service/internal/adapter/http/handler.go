@@ -390,10 +390,30 @@ func (h *Handler) GetSpotifyArtistDiscography(c *gin.Context) {
 		return
 	}
 	albums, total, err := h.spotify.GetArtistAlbums(c.Request.Context(), artistID, 50, 0)
-	if err != nil {
-		log.Printf("spotify get artist discography error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy discography nghệ sĩ", http.StatusBadGateway))
-		return
+	if err != nil || len(albums) == 0 {
+		if err != nil {
+			log.Printf("spotify get artist discography fallback to search: %v", err)
+		}
+		collections, searchErr := h.spotify.SearchCollections(c.Request.Context(), artist.Name, "album", 10)
+		if searchErr == nil && len(collections) > 0 {
+			albums = make([]spotify.AlbumSummary, 0, len(collections))
+			for _, col := range collections {
+				albums = append(albums, spotify.AlbumSummary{
+					ID:          col.ID,
+					Name:        col.Name,
+					AlbumType:   "album",
+					ReleaseDate: col.ReleaseDate,
+					Images:      col.Images,
+					ArtistName:  col.Owner.Name,
+					ExternalURL: col.ExternalURL,
+				})
+			}
+			total = len(albums)
+			err = nil
+		} else if err != nil {
+			responses.ResponseError(c, responses.NewError("Không thể lấy discography nghệ sĩ", http.StatusBadGateway))
+			return
+		}
 	}
 	if albums == nil {
 		albums = []spotify.AlbumSummary{}

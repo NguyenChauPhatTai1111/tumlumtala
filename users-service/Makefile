@@ -1,4 +1,5 @@
 COMPOSE := docker compose
+DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 PORT ?= 25052
 export PORT
 MYSQL_CONTAINER := tumlumtala-users-mysql
@@ -16,11 +17,12 @@ DOCKER_GO_ENV := -e DB_HOST=tumlumtala-users-mysql -e DB_PORT=3306 -e DB_NAME="$
 
 .NOTPARALLEL:
 
-.PHONY: help up start down wait-db ensure-db fresh-db migrate-up seed replay migrate-fresh-seeder test build
+.PHONY: help up start dev down wait-db ensure-db fresh-db migrate-up seed replay migrate-fresh-seeder test build
 
 help:
 	@echo "  make up                               Build và start users-service"
 	@echo "  make start                            Start users-service"
+	@echo "  make dev                              Start với Air hot reload"
 	@echo "  make down                             Stop users-service"
 	@echo "  make migrate-up                       Chạy tất cả SQL migrations"
 	@echo "  make migrate-fresh-seeder             Xóa volume DB, migrate và seed lại"
@@ -32,6 +34,9 @@ up: migrate-up
 
 start:
 	@$(COMPOSE) up -d
+
+dev:
+	@$(DEV_COMPOSE) up -d --build
 
 down:
 	@$(COMPOSE) down --remove-orphans

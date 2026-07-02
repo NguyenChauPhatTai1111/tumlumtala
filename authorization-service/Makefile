@@ -1,4 +1,5 @@
 COMPOSE := docker compose
+DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 PORT ?= 25054
 export PORT
 MYSQL_CONTAINER := tumlumtala-users-mysql
@@ -9,11 +10,12 @@ MIGRATIONS_DIR := internal/infrastructure/db/migrations
 
 .NOTPARALLEL:
 
-.PHONY: help up start down wait-db ensure-db fresh-db migrate-up migrate-fresh-seeder
+.PHONY: help up start dev down wait-db ensure-db fresh-db migrate-up migrate-fresh-seeder
 
 help:
 	@echo "  make up                     Build và start authorization-service"
 	@echo "  make start                  Start authorization-service"
+	@echo "  make dev                    Start với Air hot reload"
 	@echo "  make down                   Stop authorization-service"
 	@echo "  make migrate-up             Chạy tất cả SQL migrations"
 	@echo "  make migrate-fresh-seeder   Xóa DB, migrate lại"
@@ -23,6 +25,9 @@ up: migrate-up
 
 start:
 	@$(COMPOSE) up -d
+
+dev:
+	@$(DEV_COMPOSE) up -d --build
 
 down:
 	@$(COMPOSE) down --remove-orphans

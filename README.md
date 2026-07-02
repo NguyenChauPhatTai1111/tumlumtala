@@ -5,7 +5,8 @@
 Mỗi service sở hữu Makefile riêng; Makefile root chỉ điều phối:
 
 ```bash
-make dev                         # down → up → start toàn bộ hệ thống
+make dev                         # frontend + toàn bộ backend với Air hot reload
+make dev-backend                 # chỉ backend với Air hot reload
 make start-auth                  # start auth-service
 make start-user                  # start users-service
 make migrate-up                  # migrate tất cả service
@@ -16,7 +17,21 @@ make migrate-fresh-seeder-auth   # fresh + seed auth database
 make migrate-fresh-seeder-user   # fresh + seed users database
 ```
 
-`migrate-fresh-seeder*` recreate database tương ứng và chỉ nên dùng trong môi trường development. Hiện `auth-service` chưa có source/Compose nên Makefile auth báo skip rõ ràng; interface target đã sẵn sàng cho lúc service được triển khai.
+Trong môi trường development, mỗi Go service chạy bằng Air trong container.
+Khi sửa file `.go`, `go.mod` hoặc `go.sum`, service tương ứng sẽ tự build và
+restart; không cần rebuild Docker image. `notification-api` và
+`notification-worker` được theo dõi và restart độc lập.
+
+```bash
+make dev-backend                 # start tất cả backend
+make -C users-service dev        # hoặc chỉ start một service
+make logs                        # theo dõi log tập trung
+```
+
+Các image production trong `Dockerfile` hiện tại không bị thay đổi; Air chỉ
+được bật qua `docker-compose.dev.yml`.
+
+`migrate-fresh-seeder*` recreate database tương ứng và chỉ nên dùng trong môi trường development.
 
 ## Database convention
 

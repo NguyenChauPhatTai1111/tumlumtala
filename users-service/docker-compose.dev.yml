@@ -1,0 +1,11 @@
+services:
+  users-service:
+    image: tumlumtala-air-dev:1.65.1
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace/users-service
+    command: ["air", "-c", "/workspace/.air.toml"]
+    volumes:
+      - ..:/workspace
+      - ../uploads:/app/uploads

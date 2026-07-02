@@ -1,0 +1,11 @@
+services:
+  gateway:
+    image: tumlumtala-air-dev:1.65.1
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace/gateway
+    command: ["air", "-c", "/workspace/.air.toml"]
+    volumes:
+      - ..:/workspace
+      - ../uploads:/app/uploads

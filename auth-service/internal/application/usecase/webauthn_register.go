@@ -82,6 +82,11 @@ func (uc *WebAuthnRegistrationUseCase) Finish(ctx context.Context, input dto.Web
 		return err
 	}
 
+	// Each account has exactly one biometric credential: replace any previous one.
+	if err := uc.creds.DeleteByUserUUID(ctx, user.UUID); err != nil {
+		return err
+	}
+
 	transportsJSON, _ := json.Marshal(cred.Transport)
 	return uc.creds.Save(ctx, &entity.WebAuthnCredential{
 		UserUUID:       user.UUID,

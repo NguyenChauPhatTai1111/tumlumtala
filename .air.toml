@@ -1,0 +1,24 @@
+root = "."
+tmp_dir = "tmp/air-api"
+
+[build]
+cmd = "go build -buildvcs=false -o ./tmp/air-api/app ./cmd/api"
+entrypoint = ["./tmp/air-api/app"]
+include_ext = ["go", "mod", "sum"]
+exclude_dir = ["tmp", "vendor", "seed-assets", "uploads"]
+exclude_regex = ["_test\\.go"]
+exclude_unchanged = true
+delay = 300
+stop_on_error = true
+send_interrupt = true
+kill_delay = 500
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true
+
+[screen]
+clear_on_rebuild = false
+keep_scroll = true

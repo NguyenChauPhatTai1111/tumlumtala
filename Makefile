@@ -1,25 +1,29 @@
 -include .env
 
-SERVICES := auth-service authorization-service users-service gateway messenger-service musics-service
+SERVICES := auth-service authorization-service users-service gateway messenger-service movies-service musics-service notification-service
 
 # Service port registry. Every new service must reserve one unique TCP port
 # here before being added to the orchestration targets.
 USER_SERVICE_PORT      ?= 25052
 AUTH_SERVICE_PORT      ?= 25053
 AUTHZ_SERVICE_PORT     ?= 25054
+MOVIES_SERVICE_PORT    ?= 25055
 MESSENGER_SERVICE_PORT ?= 25056
 MUSICS_SERVICE_PORT    ?= 25057
-SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT) $(MESSENGER_SERVICE_PORT) $(MUSICS_SERVICE_PORT)
+SERVICE_PORTS := $(USER_SERVICE_PORT) $(AUTH_SERVICE_PORT) $(AUTHZ_SERVICE_PORT) $(MOVIES_SERVICE_PORT) $(MESSENGER_SERVICE_PORT) $(MUSICS_SERVICE_PORT)
 
 .NOTPARALLEL:
 
-.PHONY: help ports validate-ports dev down up build start network \
+.PHONY: help ports validate-ports dev dev-backend dev-start dev-up down down-backend up build start network \
 	start-infra up-infra down-infra \
+	dev-auth dev-authz dev-user dev-movie dev-messenger dev-musics dev-notification dev-gateway \
 	start-auth up-auth build-auth down-auth \
 	start-authz up-authz build-authz down-authz \
 	start-user up-user build-user down-user \
+	start-movie up-movie build-movie down-movie \
 	start-messenger up-messenger build-messenger down-messenger \
 	start-musics up-musics build-musics down-musics \
+	start-notification up-notification build-notification down-notification \
 	start-gateway up-gateway build-gateway down-gateway \
 	migrate-up migrate-all migrate-main migrate-snapshots \
 	migrate-user migrate-auth migrate-authz \
@@ -40,6 +44,7 @@ help:
 	@echo "  make build                            docker compose up -d --build (build lại image)"
 	@echo "  make down                             Stop toàn bộ hệ thống"
 	@echo "  make frontend                         Start frontend dev server (npm run dev)"
+	@echo "  make dev-backend                      Start toàn bộ backend với Air hot reload"
 	@echo "  make start-auth                       Start auth-service"
 	@echo "  make start-authz                      Start authorization-service"
 	@echo "  make start-user                       Start users-service"
@@ -62,12 +67,13 @@ help:
 	@echo "  make migrate-fresh-seeder-musics      Fresh/seed musics-service"
 	@echo "  make replay-user-snapshots            Publish user.created events → sync user_snapshots toàn service"
 	@echo "Ports:"
-	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT), messenger-service=$(MESSENGER_SERVICE_PORT), musics-service=$(MUSICS_SERVICE_PORT)"
+	@echo "  users-service=$(USER_SERVICE_PORT), auth-service=$(AUTH_SERVICE_PORT), authorization-service=$(AUTHZ_SERVICE_PORT), movies-service=$(MOVIES_SERVICE_PORT), messenger-service=$(MESSENGER_SERVICE_PORT), musics-service=$(MUSICS_SERVICE_PORT)"
 
 ports:
 	@echo "users-service          $(USER_SERVICE_PORT)"
 	@echo "auth-service           $(AUTH_SERVICE_PORT)"
 	@echo "authorization-service  $(AUTHZ_SERVICE_PORT)"
+	@echo "movies-service         $(MOVIES_SERVICE_PORT)"
 	@echo "messenger-service      $(MESSENGER_SERVICE_PORT)"
 	@echo "musics-service         $(MUSICS_SERVICE_PORT)"
 
@@ -83,22 +89,57 @@ validate-ports:
 	done
 	@echo "✅ Service ports are valid and unique"
 
-dev: validate-ports start
+dev: validate-ports dev-start
 	@echo "→ Starting frontend dev server..."
 	@cd frontend && npm run dev &
 	@echo "✅ All services up. Streaming logs (Ctrl+C to stop logs and all services)..."
 	@trap 'exit 0' INT TERM; bash scripts/logs.sh; wait
 
-down: down-frontend down-auth down-authz down-user down-messenger down-musics down-infra down-gateway
+dev-backend: validate-ports down-backend dev-up
+	@echo "✅ Backend dev environment is running with Air hot reload"
+
+dev-start: down dev-up
+
+dev-up: network up-infra dev-user dev-auth dev-authz dev-movie dev-messenger dev-musics dev-notification dev-gateway
+	@echo "✅ All backend services are running with Air hot reload"
+
+down: down-frontend down-auth down-authz down-user down-movie down-messenger down-musics down-notification down-gateway down-infra
 	@echo "✅ All services stopped"
+
+down-backend: down-auth down-authz down-user down-movie down-messenger down-musics down-notification down-gateway down-infra
+	@echo "✅ Backend services stopped"
 
 down-frontend:
 	@bash scripts/kill-frontend.sh
 
-up: network up-infra up-user up-auth up-authz up-messenger up-musics up-gateway
+dev-auth:
+	@$(MAKE) -C auth-service dev PORT=$(AUTH_SERVICE_PORT)
+
+dev-authz:
+	@$(MAKE) -C authorization-service dev PORT=$(AUTHZ_SERVICE_PORT)
+
+dev-user:
+	@$(MAKE) -C users-service dev PORT=$(USER_SERVICE_PORT)
+
+dev-movie:
+	@$(MAKE) -C movies-service dev PORT=$(MOVIES_SERVICE_PORT)
+
+dev-messenger:
+	@$(MAKE) -C messenger-service dev PORT=$(MESSENGER_SERVICE_PORT)
+
+dev-musics:
+	@$(MAKE) -C musics-service dev PORT=$(MUSICS_SERVICE_PORT)
+
+dev-notification:
+	@$(MAKE) -C notification-service dev
+
+dev-gateway:
+	@$(MAKE) -C gateway dev
+
+up: network up-infra up-user up-auth up-authz up-movie up-messenger up-musics up-notification up-gateway
 	@echo "✅ All services up"
 
-build: network up-infra build-user build-auth build-authz build-messenger build-musics build-gateway
+build: network up-infra build-user build-auth build-authz build-movie build-messenger build-musics build-notification build-gateway
 	@echo "✅ All services built and up"
 
 start: validate-ports down up
@@ -152,6 +193,30 @@ start-user: validate-ports
 
 down-user:
 	@$(MAKE) -C users-service down
+
+up-movie: validate-ports
+	@$(MAKE) -C movies-service start PORT=$(MOVIES_SERVICE_PORT)
+
+build-movie: validate-ports
+	@$(MAKE) -C movies-service up PORT=$(MOVIES_SERVICE_PORT)
+
+start-movie: validate-ports
+	@$(MAKE) -C movies-service start PORT=$(MOVIES_SERVICE_PORT)
+
+down-movie:
+	@$(MAKE) -C movies-service down
+
+up-notification:
+	@$(MAKE) -C notification-service start
+
+build-notification:
+	@$(MAKE) -C notification-service up
+
+start-notification:
+	@$(MAKE) -C notification-service start
+
+down-notification:
+	@$(MAKE) -C notification-service down
 
 up-gateway:
 	@$(MAKE) -C gateway start

@@ -2,19 +2,23 @@ COMPOSE_FILE := docker-compose.yml
 PORT ?= 25053
 export PORT
 COMPOSE := docker compose
+DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
 .NOTPARALLEL:
 
-.PHONY: help up start down migrate-up migrate-fresh-seeder
+.PHONY: help up start dev down migrate-up migrate-fresh-seeder
 
 help:
-	@echo "auth-service targets: up, start, down, migrate-up, migrate-fresh-seeder"
+	@echo "auth-service targets: up, start, dev, down, migrate-up, migrate-fresh-seeder"
 
 up:
 	@$(COMPOSE) up -d --build
 
 start:
 	@$(COMPOSE) up -d
+
+dev:
+	@$(DEV_COMPOSE) up -d --build
 
 down:
 	@$(COMPOSE) down --remove-orphans

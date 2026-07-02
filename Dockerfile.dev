@@ -1,0 +1,16 @@
+FROM golang:1.25.4-alpine AS air
+
+ARG AIR_VERSION=v1.65.1
+
+RUN apk add --no-cache git \
+    && go install github.com/air-verse/air@${AIR_VERSION}
+
+WORKDIR /workspace
+
+CMD ["air", "-c", ".air.toml"]
+
+# notification-service keeps separate production targets for its API and
+# worker. These aliases let its development override retain those targets
+# while both processes use the same Air toolchain.
+FROM air AS api
+FROM air AS worker

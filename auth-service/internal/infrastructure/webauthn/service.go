@@ -46,8 +46,11 @@ func (s *Service) BeginRegistration(user *WebAuthnUser) (optionsJSON []byte, ses
 		webauthn.WithAuthenticatorSelection(protocol.AuthenticatorSelection{
 			// Require platform authenticator (Face ID / Touch ID) instead of security keys.
 			AuthenticatorAttachment: protocol.Platform,
-			RequireResidentKey:      protocol.ResidentKeyNotRequired(),
-			UserVerification:        protocol.VerificationRequired,
+			// Resident (discoverable) key required so login can identify the user from the
+			// credential alone, without asking for an email first.
+			RequireResidentKey: protocol.ResidentKeyRequired(),
+			ResidentKey:        protocol.ResidentKeyRequirementRequired,
+			UserVerification:   protocol.VerificationRequired,
 		}),
 	)
 	if err != nil {
@@ -99,4 +102,46 @@ func (s *Service) FinishLogin(user *WebAuthnUser, sessionJSON []byte, r *http.Re
 		return nil, err
 	}
 	return s.wa.FinishLogin(user, session, r)
+}
+
+// BeginDiscoverableLogin returns PublicKeyCredentialRequestOptions JSON for a usernameless
+// (discoverable credential) login, where the authenticator itself picks the credential.
+func (s *Service) BeginDiscoverableLogin() (optionsJSON []byte, sessionJSON []byte, err error) {
+	options, session, err := s.wa.BeginDiscoverableLogin(
+		webauthn.WithUserVerification(protocol.VerificationRequired),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	optionsJSON, err = json.Marshal(options.Response)
+	if err != nil {
+		return nil, nil, err
+	}
+	sessionJSON, err = json.Marshal(session)
+	if err != nil {
+		return nil, nil, err
+	}
+	return optionsJSON, sessionJSON, nil
+}
+
+// FinishDiscoverableLogin verifies a usernameless assertion, resolving the owning user via handler.
+func (s *Service) FinishDiscoverableLogin(handler webauthn.DiscoverableUserHandler, sessionJSON []byte, r *http.Request) (*WebAuthnUser, *webauthn.Credential, error) {
+	var session webauthn.SessionData
+	if err := json.Unmarshal(sessionJSON, &session); err != nil {
+		return nil, nil, err
+	}
+	var resolved *WebAuthnUser
+	wrapped := func(rawID, userHandle []byte) (webauthn.User, error) {
+		user, err := handler(rawID, userHandle)
+		if err != nil {
+			return nil, err
+		}
+		resolved = user.(*WebAuthnUser)
+		return user, nil
+	}
+	cred, err := s.wa.FinishDiscoverableLogin(wrapped, session, r)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resolved, cred, nil
 }

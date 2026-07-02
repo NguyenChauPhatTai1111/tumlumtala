@@ -1,0 +1,11 @@
+services:
+  messenger-service:
+    image: tumlumtala-air-dev:1.65.1
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace/messenger-service
+    command: ["air", "-c", "/workspace/.air.toml"]
+    volumes:
+      - ..:/workspace
+      - messenger_uploads:/app/uploads

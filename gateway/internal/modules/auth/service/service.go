@@ -67,16 +67,16 @@ func (s *AuthService) WebAuthnFinishRegistration(ctx context.Context, input doma
 
 func (s *AuthService) WebAuthnBeginLogin(ctx context.Context, input domain.WebAuthnBeginLoginInput) (domain.WebAuthnBeginLoginOutput, error) {
 	input.Email = strings.TrimSpace(input.Email)
-	if input.Email == "" || input.SessionID == "" {
-		return domain.WebAuthnBeginLoginOutput{}, apperrors.New(apperrors.CodeBadRequest, "email and session_id are required", errors.New("missing fields"))
+	if input.SessionID == "" {
+		return domain.WebAuthnBeginLoginOutput{}, apperrors.New(apperrors.CodeBadRequest, "session_id is required", errors.New("missing fields"))
 	}
 	return s.authClient.WebAuthnBeginLogin(ctx, input)
 }
 
 func (s *AuthService) WebAuthnFinishLogin(ctx context.Context, input domain.WebAuthnFinishLoginInput) (domain.TokenPair, error) {
 	input.Email = strings.TrimSpace(input.Email)
-	if input.Email == "" || input.SessionID == "" || len(input.RawResponseJSON) == 0 {
-		return domain.TokenPair{}, apperrors.New(apperrors.CodeBadRequest, "email, session_id and credential response are required", errors.New("missing fields"))
+	if input.SessionID == "" || len(input.RawResponseJSON) == 0 {
+		return domain.TokenPair{}, apperrors.New(apperrors.CodeBadRequest, "session_id and credential response are required", errors.New("missing fields"))
 	}
 	return s.authClient.WebAuthnFinishLogin(ctx, input)
 }

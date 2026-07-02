@@ -223,8 +223,11 @@ func (c *Client) GetSimilarTracks(
 		queries = append(queries, fmt.Sprintf(`artist:"%s"`, seedArtist))
 	}
 	if len(queries) == 0 {
+		// No genre or artist data available; nothing to search with
 		return []Track{}, nil
 	}
+
+	hasGenreQuery := len(uniqueStrings(genres)) > 0
 
 	result := make([]Track, 0, limit)
 	seen := map[string]struct{}{seedTrackID: {}}
@@ -237,7 +240,9 @@ func (c *Client) GetSimilarTracks(
 			if _, exists := seen[track.ID]; exists {
 				continue
 			}
-			if seedArtistID != "" && track.User.ID == seedArtistID && len(result) < limit/2 {
+			// Only diversify away from seed artist when genre queries also exist,
+			// so a pure artist query still returns results.
+			if hasGenreQuery && seedArtistID != "" && track.User.ID == seedArtistID && len(result) < limit/2 {
 				continue
 			}
 			seen[track.ID] = struct{}{}
@@ -1969,7 +1974,7 @@ func (c *Client) GetPlaylist(ctx context.Context, playlistID string) (*Collectio
 }
 
 func (c *Client) fetchPlaylist(ctx context.Context, token, playlistID string) (*CollectionSummary, int, error) {
-	params := url.Values{"fields": {"id,name,description,type,images,owner,tracks.total,external_urls"}, "market": {c.market}}
+	params := url.Values{"fields": {"id,name,description,images,owner,tracks.total,external_urls"}, "market": {c.market}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.apiURL+"/playlists/"+playlistID+"?"+params.Encode(), nil)
 	if err != nil {
@@ -2056,7 +2061,6 @@ func (c *Client) fetchPlaylistTracks(ctx context.Context, token, playlistID stri
 		"market": {c.market},
 		"limit":  {strconv.Itoa(limit)},
 		"offset": {strconv.Itoa(offset)},
-		"fields": {"total,items(track(id,name,duration_ms,artists,album(id,name,images),external_urls))"},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.apiURL+"/playlists/"+playlistID+"/tracks?"+params.Encode(), nil)

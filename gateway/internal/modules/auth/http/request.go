@@ -26,12 +26,14 @@ type WebAuthnFinishRegistrationRequest struct {
 }
 
 type WebAuthnBeginLoginRequest struct {
-	Email     string `json:"email" binding:"required,email"`
+	// Email is optional: when omitted, a usernameless (discoverable credential) login is performed.
+	Email     string `json:"email" binding:"omitempty,email"`
 	SessionID string `json:"session_id" binding:"required"`
 }
 
 type WebAuthnFinishLoginRequest struct {
-	Email      string      `json:"email" binding:"required,email"`
+	// Email is optional: when omitted, the user is resolved from the passkey itself.
+	Email      string      `json:"email" binding:"omitempty,email"`
 	SessionID  string      `json:"session_id" binding:"required"`
 	Credential interface{} `json:"credential" binding:"required"`
 }

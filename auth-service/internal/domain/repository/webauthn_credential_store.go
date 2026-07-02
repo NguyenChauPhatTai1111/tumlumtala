@@ -11,4 +11,5 @@ type WebAuthnCredentialStore interface {
 	GetByUserUUID(ctx context.Context, userUUID string) ([]*entity.WebAuthnCredential, error)
 	GetByCredentialID(ctx context.Context, credentialID []byte) (*entity.WebAuthnCredential, error)
 	UpdateSignCount(ctx context.Context, credentialID []byte, newCount uint32) error
+	DeleteByUserUUID(ctx context.Context, userUUID string) error
 }

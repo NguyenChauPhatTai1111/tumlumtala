@@ -1,4 +1,5 @@
 COMPOSE        := docker compose
+DEV_COMPOSE    := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 PORT           ?= 25056
 export PORT
 MYSQL_CONTAINER     := tumlumtala-users-mysql
@@ -19,7 +20,7 @@ DOCKER_GO_ENV := -e DB_HOST=tumlumtala-users-mysql -e DB_PORT=3306 -e DB_NAME="$
 
 .NOTPARALLEL:
 
-.PHONY: help up start down wait-db ensure-db fresh-db \
+.PHONY: help up start dev down wait-db ensure-db fresh-db \
 	migrate-up migrate-main migrate-snapshots \
 	migrate-fresh-seeder migrate-fresh-seeder-no-upload \
 	seeder build
@@ -27,6 +28,7 @@ DOCKER_GO_ENV := -e DB_HOST=tumlumtala-users-mysql -e DB_PORT=3306 -e DB_NAME="$
 help:
 	@echo "  make up                       Build và start messenger-service"
 	@echo "  make start                    Start messenger-service (không build lại)"
+	@echo "  make dev                      Start với Air hot reload"
 	@echo "  make down                     Stop messenger-service"
 	@echo "  make migrate-up               Chạy tất cả SQL migrations"
 	@echo "  make migrate-fresh-seeder     Xóa DB, migrate và seed lại"
@@ -39,6 +41,9 @@ up: ensure-db
 
 start:
 	@$(COMPOSE) up -d
+
+dev:
+	@$(DEV_COMPOSE) up -d --build
 
 down:
 	@$(COMPOSE) down --remove-orphans

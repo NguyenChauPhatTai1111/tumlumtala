@@ -64,3 +64,9 @@ func (r *MySQLWebAuthnCredentialStore) UpdateSignCount(ctx context.Context, cred
 			"last_used_at": time.Now(),
 		}).Error
 }
+
+func (r *MySQLWebAuthnCredentialStore) DeleteByUserUUID(ctx context.Context, userUUID string) error {
+	return r.db.WithContext(ctx).
+		Where("user_uuid = ?", userUUID).
+		Delete(&model.WebAuthnCredential{}).Error
+}

@@ -1,5 +1,6 @@
 services:
   notification-api:
+    container_name: tumlumtala-notification-api
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,6 +14,7 @@ services:
     restart: unless-stopped
 
   notification-worker:
+    container_name: tumlumtala-notification-worker
     build:
       context: .
       dockerfile: Dockerfile
