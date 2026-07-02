@@ -25,6 +25,7 @@ const BOOM_LIFE_MS = 750;
 const MUZZLE_FLASH_MS = 90;
 const GUN_BOTTOM_OFFSET = 64; // gun pivot sits this far above the screen bottom
 const PLANE_COUNT_STORAGE_KEY = "music-plane-shooter-count";
+const SUPER_PLANE_CHANCE = 0.05; // 5% cơ hội xuất hiện máy bay vô cực
 
 type Plane = {
     id: number;
@@ -67,18 +68,31 @@ let planeSeq = 0;
 
 const makePlane = (offscreen: boolean): Plane => {
     const magnitude = 1 + Math.floor(Math.random() * PLANE_MAX_POINTS);
-    const points = Math.random() < 0.5 ? -magnitude : magnitude;
     const dir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
     const baseY = 70 + Math.random() * Math.max(window.innerHeight * 0.55, 120);
+
+    let points: number;
+    // MẸO CỦA CHÚNG TA Ở ĐÂY:
+    if (!offscreen) {
+        // Nếu là máy bay khởi tạo lúc mở game (vào game phát có luôn)
+        // Ép nó thành máy bay Vô Cực để bạn test luôn cho nóng!
+        points = 100000;
+    } else {
+        // Còn khi bay từ ngoài vào hoặc hồi sinh, tính theo tỷ lệ ngẫu nhiên bth
+        if (Math.random() < SUPER_PLANE_CHANCE) {
+            points = 100000;
+        } else {
+            points = Math.random() < 0.5 ? -magnitude : magnitude;
+        }
+    }
+
     return {
         id: ++planeSeq,
         points,
         bomb: Math.random() < BOMB_CHANCE,
         dir,
-        // Bigger |points| → faster plane.
         speed:
-            PLANE_MIN_SPEED +
-            (magnitude / PLANE_MAX_POINTS) * (PLANE_MAX_SPEED - PLANE_MIN_SPEED),
+            PLANE_MIN_SPEED + (magnitude / PLANE_MAX_POINTS) * (PLANE_MAX_SPEED - PLANE_MIN_SPEED),
         x: offscreen
             ? dir === 1
                 ? -80 - Math.random() * 400
@@ -499,6 +513,8 @@ export const VolumePlaneShooter = ({
             let next: number;
             if (plane.bomb) {
                 next = 0;
+            } else if (plane.points === 100000) {
+                next = 100;
             } else {
                 next = volPctRef.current + plane.points;
                 // Overflow keeps only the trailing digits (103 → 3); floor at 0.
@@ -508,9 +524,14 @@ export const VolumePlaneShooter = ({
             volPctRef.current = next;
             onVolumeChange(next / 100);
             const id = ++boomSeqRef.current;
-            const label = plane.bomb
-                ? "BOOM! 0%"
-                : `${plane.points > 0 ? "+" : ""}${plane.points} → ${next}%`;
+            let label = "";
+            if (plane.bomb) {
+                label = "BOOM! 0%";
+            } else if (plane.points === 100000) {
+                label = "💥 +∞ → 100% MAX!!! 🔊";
+            } else {
+                label = `${plane.points > 0 ? "+" : ""}${plane.points} → ${next}%`;
+            }
             setBooms((prev) => [...prev, { id, x: plane.x, y: plane.y, bomb: plane.bomb, label }]);
             window.setTimeout(
                 () => setBooms((prev) => prev.filter((b) => b.id !== id)),
@@ -536,7 +557,10 @@ export const VolumePlaneShooter = ({
                 const p = planes[i];
                 p.x += p.dir * p.speed * dt;
                 p.y = p.baseY + Math.sin(t * p.freq + p.phase) * p.amp;
-                if ((p.dir === 1 && p.x > window.innerWidth + 120) || (p.dir === -1 && p.x < -120)) {
+                if (
+                    (p.dir === 1 && p.x > window.innerWidth + 120) ||
+                    (p.dir === -1 && p.x < -120)
+                ) {
                     planes[i] = makePlane(true);
                     respawned = true;
                 }
