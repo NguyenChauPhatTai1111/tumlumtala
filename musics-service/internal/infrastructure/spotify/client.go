@@ -91,7 +91,12 @@ func NewClient(cfg Config) *Client {
 		market = "VN"
 	}
 	return &Client{
-		client:       &http.Client{Timeout: 10 * time.Second},
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+			// Cache Spotify GET responses to stay under the per-app rate limit;
+			// stale data is served whenever Spotify returns errors such as 429.
+			Transport: newCacheTransport(nil, 10*time.Minute, 512),
+		},
 		clientID:     strings.TrimSpace(cfg.ClientID),
 		clientSecret: strings.TrimSpace(cfg.ClientSecret),
 		market:       market,
@@ -271,6 +276,75 @@ func (c *Client) DiscoverTracks(ctx context.Context, genre, timeRange string, li
 	seen := make(map[string]struct{})
 	for _, item := range genres {
 		tracks, err := c.SearchTracks(ctx, fmt.Sprintf(`genre:"%s"%s`, item, yearFilter), 10, 0)
+		if err != nil {
+			continue
+		}
+		for _, track := range tracks {
+			if _, exists := seen[track.ID]; exists {
+				continue
+			}
+			seen[track.ID] = struct{}{}
+			result = append(result, track)
+			if len(result) >= limit {
+				return result, nil
+			}
+		}
+	}
+	return result, nil
+}
+
+// SearchTracksByQueries runs multiple search queries in sequence and merges results up to limit.
+// Used as a replacement for the deprecated /recommendations endpoint.
+func (c *Client) SearchTracksByQueries(ctx context.Context, queries []string, limit int) ([]Track, error) {
+	if c.clientID == "" || c.clientSecret == "" {
+		return nil, ErrNotConfigured
+	}
+	token, err := c.authorizedToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	perQuery := (limit / len(queries)) + 2
+	if perQuery > 10 {
+		perQuery = 10
+	}
+	seen := make(map[string]struct{})
+	result := make([]Track, 0, limit)
+	for _, q := range queries {
+		tracks, _, err := c.searchWithMarket(ctx, token, q, "", perQuery, 0)
+		if err != nil {
+			continue
+		}
+		for _, t := range tracks {
+			if _, exists := seen[t.ID]; exists {
+				continue
+			}
+			seen[t.ID] = struct{}{}
+			result = append(result, t)
+			if len(result) >= limit {
+				return result, nil
+			}
+		}
+	}
+	return result, nil
+}
+
+// DiscoverTracksByMarket is like DiscoverTracks but scopes search to a specific market/country.
+func (c *Client) DiscoverTracksByMarket(ctx context.Context, market string, limit int) ([]Track, error) {
+	limit = clampDiscoveryLimit(limit)
+	currentYear := time.Now().Year()
+	if market == "" {
+		market = c.market
+	}
+	token, err := c.authorizedToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	genres := []string{"pop", "hip-hop", "dance", "rock"}
+	result := make([]Track, 0, limit)
+	seen := make(map[string]struct{})
+	for _, genre := range genres {
+		q := fmt.Sprintf(`genre:"%s" year:%d`, genre, currentYear)
+		tracks, _, err := c.searchWithMarket(ctx, token, q, market, 10, 0)
 		if err != nil {
 			continue
 		}
@@ -781,10 +855,21 @@ func (c *Client) search(
 	token, query string,
 	limit, offset int,
 ) ([]Track, int, error) {
+	return c.searchWithMarket(ctx, token, query, c.market, limit, offset)
+}
+
+func (c *Client) searchWithMarket(
+	ctx context.Context,
+	token, query, market string,
+	limit, offset int,
+) ([]Track, int, error) {
+	if market == "" {
+		market = c.market
+	}
 	params := url.Values{
 		"q":      {query},
 		"type":   {"track"},
-		"market": {c.market},
+		"market": {market},
 		"limit":  {strconv.Itoa(limit)},
 		"offset": {strconv.Itoa(offset)},
 	}
@@ -1070,12 +1155,13 @@ func imageURLs(images []struct {
 	return result
 }
 
-// RecommendParams holds seed identifiers for the Spotify recommendations endpoint.
+// RecommendParams holds seed identifiers and optional tunable attributes for the Spotify recommendations endpoint.
 type RecommendParams struct {
 	SeedTrackIDs  []string // Spotify track IDs (max 5 combined with artists+genres)
 	SeedArtistIDs []string
 	SeedGenres    []string
 	Limit         int
+	Extras        map[string]string // tunable attributes: target_energy, min_tempo, etc.
 }
 
 // GetRecommendations calls the Spotify /recommendations endpoint.
@@ -1130,6 +1216,9 @@ func (c *Client) recommend(
 	}
 	if len(params.SeedGenres) > 0 {
 		query.Set("seed_genres", strings.Join(params.SeedGenres, ","))
+	}
+	for k, v := range params.Extras {
+		query.Set(k, v)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiURL+"/recommendations?"+query.Encode(), nil)
@@ -2145,4 +2234,182 @@ func (c *Client) fetchPlaylistTracks(ctx context.Context, token, playlistID stri
 		})
 	}
 	return tracks, payload.Total, res.StatusCode, nil
+}
+
+// AudioFeatures mirrors the Spotify Audio Features object.
+type AudioFeatures struct {
+	ID               string  `json:"id"`
+	Danceability     float64 `json:"danceability"`
+	Energy           float64 `json:"energy"`
+	Key              int     `json:"key"`
+	Loudness         float64 `json:"loudness"`
+	Mode             int     `json:"mode"`
+	Speechiness      float64 `json:"speechiness"`
+	Acousticness     float64 `json:"acousticness"`
+	Instrumentalness float64 `json:"instrumentalness"`
+	Liveness         float64 `json:"liveness"`
+	Valence          float64 `json:"valence"`
+	Tempo            float64 `json:"tempo"`
+	DurationMS       int     `json:"duration_ms"`
+	TimeSignature    int     `json:"time_signature"`
+	URI              string  `json:"uri"`
+}
+
+// GetAudioFeatures calls GET /audio-features/{id} and returns the analysis for a single track.
+func (c *Client) GetAudioFeatures(ctx context.Context, trackID string) (*AudioFeatures, error) {
+	if c.clientID == "" || c.clientSecret == "" {
+		return nil, ErrNotConfigured
+	}
+	token, err := c.token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	features, status, err := c.fetchAudioFeatures(ctx, token, trackID)
+	if err == nil || status != http.StatusUnauthorized {
+		return features, err
+	}
+	c.invalidateToken()
+	token, err = c.token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	features, _, err = c.fetchAudioFeatures(ctx, token, trackID)
+	return features, err
+}
+
+func (c *Client) fetchAudioFeatures(ctx context.Context, token, trackID string) (*AudioFeatures, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.apiURL+"/audio-features/"+trackID, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return nil, res.StatusCode, nil
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, res.StatusCode, fmt.Errorf("Spotify AudioFeatures trả về HTTP %d", res.StatusCode)
+	}
+	var af AudioFeatures
+	if err := json.NewDecoder(res.Body).Decode(&af); err != nil {
+		return nil, res.StatusCode, err
+	}
+	return &af, res.StatusCode, nil
+}
+
+// GetTopTracksByMarket returns popular tracks for the given market using Spotify search.
+// Spotify's Charts API is not part of the public Web API, so we approximate by
+// searching for "year:YYYY" within the requested market.
+func (c *Client) GetTopTracksByMarket(ctx context.Context, market string, limit int) ([]Track, error) {
+	if c.clientID == "" || c.clientSecret == "" {
+		return nil, ErrNotConfigured
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	token, err := c.token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tracks, _, err := c.fetchTopTracksByMarket(ctx, token, market, limit)
+	return tracks, err
+}
+
+func (c *Client) fetchTopTracksByMarket(ctx context.Context, token, market string, limit int) ([]Track, int, error) {
+	currentYear := time.Now().Year()
+	query := fmt.Sprintf("year:%d", currentYear)
+	params := url.Values{
+		"q":      {query},
+		"type":   {"track"},
+		"market": {market},
+		"limit":  {strconv.Itoa(limit)},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.apiURL+"/search?"+params.Encode(), nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return nil, res.StatusCode, fmt.Errorf("Spotify search (market=%s) trả về HTTP %d: %s", market, res.StatusCode, bodyBytes)
+	}
+	var payload struct {
+		Tracks struct {
+			Items []struct {
+				ID         string `json:"id"`
+				Name       string `json:"name"`
+				DurationMS int    `json:"duration_ms"`
+				Artists    []struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"artists"`
+				Album struct {
+					ID     string `json:"id"`
+					Name   string `json:"name"`
+					Images []struct {
+						URL   string `json:"url"`
+						Width int    `json:"width"`
+					} `json:"images"`
+				} `json:"album"`
+				ExternalURLs struct {
+					Spotify string `json:"spotify"`
+				} `json:"external_urls"`
+			} `json:"items"`
+		} `json:"tracks"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return nil, res.StatusCode, err
+	}
+	tracks := make([]Track, 0, len(payload.Tracks.Items))
+	for _, t := range payload.Tracks.Items {
+		if t.ID == "" || len(t.Artists) == 0 {
+			continue
+		}
+		var artwork Artwork
+		for _, img := range t.Album.Images {
+			switch {
+			case img.Width >= 600:
+				artwork.Large = img.URL
+			case img.Width >= 300:
+				artwork.Medium = img.URL
+			default:
+				artwork.Small = img.URL
+			}
+		}
+		if artwork.Medium == "" {
+			artwork.Medium = firstNonEmpty(artwork.Large, artwork.Small)
+		}
+		tArtists := make([]Artist, 0, len(t.Artists))
+		for _, a := range t.Artists {
+			if a.ID != "" && a.Name != "" {
+				tArtists = append(tArtists, Artist{ID: a.ID, Name: a.Name})
+			}
+		}
+		tracks = append(tracks, Track{
+			ID:          t.ID,
+			Provider:    "spotify",
+			Title:       t.Name,
+			Duration:    t.DurationMS / 1000,
+			User:        Artist{ID: t.Artists[0].ID, Name: joinArtistNames(t.Artists)},
+			Artists:     tArtists,
+			Artwork:     artwork,
+			Album:       AlbumInfo{ID: t.Album.ID, Name: t.Album.Name},
+			ExternalURL: t.ExternalURLs.Spotify,
+		})
+	}
+	return tracks, res.StatusCode, nil
 }

@@ -47,6 +47,7 @@ import {
     explainMusicTrack,
     fromBackendMediaItem,
     getListeningChallenges,
+    MAX_MUSIC_CANDIDATES,
     getMusicHeatmap,
     getMusicJourney,
     getMusicSyncRecommendations,
@@ -61,7 +62,7 @@ import {
     type SongComparison,
     type TrackExplanation,
 } from "@services/musicBackendService";
-import { searchTracks, toAudioMediaItem } from "@services/musicService";
+import { searchPreferredTracks, toAudioMediaItem } from "@services/musicService";
 import { usePlayerStore, type PlaybackContext } from "@store/playerStore";
 import { AddToPlaylistButton } from "./AddToPlaylistButton";
 import { TrackOptionsButton } from "./TrackOptionsButton";
@@ -176,7 +177,9 @@ export function AIStudioView() {
 
     const collectCandidates = async (queries: string[]) => {
         const pages = await Promise.all(
-            queries.slice(0, 10).map((query) => searchTracks(query, { limit: 50 })),
+            queries
+                .slice(0, 10)
+                .map((query) => searchPreferredTracks(query, { limit: 10 })),
         );
         const seen = new Set<string>();
         return pages
@@ -186,12 +189,15 @@ export function AIStudioView() {
                 if (seen.has(item.sourceId)) return false;
                 seen.add(item.sourceId);
                 return true;
-            });
+            })
+            .slice(0, MAX_MUSIC_CANDIDATES);
     };
 
     const finalizeSession = async (planned: MusicAISessionResponse) => {
         const candidates = await collectCandidates(planned.plan.search_queries);
-        if (!candidates.length) throw new Error("Audius chưa trả về ứng viên phù hợp.");
+        if (!candidates.length) {
+            throw new Error("Spotify và Audius chưa trả về ứng viên phù hợp.");
+        }
         let result = await addMusicAICandidates(planned.session.id, candidates);
 
         const targetSeconds = planned.plan.duration_minutes * 60;

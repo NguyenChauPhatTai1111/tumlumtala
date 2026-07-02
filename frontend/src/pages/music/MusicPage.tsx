@@ -38,11 +38,7 @@ import type {
     SpotifyArtistResponse,
     SpotifyCollectionSummary,
 } from "@services/musicBackendService";
-import {
-    getPlaylist,
-    getUser,
-    toAudioMediaItem,
-} from "@services/musicService";
+import { getPlaylist, getUser, toAudioMediaItem } from "@services/musicService";
 import { usePlayerStore } from "@store/playerStore";
 import { useThemeMode } from "@store/themeStore";
 import { ArtistsPanel } from "./components/ArtistsPanel";
@@ -52,7 +48,7 @@ import { LibraryView } from "./components/LibraryView";
 import { ListeningStatsView } from "./components/ListeningStatsView";
 import { PlaylistGrid } from "./components/PlaylistGrid";
 import { UserProfileView } from "./components/UserProfileView";
-import { PlaylistTracksDialog } from "./components/PlaylistTracksDialog";
+import { PlaylistTracksPanelContent } from "./components/PlaylistTracksDialog";
 import { LyricsPanelContent, TrackInfoPanelContent } from "./components/TrackInfoDialog";
 import { MediaRow } from "./components/MediaRow";
 import { QueuePanelContent } from "./components/QueuePanel";
@@ -63,7 +59,7 @@ import { MyPlaylistsView } from "./views/MyPlaylistsView";
 import { LikedSongsView } from "./views/LikedSongsView";
 import { SpotifyArtistView } from "./views/SpotifyArtistView";
 import { SpotifyAlbumView } from "./views/SpotifyAlbumView";
-import { SpotifyPlaylistDialog } from "./views/SpotifyPlaylistDialog";
+import { SpotifyPlaylistPanelContent } from "./views/SpotifyPlaylistDialog";
 import {
     MUSIC_CHROME_SURFACE_SX,
     MUSIC_MENU_BACKGROUND_SX,
@@ -72,6 +68,9 @@ import {
     TRACK_INFO_W,
     SIDEBAR_W,
     SIDEBAR_COLLAPSED_W,
+    PLAYLIST_PANEL_DESKTOP_W,
+    PLAYLIST_PANEL_W,
+    PLAYLIST_PANEL_TABLET_W,
     SP_GREEN,
 } from "./constants";
 import { MusicContext } from "./MusicContext";
@@ -93,7 +92,6 @@ import {
     useRecommendationsQuery,
     useTrendingArtistsQuery,
     useTrendingPlaylistsQuery,
-    useTrendingQuery,
     useSpotifyPlaylistTracksQuery,
 } from "./hooks/useMusicQueries";
 import type { AudiusPlaylist, AudiusUser, MediaItem } from "./types";
@@ -107,9 +105,13 @@ export default function MusicPage() {
     const [showLyrics, setShowLyrics] = useState(false);
     const [showTrackInfo, setShowTrackInfo] = useState(false);
     const [selectedArtist, setSelectedArtist] = useState<AudiusUser | null>(null);
-    const [selectedSpotifyArtist, setSelectedSpotifyArtist] = useState<SpotifyArtistResponse | null>(null);
-    const [selectedSpotifyAlbum, setSelectedSpotifyAlbum] = useState<SpotifyAlbumDetail | null>(null);
-    const [selectedSpotifyPlaylist, setSelectedSpotifyPlaylist] = useState<SpotifyCollectionSummary | null>(null);
+    const [selectedSpotifyArtist, setSelectedSpotifyArtist] =
+        useState<SpotifyArtistResponse | null>(null);
+    const [selectedSpotifyAlbum, setSelectedSpotifyAlbum] = useState<SpotifyAlbumDetail | null>(
+        null,
+    );
+    const [selectedSpotifyPlaylist, setSelectedSpotifyPlaylist] =
+        useState<SpotifyCollectionSummary | null>(null);
     const [selectedPlaylist, setSelectedPlaylist] = useState<AudiusPlaylist | null>(null);
     const [openLibraryPlaylistId, setOpenLibraryPlaylistId] = useState<number | undefined>();
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -138,26 +140,36 @@ export default function MusicPage() {
     const backendRecentQuery = useBackendRecentQuery();
     const backendLikedQuery = useBackendLikedQuery();
     const backendPlaylistsQuery = useBackendPlaylistsQuery();
-    const trendingQuery = useTrendingQuery({ genre: "All", time: "week" });
     const trendingArtistsQuery = useTrendingArtistsQuery();
     const trendingPlaylistsQuery = useTrendingPlaylistsQuery();
     const artistsQuery = useArtistsQuery(searchKeyword, view === "artists" && hasSearchKeyword);
-    const playlistsQuery = usePlaylistsQuery(searchKeyword, view === "playlists" && hasSearchKeyword);
+    const playlistsQuery = usePlaylistsQuery(
+        searchKeyword,
+        view === "playlists" && hasSearchKeyword,
+    );
     const playlistTracksQuery = usePlaylistTracksQuery(selectedPlaylist?.id);
-    const spotifyPlaylistTracksQuery = useSpotifyPlaylistTracksQuery(selectedSpotifyPlaylist?.id);
+    const spotifyPlaylistTracksQuery = useSpotifyPlaylistTracksQuery(
+        selectedSpotifyPlaylist?.id,
+        selectedSpotifyPlaylist?.name,
+    );
     const artistTracksQuery = useArtistTracksQuery(selectedArtist?.id);
     const artistAlbumsQuery = useArtistAlbumsQuery(selectedArtist?.id);
     const artistPlaylistsQuery = useArtistPlaylistsQuery(selectedArtist?.id);
     const artistRadioQuery = useArtistRadioQuery(selectedArtist);
     const seedItem = useMemo(() => {
         if (currentItem?.type === "audio") return currentItem;
-        const fromBackend = (backendRecentQuery.data ?? []).find((i: MediaItem) => i.type === "audio");
+        const fromBackend = (backendRecentQuery.data ?? []).find(
+            (i: MediaItem) => i.type === "audio",
+        );
         if (fromBackend) return fromBackend;
         return recentItems.find((i) => i.type === "audio") ?? null;
     }, [currentItem, backendRecentQuery.data, recentItems]);
 
     const recommendationsQuery = useRecommendationsQuery(seedItem?.sourceId);
-    const recommendations = useMemo(() => recommendationsQuery.data ?? [], [recommendationsQuery.data]);
+    const recommendations = useMemo(
+        () => recommendationsQuery.data ?? [],
+        [recommendationsQuery.data],
+    );
 
     const artistRadioTracks = useMemo(
         () => artistRadioQuery.data?.map(toAudioMediaItem) ?? [],
@@ -180,7 +192,11 @@ export default function MusicPage() {
     useEffect(() => {
         const handleEntityNavigation = (event: Event) => {
             const { type, id, provider } = (
-                event as CustomEvent<{ type?: "artist" | "album" | "playlist"; id?: string; provider?: string }>
+                event as CustomEvent<{
+                    type?: "artist" | "album" | "playlist";
+                    id?: string;
+                    provider?: string;
+                }>
             ).detail;
             if (!id) return;
 
@@ -244,8 +260,15 @@ export default function MusicPage() {
         if (_restoredFromStorage) return;
         void import("@services/musicBackendService")
             .then(({ recordMusicPlayback }) => recordMusicPlayback(currentItem))
-            .then(() => void queryClient.invalidateQueries({ queryKey: ["music", "backend", "recent"] }))
-            .catch(() => { lastRecordedItemRef.current = null; });
+            .then(
+                () =>
+                    void queryClient.invalidateQueries({
+                        queryKey: ["music", "backend", "recent"],
+                    }),
+            )
+            .catch(() => {
+                lastRecordedItemRef.current = null;
+            });
     }, [_restoredFromStorage, currentItem, queryClient]);
 
     useEffect(() => {
@@ -253,8 +276,15 @@ export default function MusicPage() {
         const timer = window.setTimeout(() => {
             lastSavedKeywordRef.current = searchKeyword;
             void saveMusicSearchKeyword(searchKeyword)
-                .then(() => void queryClient.invalidateQueries({ queryKey: ["music", "backend", "search-history"] }))
-                .catch(() => { lastSavedKeywordRef.current = null; });
+                .then(
+                    () =>
+                        void queryClient.invalidateQueries({
+                            queryKey: ["music", "backend", "search-history"],
+                        }),
+                )
+                .catch(() => {
+                    lastSavedKeywordRef.current = null;
+                });
         }, 900);
         return () => window.clearTimeout(timer);
     }, [hasSearchKeyword, searchKeyword, queryClient]);
@@ -350,7 +380,6 @@ export default function MusicPage() {
         selectPlaylist,
     };
 
-    const trendingTracks = trendingQuery.data ?? [];
     const trendingArtists = trendingArtistsQuery.data ?? [];
     const trendingPlaylists = trendingPlaylistsQuery.data ?? [];
 
@@ -422,8 +451,126 @@ export default function MusicPage() {
                     />
                 </Box>
 
+                {/* Playlist/Album Panel — mobile drawer */}
+                <Drawer
+                    anchor="left"
+                    open={Boolean(selectedPlaylist || selectedSpotifyPlaylist)}
+                    onClose={() => {
+                        setSelectedPlaylist(null);
+                        setSelectedSpotifyPlaylist(null);
+                    }}
+                    ModalProps={{ keepMounted: true }}
+                    sx={{
+                        display: { xs: "block", lg: "none" },
+                        "& .MuiDrawer-paper": {
+                            width: { xs: PLAYLIST_PANEL_W, sm: PLAYLIST_PANEL_TABLET_W },
+                            bgcolor: "background.default",
+                            border: "none",
+                        },
+                    }}
+                >
+                    {selectedPlaylist && (
+                        <PlaylistTracksPanelContent
+                            playlist={selectedPlaylist}
+                            tracks={playlistTracks}
+                            loading={playlistTracksQuery.isFetching}
+                            hasNextPage={Boolean(playlistTracksQuery.hasNextPage)}
+                            isFetchingNextPage={playlistTracksQuery.isFetchingNextPage}
+                            pageCount={playlistTracksQuery.data?.pages.length ?? 0}
+                            onLoadMore={() => void playlistTracksQuery.fetchNextPage()}
+                            onClose={() => setSelectedPlaylist(null)}
+                        />
+                    )}
+                    {selectedSpotifyPlaylist && (
+                        <SpotifyPlaylistPanelContent
+                            playlist={selectedSpotifyPlaylist}
+                            tracks={spotifyPlaylistTracksQuery.data?.tracks ?? []}
+                            loading={spotifyPlaylistTracksQuery.isFetching}
+                            onClose={() => setSelectedSpotifyPlaylist(null)}
+                        />
+                    )}
+                </Drawer>
+
+                {/* Playlist/Album Panel — desktop backdrop (dims and blocks the rest, click to close) */}
+                <Box
+                    aria-hidden
+                    onClick={() => {
+                        setSelectedPlaylist(null);
+                        setSelectedSpotifyPlaylist(null);
+                    }}
+                    sx={{
+                        position: "absolute",
+                        inset: 0,
+                        zIndex: (theme) => theme.zIndex.appBar,
+                        display: { xs: "none", lg: "block" },
+                        bgcolor: "rgba(0,0,0,0.55)",
+                        backdropFilter: "blur(3px)",
+                        opacity: selectedPlaylist || selectedSpotifyPlaylist ? 1 : 0,
+                        pointerEvents:
+                            selectedPlaylist || selectedSpotifyPlaylist ? "auto" : "none",
+                        transition: "opacity 260ms ease",
+                    }}
+                />
+
+                {/* Playlist/Album Panel — desktop overlay (slides over the sidebar) */}
+                <Box
+                    sx={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        bottom: 0,
+                        width: PLAYLIST_PANEL_DESKTOP_W,
+                        zIndex: (theme) => theme.zIndex.appBar + 1,
+                        display: { xs: "none", lg: "flex" },
+                        flexDirection: "column",
+                        bgcolor: "background.default",
+                        borderRight: "1px solid",
+                        borderColor: "divider",
+                        boxShadow: "24px 0 60px rgba(0,0,0,0.45)",
+                        overflow: "hidden",
+                        transform:
+                            selectedPlaylist || selectedSpotifyPlaylist
+                                ? "translateX(0)"
+                                : "translateX(-110%)",
+                        pointerEvents:
+                            selectedPlaylist || selectedSpotifyPlaylist ? "auto" : "none",
+                        transition: "transform 260ms ease",
+                    }}
+                >
+                    <Box sx={{ width: "100%", height: "100%" }}>
+                        {selectedPlaylist && (
+                            <PlaylistTracksPanelContent
+                                playlist={selectedPlaylist}
+                                tracks={playlistTracks}
+                                loading={playlistTracksQuery.isFetching}
+                                hasNextPage={Boolean(playlistTracksQuery.hasNextPage)}
+                                isFetchingNextPage={playlistTracksQuery.isFetchingNextPage}
+                                pageCount={playlistTracksQuery.data?.pages.length ?? 0}
+                                onLoadMore={() => void playlistTracksQuery.fetchNextPage()}
+                                onClose={() => setSelectedPlaylist(null)}
+                            />
+                        )}
+                        {selectedSpotifyPlaylist && (
+                            <SpotifyPlaylistPanelContent
+                                playlist={selectedSpotifyPlaylist}
+                                tracks={spotifyPlaylistTracksQuery.data?.tracks ?? []}
+                                loading={spotifyPlaylistTracksQuery.isFetching}
+                                onClose={() => setSelectedSpotifyPlaylist(null)}
+                            />
+                        )}
+                    </Box>
+                </Box>
+
                 {/* Main Content */}
-                <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <Box
+                    sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                    }}
+                >
                     {/* Topbar */}
                     <Box
                         sx={{
@@ -442,7 +589,11 @@ export default function MusicPage() {
                     >
                         <IconButton
                             onClick={() => setSidebarOpen(true)}
-                            sx={{ display: { lg: "none" }, color: "text.secondary", "&:hover": { color: "text.primary" } }}
+                            sx={{
+                                display: { lg: "none" },
+                                color: "text.secondary",
+                                "&:hover": { color: "text.primary" },
+                            }}
                         >
                             <MenuIcon />
                         </IconButton>
@@ -470,17 +621,24 @@ export default function MusicPage() {
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
-                                        <SearchIcon sx={{ color: "text.secondary", fontSize: 18 }} />
+                                        <SearchIcon
+                                            sx={{ color: "text.secondary", fontSize: 18 }}
+                                        />
                                     </InputAdornment>
                                 ),
                             }}
                         />
 
                         <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
-                            <Tooltip title={mode === "light" ? "Chuyển sang tối" : "Chuyển sang sáng"}>
+                            <Tooltip
+                                title={mode === "light" ? "Chuyển sang tối" : "Chuyển sang sáng"}
+                            >
                                 <IconButton
                                     onClick={toggleMode}
-                                    sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
+                                    sx={{
+                                        color: "text.secondary",
+                                        "&:hover": { color: "text.primary" },
+                                    }}
                                 >
                                     {mode === "light" ? <Brightness4Icon /> : <Brightness7Icon />}
                                 </IconButton>
@@ -488,23 +646,38 @@ export default function MusicPage() {
                             <Tooltip title="Thông tin bài hát">
                                 <IconButton
                                     onClick={() => setShowTrackInfo((p) => !p)}
-                                    sx={{ color: showTrackInfo ? SP_GREEN : "text.secondary", "&:hover": { color: "text.primary" } }}
+                                    sx={{
+                                        color: showTrackInfo ? SP_GREEN : "text.secondary",
+                                        "&:hover": { color: "text.primary" },
+                                    }}
                                 >
                                     <InfoOutlinedIcon />
                                 </IconButton>
                             </Tooltip>
                             <Tooltip title="Lời bài hát">
                                 <IconButton
-                                    onClick={() => { setShowLyrics((p) => !p); if (!showLyrics) setShowQueue(false); }}
-                                    sx={{ color: showLyrics ? SP_GREEN : "text.secondary", "&:hover": { color: "text.primary" } }}
+                                    onClick={() => {
+                                        setShowLyrics((p) => !p);
+                                        if (!showLyrics) setShowQueue(false);
+                                    }}
+                                    sx={{
+                                        color: showLyrics ? SP_GREEN : "text.secondary",
+                                        "&:hover": { color: "text.primary" },
+                                    }}
                                 >
                                     <LyricsOutlinedIcon />
                                 </IconButton>
                             </Tooltip>
                             <Tooltip title="Danh sách chờ">
                                 <IconButton
-                                    onClick={() => { setShowQueue((p) => !p); if (!showQueue) setShowLyrics(false); }}
-                                    sx={{ color: showQueue ? SP_GREEN : "text.secondary", "&:hover": { color: "text.primary" } }}
+                                    onClick={() => {
+                                        setShowQueue((p) => !p);
+                                        if (!showQueue) setShowLyrics(false);
+                                    }}
+                                    sx={{
+                                        color: showQueue ? SP_GREEN : "text.secondary",
+                                        "&:hover": { color: "text.primary" },
+                                    }}
                                 >
                                     <QueueMusicIcon />
                                 </IconButton>
@@ -530,14 +703,26 @@ export default function MusicPage() {
                     {view === "search" && <SearchView />}
 
                     {view === "artists" && (
-                        <Box ref={mainScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
+                        <Box
+                            ref={mainScrollRef}
+                            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+                        >
                             {!selectedArtist && (
-                                <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 800,
+                                        fontSize: 20,
+                                        color: "text.primary",
+                                        mb: 2,
+                                    }}
+                                >
                                     {hasSearchKeyword ? "Kết quả tìm kiếm" : "Nghệ sĩ phổ biến"}
                                 </Typography>
                             )}
                             <ArtistsPanel
-                                artists={hasSearchKeyword ? (artistsQuery.data ?? []) : trendingArtists}
+                                artists={
+                                    hasSearchKeyword ? (artistsQuery.data ?? []) : trendingArtists
+                                }
                                 selectedArtist={selectedArtist}
                                 onSelectArtist={selectArtist}
                                 artistTracks={artistTracksQuery.data ?? []}
@@ -551,19 +736,33 @@ export default function MusicPage() {
                     )}
 
                     {view === "playlists" && (
-                        <Box ref={mainScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
-                            <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
-                                {hasSearchKeyword ? "Kết quả tìm kiếm" : "Playlist và album nổi bật"}
+                        <Box
+                            ref={mainScrollRef}
+                            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+                        >
+                            <Typography
+                                sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
+                            >
+                                {hasSearchKeyword
+                                    ? "Kết quả tìm kiếm"
+                                    : "Playlist và album nổi bật"}
                             </Typography>
                             <PlaylistGrid
-                                playlists={hasSearchKeyword ? (playlistsQuery.data ?? []) : [...trendingPlaylists, ...[]]}
+                                playlists={
+                                    hasSearchKeyword
+                                        ? (playlistsQuery.data ?? [])
+                                        : [...trendingPlaylists, ...[]]
+                                }
                                 onSelectPlaylist={selectPlaylist}
                             />
                         </Box>
                     )}
 
                     {view === "library" && (
-                        <Box ref={mainScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
+                        <Box
+                            ref={mainScrollRef}
+                            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+                        >
                             <LibraryView initialPlaylistId={openLibraryPlaylistId} />
                         </Box>
                     )}
@@ -571,16 +770,33 @@ export default function MusicPage() {
                     {view === "liked" && <LikedSongsView />}
 
                     {view === "recent" && (
-                        <Box ref={mainScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
-                            <Typography sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}>
+                        <Box
+                            ref={mainScrollRef}
+                            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+                        >
+                            <Typography
+                                sx={{ fontWeight: 800, fontSize: 20, color: "text.primary", mb: 2 }}
+                            >
                                 Nghe gần đây
                             </Typography>
                             {recentItems.length ? (
                                 recentItems.map((item, i) => (
-                                    <MediaRow key={item.id} item={item} queue={recentItems} index={i + 1} />
+                                    <MediaRow
+                                        key={item.id}
+                                        item={item}
+                                        queue={recentItems}
+                                        index={i + 1}
+                                    />
                                 ))
                             ) : (
-                                <Typography sx={{ color: "text.disabled", fontSize: 14, py: 4, textAlign: "center" }}>
+                                <Typography
+                                    sx={{
+                                        color: "text.disabled",
+                                        fontSize: 14,
+                                        py: 4,
+                                        textAlign: "center",
+                                    }}
+                                >
                                     Bạn chưa phát nội dung nào.
                                 </Typography>
                             )}
@@ -590,19 +806,28 @@ export default function MusicPage() {
                     {view === "my-playlists" && <MyPlaylistsView scrollRef={mainScrollRef} />}
 
                     {view === "leaderboard" && (
-                        <Box ref={mainScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
+                        <Box
+                            ref={mainScrollRef}
+                            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+                        >
                             <LeaderboardView />
                         </Box>
                     )}
 
                     {view === "stats" && (
-                        <Box ref={mainScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
+                        <Box
+                            ref={mainScrollRef}
+                            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+                        >
                             <ListeningStatsView />
                         </Box>
                     )}
 
                     {view === "profile" && (
-                        <Box ref={mainScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}>
+                        <Box
+                            ref={mainScrollRef}
+                            sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 2, md: 3 } }}
+                        >
                             <UserProfileView />
                         </Box>
                     )}
@@ -632,10 +857,18 @@ export default function MusicPage() {
                     ModalProps={{ keepMounted: true }}
                     sx={{
                         display: { xs: "block", xl: "none" },
-                        "& .MuiDrawer-paper": { width: QUEUE_W, bgcolor: "background.default", border: "none" },
+                        "& .MuiDrawer-paper": {
+                            width: QUEUE_W,
+                            bgcolor: "background.default",
+                            border: "none",
+                        },
                     }}
                 >
-                    <QueuePanelContent queue={queue} onClose={() => setShowQueue(false)} onClear={clearQueue} />
+                    <QueuePanelContent
+                        queue={queue}
+                        onClose={() => setShowQueue(false)}
+                        onClear={clearQueue}
+                    />
                 </Drawer>
 
                 {/* Queue Panel — desktop inline */}
@@ -652,7 +885,11 @@ export default function MusicPage() {
                             overflow: "hidden",
                         }}
                     >
-                        <QueuePanelContent queue={queue} onClose={() => setShowQueue(false)} onClear={clearQueue} />
+                        <QueuePanelContent
+                            queue={queue}
+                            onClose={() => setShowQueue(false)}
+                            onClear={clearQueue}
+                        />
                     </Box>
                 )}
 
@@ -664,7 +901,11 @@ export default function MusicPage() {
                     ModalProps={{ keepMounted: true }}
                     sx={{
                         display: { xs: "block", xl: "none" },
-                        "& .MuiDrawer-paper": { width: LYRICS_W, bgcolor: "background.default", border: "none" },
+                        "& .MuiDrawer-paper": {
+                            width: LYRICS_W,
+                            bgcolor: "background.default",
+                            border: "none",
+                        },
                     }}
                 >
                     <LyricsPanelContent item={currentItem} onClose={() => setShowLyrics(false)} />
@@ -684,7 +925,10 @@ export default function MusicPage() {
                             overflow: "hidden",
                         }}
                     >
-                        <LyricsPanelContent item={currentItem} onClose={() => setShowLyrics(false)} />
+                        <LyricsPanelContent
+                            item={currentItem}
+                            onClose={() => setShowLyrics(false)}
+                        />
                     </Box>
                 )}
 
@@ -696,10 +940,17 @@ export default function MusicPage() {
                     ModalProps={{ keepMounted: true }}
                     sx={{
                         display: { xs: "block", xl: "none" },
-                        "& .MuiDrawer-paper": { width: TRACK_INFO_W, bgcolor: "background.default", border: "none" },
+                        "& .MuiDrawer-paper": {
+                            width: TRACK_INFO_W,
+                            bgcolor: "background.default",
+                            border: "none",
+                        },
                     }}
                 >
-                    <TrackInfoPanelContent item={currentItem} onClose={() => setShowTrackInfo(false)} />
+                    <TrackInfoPanelContent
+                        item={currentItem}
+                        onClose={() => setShowTrackInfo(false)}
+                    />
                 </Drawer>
 
                 {/* Track Info Panel — desktop inline */}
@@ -716,27 +967,12 @@ export default function MusicPage() {
                             overflow: "hidden",
                         }}
                     >
-                        <TrackInfoPanelContent item={currentItem} onClose={() => setShowTrackInfo(false)} />
+                        <TrackInfoPanelContent
+                            item={currentItem}
+                            onClose={() => setShowTrackInfo(false)}
+                        />
                     </Box>
                 )}
-
-                <PlaylistTracksDialog
-                    playlist={selectedPlaylist}
-                    tracks={playlistTracks}
-                    loading={playlistTracksQuery.isFetching}
-                    hasNextPage={Boolean(playlistTracksQuery.hasNextPage)}
-                    isFetchingNextPage={playlistTracksQuery.isFetchingNextPage}
-                    pageCount={playlistTracksQuery.data?.pages.length ?? 0}
-                    onLoadMore={() => void playlistTracksQuery.fetchNextPage()}
-                    onClose={() => setSelectedPlaylist(null)}
-                />
-
-                <SpotifyPlaylistDialog
-                    playlist={selectedSpotifyPlaylist}
-                    tracks={spotifyPlaylistTracksQuery.data?.tracks ?? []}
-                    loading={spotifyPlaylistTracksQuery.isFetching}
-                    onClose={() => setSelectedSpotifyPlaylist(null)}
-                />
             </Box>
         </MusicContext.Provider>
     );

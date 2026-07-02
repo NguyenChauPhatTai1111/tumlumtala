@@ -4,6 +4,23 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
     plugins: [react()],
+    build: {
+        chunkSizeWarningLimit: 600,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    "vendor-react": ["react", "react-dom", "react-router-dom"],
+                    "vendor-mui": ["@mui/material", "@mui/icons-material", "@emotion/react", "@emotion/styled"],
+                    "vendor-mui-x": ["@mui/x-data-grid", "@mui/x-date-pickers"],
+                    "vendor-query": ["@tanstack/react-query", "axios", "zustand"],
+                    "vendor-forms": ["react-hook-form", "@hookform/resolvers", "yup"],
+                    "vendor-media": ["hls.js"],
+                    "vendor-markdown": ["react-markdown", "remark-gfm", "react-syntax-highlighter"],
+                    "vendor-messenger": ["emoji-picker-react", "emoji-regex", "linkifyjs", "linkify-react", "react-virtuoso"],
+                },
+            },
+        },
+    },
     server: {
         host: "0.0.0.0",
         port: 5174,

@@ -9,6 +9,9 @@ export const SIDEBAR_COLLAPSED_W = 96;
 export const QUEUE_W = 320;
 export const LYRICS_W = 450;
 export const TRACK_INFO_W = 360;
+export const PLAYLIST_PANEL_W = "100vw";
+export const PLAYLIST_PANEL_TABLET_W = "75vw";
+export const PLAYLIST_PANEL_DESKTOP_W = "50vw";
 
 export const MUSIC_CARD_SURFACE_SX = {
     bgcolor: (theme: Theme) =>

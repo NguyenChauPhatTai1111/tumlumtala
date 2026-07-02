@@ -9,6 +9,9 @@ import type {
 } from "@pages/music/types";
 
 const PREFIX = "/music";
+export const MAX_MUSIC_CANDIDATES = 300;
+const MAX_MUSIC_QUEUE_ITEMS = 100;
+const MAX_ALBUM_TRACKS = 100;
 
 export interface BackendMediaItem {
     id: number;
@@ -101,6 +104,9 @@ export const mediaItemToBackendPayload = (item: MediaItem) => ({
     repost_count: item.repostCount,
     tags: item.tags,
 });
+
+const mediaItemsToBackendPayload = (items: MediaItem[], limit: number) =>
+    items.slice(0, limit).map(mediaItemToBackendPayload);
 
 export const fromBackendMediaItem = (item: BackendMediaItem): MediaItem => {
     const isSpotify = item.source_id.startsWith("spotify:");
@@ -353,6 +359,18 @@ export const searchSpotifyPlaylists = async (query: string): Promise<AudiusPlayl
     return unwrap(res.data).map(spotifyCollectionToAudius);
 };
 
+export const getSpotifyTracksByGenre = async (
+    genre: string,
+    limit = 20,
+): Promise<AudiusTrack[]> => {
+    if (!genre.trim()) return [];
+    const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
+        `${PREFIX}/search/tracks`,
+        { params: { q: `genre:"${genre.trim()}"`, limit } },
+    );
+    return unwrap(res.data).map(spotifyTrackToAudius);
+};
+
 export const getSpotifyAlbumTracks = async (
     albumId: string,
     limit = 50,
@@ -380,9 +398,12 @@ export const getSpotifyPlaylistTracks = async (
     playlistId: string,
     limit = 50,
     offset = 0,
+    playlistName?: string,
 ): Promise<{ tracks: SpotifyTrackDetail[]; total: number }> => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (playlistName) params.set("name", playlistName);
     const res = await apiClient.get<{ data: { tracks: SpotifyTrackDetail[]; total: number; limit: number; offset: number } }>(
-        `${PREFIX}/spotify/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&offset=${offset}`,
+        `${PREFIX}/spotify/playlists/${encodeURIComponent(playlistId)}/tracks?${params.toString()}`,
     );
     const data = unwrap(res.data);
     return { tracks: data.tracks ?? [], total: data.total ?? 0 };
@@ -496,15 +517,27 @@ export const getSpotifyTrack = async (trackId: string): Promise<SpotifyTrackDeta
 
 export const getSpotifyRecommendations = async (params: {
     seedTrack?: string;
+    seedTrackIds?: string[];
     seedArtist?: string;
     seedGenre?: string;
     limit?: number;
+    targetDanceability?: number;
+    targetEnergy?: number;
+    targetValence?: number;
+    targetAcousticness?: number;
+    targetTempo?: number;
 }): Promise<MediaItem[]> => {
     const query = new URLSearchParams();
     if (params.seedTrack) query.set("seed_track", params.seedTrack);
+    if (params.seedTrackIds?.length) query.set("seed_tracks", params.seedTrackIds.join(","));
     if (params.seedArtist) query.set("seed_artist", params.seedArtist);
     if (params.seedGenre) query.set("seed_genre", params.seedGenre);
     query.set("limit", String(params.limit ?? 12));
+    if (params.targetDanceability != null) query.set("target_danceability", String(params.targetDanceability));
+    if (params.targetEnergy != null) query.set("target_energy", String(params.targetEnergy));
+    if (params.targetValence != null) query.set("target_valence", String(params.targetValence));
+    if (params.targetAcousticness != null) query.set("target_acousticness", String(params.targetAcousticness));
+    if (params.targetTempo != null) query.set("target_tempo", String(params.targetTempo));
     const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
         `${PREFIX}/recommendations?${query.toString()}`,
     );
@@ -889,7 +922,10 @@ export const addMusicAICandidates = async (
 ): Promise<MusicAISessionResponse> => {
     const res = await apiClient.post<{ data: MusicAISessionResponse }>(
         `${PREFIX}/ai/sessions/${sessionId}/candidates`,
-        { candidates: candidates.map(mediaItemToBackendPayload), append },
+        {
+            candidates: mediaItemsToBackendPayload(candidates, MAX_MUSIC_CANDIDATES),
+            append,
+        },
     );
     return unwrap(res.data);
 };
@@ -901,7 +937,10 @@ export const chatWithMusic = async (
 ): Promise<MusicAISessionResponse> => {
     const res = await apiClient.post<{ data: MusicAISessionResponse }>(
         `${PREFIX}/ai/sessions/${sessionId}/messages`,
-        { message, candidates: candidates.map(mediaItemToBackendPayload) },
+        {
+            message,
+            candidates: mediaItemsToBackendPayload(candidates, MAX_MUSIC_CANDIDATES),
+        },
     );
     return unwrap(res.data);
 };
@@ -915,8 +954,8 @@ export const buildSmartMusicQueue = async (input: {
     const res = await apiClient.post<{ data: RankedMusicTrack[] }>(`${PREFIX}/smart-queue`, {
         session_id: input.sessionId,
         listened_minutes: input.listenedMinutes,
-        current_queue: input.currentQueue.map(mediaItemToBackendPayload),
-        candidates: input.candidates.map(mediaItemToBackendPayload),
+        current_queue: mediaItemsToBackendPayload(input.currentQueue, MAX_MUSIC_QUEUE_ITEMS),
+        candidates: mediaItemsToBackendPayload(input.candidates, MAX_MUSIC_CANDIDATES),
     });
     return unwrap(res.data);
 };
@@ -974,7 +1013,7 @@ export const reviewMusicAlbum = async (
         name,
         artist,
         description,
-        tracks: tracks.map(mediaItemToBackendPayload),
+        tracks: mediaItemsToBackendPayload(tracks, MAX_ALBUM_TRACKS),
     });
     return unwrap(res.data);
 };
@@ -1012,7 +1051,129 @@ export const getMusicSyncRecommendations = async (
 ): Promise<RankedMusicTrack[]> => {
     const res = await apiClient.post<{ data: RankedMusicTrack[] }>(
         `${PREFIX}/sync/rooms/${roomId}/recommendations`,
-        { candidates: candidates.map(mediaItemToBackendPayload) },
+        { candidates: mediaItemsToBackendPayload(candidates, MAX_MUSIC_CANDIDATES) },
     );
     return unwrap(res.data);
+};
+
+// ─── Audio Features ──────────────────────────────────────────────────────────
+
+export interface SpotifyAudioFeatures {
+    id: string;
+    acousticness: number;
+    danceability: number;
+    energy: number;
+    instrumentalness: number;
+    key: number;
+    liveness: number;
+    loudness: number;
+    mode: number;
+    speechiness: number;
+    tempo: number;
+    time_signature: number;
+    valence: number;
+    duration_ms: number;
+    uri: string;
+}
+
+export const getSpotifyAudioFeatures = async (
+    trackId: string,
+): Promise<SpotifyAudioFeatures | null> => {
+    try {
+        const res = await apiClient.get<{ data: SpotifyAudioFeatures }>(
+            `${PREFIX}/tracks/${encodeURIComponent(trackId)}/audio-features`,
+        );
+        return unwrap(res.data);
+    } catch {
+        return null;
+    }
+};
+
+// ─── Mood Recommendations ────────────────────────────────────────────────────
+
+export type MusicMood = "happy" | "sad" | "focus" | "workout" | "chill" | "party";
+
+export interface MoodRecommendationsParams {
+    mood: MusicMood;
+    limit?: number;
+    seedGenre?: string;
+}
+
+const MOOD_TARGETS: Record<MusicMood, Record<string, number>> = {
+    happy:   { target_valence: 0.8, target_energy: 0.7, target_danceability: 0.75 },
+    sad:     { target_valence: 0.15, target_energy: 0.25, target_tempo: 70 },
+    focus:   { target_instrumentalness: 0.65, target_energy: 0.45, target_speechiness: 0.04, target_tempo: 90 },
+    workout: { target_energy: 0.92, min_tempo: 128, target_danceability: 0.8, target_valence: 0.65 },
+    chill:   { max_energy: 0.45, target_acousticness: 0.6, target_valence: 0.5, target_tempo: 85 },
+    party:   { target_danceability: 0.88, target_energy: 0.85, target_valence: 0.75, min_tempo: 115 },
+};
+
+export const getSpotifyMoodRecommendations = async (
+    params: MoodRecommendationsParams,
+): Promise<MediaItem[]> => {
+    const query = new URLSearchParams();
+    query.set("mood", params.mood);
+    if (params.seedGenre) query.set("seed_genre", params.seedGenre);
+    query.set("limit", String(params.limit ?? 20));
+    const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
+        `${PREFIX}/recommendations?${query.toString()}`,
+    );
+    return unwrap(res.data).map((t) => ({
+        id: `audio:spotify:${t.id}`,
+        sourceId: `spotify:${t.id}`,
+        type: "audio" as const,
+        title: t.title,
+        artist: t.user.name,
+        artistId: t.user.id,
+        thumbnail: t.artwork["480x480"] ?? t.artwork["1000x1000"] ?? t.artwork["150x150"] ?? "",
+        duration: t.duration,
+        publishedAt: t.created_at,
+        provider: "spotify" as const,
+        externalUrl: t.external_url,
+        album: t.album?.id ? { id: t.album.id, name: t.album.name } : undefined,
+    }));
+};
+
+// ─── Charts by Market ────────────────────────────────────────────────────────
+
+export interface ChartMarket {
+    code: string;
+    name: string;
+    flag: string;
+}
+
+export const CHART_MARKETS: ChartMarket[] = [
+    { code: "VN", name: "Việt Nam",     flag: "🇻🇳" },
+    { code: "US", name: "USA",          flag: "🇺🇸" },
+    { code: "KR", name: "Hàn Quốc",    flag: "🇰🇷" },
+    { code: "JP", name: "Nhật Bản",     flag: "🇯🇵" },
+    { code: "GB", name: "UK",           flag: "🇬🇧" },
+    { code: "BR", name: "Brazil",       flag: "🇧🇷" },
+];
+
+export const getSpotifyChartsByMarket = async (
+    market: string,
+    limit = 20,
+): Promise<MediaItem[]> => {
+    const query = new URLSearchParams({
+        market,
+        limit: String(limit),
+    });
+    const res = await apiClient.get<{ data: SpotifyTrackResponse[] }>(
+        `${PREFIX}/spotify/discovery/tracks?${query.toString()}`,
+    );
+    return unwrap(res.data).map((t) => ({
+        id: `audio:spotify:${t.id}`,
+        sourceId: `spotify:${t.id}`,
+        type: "audio" as const,
+        title: t.title,
+        artist: t.user.name,
+        artistId: t.user.id,
+        thumbnail: t.artwork["480x480"] ?? t.artwork["1000x1000"] ?? t.artwork["150x150"] ?? "",
+        duration: t.duration,
+        publishedAt: t.created_at,
+        provider: "spotify" as const,
+        externalUrl: t.external_url,
+        album: t.album?.id ? { id: t.album.id, name: t.album.name } : undefined,
+    }));
 };

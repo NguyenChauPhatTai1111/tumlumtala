@@ -4,7 +4,9 @@ import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { Box, Button, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import { useEffect } from "react";
 import { useRouteError, isRouteErrorResponse } from "react-router-dom";
+import { useAppErrorStore } from "@store/appErrorStore";
 
 const TIPS = [
   {
@@ -32,6 +34,13 @@ const TIPS = [
 
 export function RouteErrorPage() {
   const error = useRouteError();
+  const setBlockingError = useAppErrorStore((s) => s.setBlockingError);
+
+  // Hide persistent overlays (bottom player, mini chat) while the error page shows.
+  useEffect(() => {
+    setBlockingError(true);
+    return () => setBlockingError(false);
+  }, [setBlockingError]);
 
   let message = "Ứng dụng gặp sự cố không mong muốn.";
   if (isRouteErrorResponse(error)) {

@@ -26,6 +26,8 @@ func RegisterRoutes(r *gin.Engine, h *Handler, jwtSecret string) {
 		music.GET("/search/playlists", h.SearchSpotifyPlaylists)
 		music.GET("/spotify/discovery/:section", h.GetSpotifyDiscovery)
 		music.GET("/tracks/:track_id", h.GetSpotifyTrack)
+		music.GET("/tracks/:track_id/audio-features", h.GetSpotifyAudioFeatures)
+		music.GET("/charts", h.GetSpotifyChartsByMarket)
 		music.GET("/artists/:artist_id", h.GetSpotifyArtist)
 		music.GET("/artists/:artist_id/discography", h.GetSpotifyArtistDiscography)
 		music.GET("/albums/:album_id", h.GetSpotifyAlbum)

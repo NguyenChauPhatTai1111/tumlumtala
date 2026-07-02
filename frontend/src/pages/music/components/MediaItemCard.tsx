@@ -1,7 +1,6 @@
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Avatar, Box, IconButton, Typography } from "@mui/material";
-import { useMemo, useState } from "react";
-import { toAudioMediaItem } from "@services/musicService";
+import { useState } from "react";
 import { usePlayerStore } from "@store/playerStore";
 import { TrackOptionsButton } from "./TrackOptionsButton";
 import {
@@ -12,20 +11,18 @@ import {
     SP_GREEN,
 } from "../constants";
 import { formatDisplayName } from "../utils";
-import type { AudiusTrack } from "../types";
+import type { MediaItem } from "../types";
 
-export function TrackCard({
-    track,
+export function MediaItemCard({
+    item,
     queue,
-    recommendationReason,
+    caption,
 }: {
-    track: AudiusTrack;
-    queue: AudiusTrack[];
-    recommendationReason?: string;
+    item: MediaItem;
+    queue: MediaItem[];
+    caption?: string;
 }) {
     const { currentItem, isPlaying, play, pause, resume } = usePlayerStore();
-    const item = useMemo(() => toAudioMediaItem(track), [track]);
-    const queueItems = useMemo(() => queue.map(toAudioMediaItem), [queue]);
     const active = currentItem?.id === item.id;
     const [hovered, setHovered] = useState(false);
 
@@ -33,7 +30,7 @@ export function TrackCard({
         e.stopPropagation();
         if (active && isPlaying) { pause(); return; }
         if (active) { resume(); return; }
-        play(item, queueItems);
+        play(item, queue);
     };
 
     const openInfo = () => {
@@ -168,22 +165,22 @@ export function TrackCard({
                         "&:hover": { color: "primary.main" },
                     }}
                 >
-                    {formatDisplayName(track.title)}
+                    {formatDisplayName(item.title)}
                 </Typography>
                 <Typography
                     className="card-subtitle"
                     noWrap
                     sx={{ fontSize: 12, color: "text.secondary", minHeight: "1.5em" }}
                 >
-                    {formatDisplayName(track.user.name)}
+                    {formatDisplayName(item.artist)}
                 </Typography>
-                {recommendationReason && (
+                {caption && (
                     <Typography
                         className="card-badge"
                         noWrap
                         sx={{ mt: 0.5, fontSize: 10.5, fontWeight: 650, color: "#fdba74" }}
                     >
-                        {recommendationReason}
+                        {caption}
                     </Typography>
                 )}
             </Box>

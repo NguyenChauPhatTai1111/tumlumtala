@@ -38,6 +38,7 @@ import { loadYouTubeIframeApi } from "@pages/music/types/youtube";
 import { formatDisplayName, formatDuration } from "@pages/music/utils";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { useAppErrorStore } from "@store/appErrorStore";
 import { usePlayerStore } from "@store/playerStore";
 import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
 import { resolveSpotifyTrackPlayback } from "@services/musicService";
@@ -183,12 +184,18 @@ export const BottomPlayer = () => {
     const theme = useTheme();
     const isCompact = useMediaQuery(theme.breakpoints.down("md"));
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+    const hasBlockingError = useAppErrorStore((s) => s.hasBlockingError);
     const playerPaperRef = useRef<HTMLDivElement | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const youtubeFrameRef = useRef<HTMLDivElement | null>(null);
     const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
     const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
     const youtubeControlsHideTimerRef = useRef<number | null>(null);
+    const youtubeRecoveryTimerRef = useRef<number | null>(null);
+    const youtubeRecoveryAttemptsRef = useRef(0);
+    const audioRecoveryTimerRef = useRef<number | null>(null);
+    const audioRecoveryAttemptsRef = useRef(0);
+    const failedYoutubeVideoIdsRef = useRef<Set<string>>(new Set());
     const resolvingSpotifyItemRef = useRef<string | null>(null);
     const preloadingSpotifyItemRef = useRef<string | null>(null);
     const volumeRef = useRef(1);
@@ -251,6 +258,8 @@ export const BottomPlayer = () => {
     const isMusicRoute = location.pathname.startsWith("/music");
     const videoCollapsed =
         currentItem?.type === "video" && (!isMusicRoute || collapsedVideoId === currentItem.id);
+    const youtubePanelVisible =
+        Boolean(youtubeVideoId) && (currentItem?.type === "audio" || !videoCollapsed);
     const youtubeActionsVisible =
         videoCollapsed ||
         youtubeControlsVisible ||
@@ -337,9 +346,27 @@ export const BottomPlayer = () => {
         () => () => {
             if (youtubeControlsHideTimerRef.current)
                 window.clearTimeout(youtubeControlsHideTimerRef.current);
+            if (youtubeRecoveryTimerRef.current)
+                window.clearTimeout(youtubeRecoveryTimerRef.current);
+            if (audioRecoveryTimerRef.current)
+                window.clearTimeout(audioRecoveryTimerRef.current);
         },
         [],
     );
+
+    useEffect(() => {
+        youtubeRecoveryAttemptsRef.current = 0;
+        audioRecoveryAttemptsRef.current = 0;
+        failedYoutubeVideoIdsRef.current = new Set();
+        if (youtubeRecoveryTimerRef.current) {
+            window.clearTimeout(youtubeRecoveryTimerRef.current);
+            youtubeRecoveryTimerRef.current = null;
+        }
+        if (audioRecoveryTimerRef.current) {
+            window.clearTimeout(audioRecoveryTimerRef.current);
+            audioRecoveryTimerRef.current = null;
+        }
+    }, [currentItem?.id]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -461,19 +488,26 @@ export const BottomPlayer = () => {
         }
         let disposed = false;
         let progressTimer: number | null = null;
-        youtubeContainerRef.current.replaceChildren();
+        youtubeRecoveryAttemptsRef.current = 0;
+        const playerHost = youtubeContainerRef.current;
+        const playerMount = document.createElement("div");
+        playerMount.style.width = "100%";
+        playerMount.style.height = "100%";
+        playerHost.replaceChildren(playerMount);
 
         void loadYouTubeIframeApi().then((YT) => {
-            if (disposed || !youtubeContainerRef.current) return;
-            new YT.Player(youtubeContainerRef.current, {
+            if (disposed || !playerMount.isConnected) return;
+            new YT.Player(playerMount, {
                 videoId: youtubeVideoId,
                 playerVars: {
                     autoplay: youtubeStateRef.current.isPlaying ? 1 : 0,
                     controls: 0,
                     disablekb: 1,
+                    enablejsapi: 1,
                     fs: 0,
                     iv_load_policy: 3,
                     modestbranding: 1,
+                    origin: window.location.origin,
                     playsinline: 1,
                     rel: 0,
                 },
@@ -500,11 +534,80 @@ export const BottomPlayer = () => {
                         );
                         if (youtubeStateRef.current.isPlaying) event.target.playVideo();
                     },
+                    onError: (event) => {
+                        if (disposed || !currentItem || !youtubeVideoId) return;
+
+                        failedYoutubeVideoIdsRef.current.add(youtubeVideoId);
+                        const itemId = currentItem.id;
+                        const failedVideoId = youtubeVideoId;
+                        const unresolvedItem = { ...currentItem, videoId: undefined };
+
+                        void resolveSpotifyTrackPlayback(
+                            unresolvedItem,
+                            failedYoutubeVideoIdsRef.current,
+                        )
+                            .then((alternate) => {
+                                const active = usePlayerStore.getState().currentItem;
+                                if (
+                                    disposed ||
+                                    !alternate ||
+                                    active?.id !== itemId ||
+                                    active.videoId !== failedVideoId
+                                ) {
+                                    if (
+                                        !disposed &&
+                                        !alternate &&
+                                        active?.id === itemId &&
+                                        active.videoId === failedVideoId
+                                    ) {
+                                        youtubeStateRef.current.next();
+                                    }
+                                    return;
+                                }
+                                updateCurrentItem(alternate);
+                            })
+                            .catch(() => {
+                                const active = usePlayerStore.getState().currentItem;
+                                if (
+                                    !disposed &&
+                                    active?.id === itemId &&
+                                    active.videoId === failedVideoId
+                                ) {
+                                    youtubeStateRef.current.next();
+                                }
+                            });
+
+                        console.warn("YouTube playback failed; trying another candidate", {
+                            code: event.data,
+                            videoId: failedVideoId,
+                        });
+                    },
                     onStateChange: (event) => {
                         const state = youtubeStateRef.current;
-                        if (event.data === YT.PlayerState.PLAYING && !state.isPlaying)
-                            state.resume();
-                        if (event.data === YT.PlayerState.PAUSED && state.isPlaying) state.pause();
+                        if (event.data === YT.PlayerState.PLAYING) {
+                            youtubeRecoveryAttemptsRef.current = 0;
+                            if (youtubeRecoveryTimerRef.current) {
+                                window.clearTimeout(youtubeRecoveryTimerRef.current);
+                                youtubeRecoveryTimerRef.current = null;
+                            }
+                            if (!state.isPlaying) state.resume();
+                        }
+                        if (event.data === YT.PlayerState.PAUSED && state.isPlaying) {
+                            if (youtubeRecoveryTimerRef.current) {
+                                window.clearTimeout(youtubeRecoveryTimerRef.current);
+                            }
+                            const attempt = youtubeRecoveryAttemptsRef.current + 1;
+                            youtubeRecoveryAttemptsRef.current = attempt;
+                            youtubeRecoveryTimerRef.current = window.setTimeout(() => {
+                                youtubeRecoveryTimerRef.current = null;
+                                if (disposed || !usePlayerStore.getState().isPlaying) return;
+                                if (attempt <= 3) {
+                                    event.target.playVideo();
+                                    return;
+                                }
+                                youtubeStateRef.current.next();
+                            }, Math.min(250 * attempt, 750));
+                        }
                         if (event.data === YT.PlayerState.ENDED) {
                             if (state.repeat === "one") {
                                 event.target.seekTo(0, true);
@@ -532,14 +635,19 @@ export const BottomPlayer = () => {
         return () => {
             disposed = true;
             if (progressTimer) window.clearInterval(progressTimer);
+            if (youtubeRecoveryTimerRef.current) {
+                window.clearTimeout(youtubeRecoveryTimerRef.current);
+                youtubeRecoveryTimerRef.current = null;
+            }
             try {
                 youtubePlayerRef.current?.destroy();
             } catch {
                 /* ignore */
             }
             youtubePlayerRef.current = null;
+            playerHost.replaceChildren();
         };
-    }, [youtubeVideoId]);
+    }, [currentItem, updateCurrentItem, youtubeVideoId]);
 
     useEffect(() => {
         if (!usesYouTubePlayback || !youtubePlayerRef.current) return;
@@ -731,7 +839,7 @@ export const BottomPlayer = () => {
         setSpeedMenuAnchor(null);
     };
 
-    if (!shouldShowPlayer) return null;
+    if (!shouldShowPlayer || hasBlockingError) return null;
 
     return (
         <Box
@@ -756,16 +864,23 @@ export const BottomPlayer = () => {
                 <Box
                     sx={{
                         position: "fixed",
-                        left: -10000,
-                        top: -10000,
-                        width: 320,
-                        height: 180,
-                        maxHeight: 180,
-                        opacity: 0,
-                        pointerEvents: "none",
+                        right: youtubePanelVisible ? 16 : "auto",
+                        bottom:
+                            youtubePanelVisible
+                                ? "calc(var(--persistent-music-player-height, 64px) + 8px)"
+                                : "auto",
+                        left: youtubePanelVisible ? "auto" : -10000,
+                        top: youtubePanelVisible ? "auto" : -10000,
+                        width: 356,
+                        height: 200,
                         overflow: "hidden",
+                        pointerEvents: youtubePanelVisible ? "auto" : "none",
+                        opacity: youtubePanelVisible ? 1 : 0.001,
+                        zIndex: youtubePanelVisible ? 1200 : 0,
+                        borderRadius: youtubePanelVisible ? 2 : 0,
+                        boxShadow: youtubePanelVisible ? 8 : "none",
+                        transition: "opacity 0.2s",
                     }}
-                    aria-hidden
                 >
                     <Box
                         ref={youtubeFrameRef}
@@ -932,21 +1047,23 @@ export const BottomPlayer = () => {
                                         )}
                                     </IconButton>
                                 </Tooltip>
-                                <Tooltip title="Thu gọn video">
-                                    <IconButton
-                                        size="small"
-                                        onClick={() =>
-                                            setCollapsedVideoId((id) =>
-                                                id === currentItem?.id
-                                                    ? null
-                                                    : (currentItem?.id ?? null),
-                                            )
-                                        }
-                                        sx={{ color: "white" }}
-                                    >
-                                        <KeyboardArrowDownIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
+                                {currentItem?.type === "video" && (
+                                    <Tooltip title="Thu gọn video">
+                                        <IconButton
+                                            size="small"
+                                            onClick={() =>
+                                                setCollapsedVideoId((id) =>
+                                                    id === currentItem?.id
+                                                        ? null
+                                                        : (currentItem?.id ?? null),
+                                                )
+                                            }
+                                            sx={{ color: "white" }}
+                                        >
+                                            <KeyboardArrowDownIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
                             </Box>
                         </Box>
                     </Box>
@@ -977,6 +1094,55 @@ export const BottomPlayer = () => {
                         : undefined
                 }
                 onEnded={handleEnded}
+                onPlaying={() => {
+                    audioRecoveryAttemptsRef.current = 0;
+                    if (audioRecoveryTimerRef.current) {
+                        window.clearTimeout(audioRecoveryTimerRef.current);
+                        audioRecoveryTimerRef.current = null;
+                    }
+                }}
+                onPause={(event) => {
+                    const audio = event.currentTarget;
+                    const state = usePlayerStore.getState();
+                    if (
+                        !state.isPlaying ||
+                        state.currentItem?.id !== currentItem?.id ||
+                        usesYouTubePlayback ||
+                        audio.ended ||
+                        !audio.currentSrc
+                    ) {
+                        return;
+                    }
+                    if (audioRecoveryTimerRef.current) {
+                        window.clearTimeout(audioRecoveryTimerRef.current);
+                    }
+                    const attempt = audioRecoveryAttemptsRef.current + 1;
+                    audioRecoveryAttemptsRef.current = attempt;
+                    audioRecoveryTimerRef.current = window.setTimeout(() => {
+                        audioRecoveryTimerRef.current = null;
+                        const latest = usePlayerStore.getState();
+                        if (
+                            latest.isPlaying &&
+                            latest.currentItem?.id === currentItem?.id &&
+                            audio.paused &&
+                            !audio.ended
+                        ) {
+                            if (attempt <= 3) {
+                                void audio.play().catch(() => {
+                                    const failed = usePlayerStore.getState();
+                                    if (
+                                        failed.isPlaying &&
+                                        failed.currentItem?.id === currentItem?.id
+                                    ) {
+                                        failed.next();
+                                    }
+                                });
+                            } else {
+                                latest.next();
+                            }
+                        }
+                    }, Math.min(250 * attempt, 750));
+                }}
                 onLoadedMetadata={(e) => {
                     const audio = e.currentTarget;
                     const savedPosition =
@@ -995,6 +1161,160 @@ export const BottomPlayer = () => {
                     reportProgressRef.current(audio.currentTime || 0);
                 }}
             />
+
+            {/* Mobile expanded "Now Playing" view */}
+            {isCompact && expanded && (
+                <Box
+                    sx={{
+                        position: "fixed",
+                        inset: 0,
+                        zIndex: (t) => t.zIndex.modal,
+                        bgcolor: "background.default",
+                        display: "flex",
+                        flexDirection: "column",
+                        px: 3,
+                        py: 2,
+                    }}
+                >
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <IconButton
+                            size="small"
+                            onClick={() => setExpanded(false)}
+                            sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
+                        >
+                            <KeyboardArrowDownIcon />
+                        </IconButton>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>
+                            ĐANG PHÁT
+                        </Typography>
+                        <Tooltip title={liked ? "Bỏ thích" : "Thích"}>
+                            <IconButton
+                                size="small"
+                                onClick={() => {
+                                    if (currentItem) {
+                                        toggleLike(currentItem);
+                                        likeMutation.mutate();
+                                    }
+                                }}
+                                sx={{
+                                    color: liked ? SPOTIFY_GREEN : "text.secondary",
+                                    "&:hover": { color: liked ? "#fb923c" : "text.primary" },
+                                }}
+                            >
+                                {liked ? (
+                                    <FavoriteIcon sx={{ fontSize: 20 }} />
+                                ) : (
+                                    <FavoriteBorderIcon sx={{ fontSize: 20 }} />
+                                )}
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+
+                    <Box
+                        sx={{
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 3,
+                            minHeight: 0,
+                        }}
+                    >
+                        <Avatar
+                            variant="rounded"
+                            src={currentItem?.thumbnail}
+                            sx={{
+                                width: "min(78vw, 340px)",
+                                height: "min(78vw, 340px)",
+                                borderRadius: 2,
+                                boxShadow: 8,
+                            }}
+                        />
+                        <Box sx={{ textAlign: "center", width: "100%", px: 2 }}>
+                            <Typography noWrap sx={{ fontSize: 20, fontWeight: 700, color: "text.primary" }}>
+                                {formatDisplayName(currentItem?.title) || "Chọn bài hát"}
+                            </Typography>
+                            <Typography noWrap sx={{ fontSize: 14, color: "text.secondary", mt: 0.5 }}>
+                                {formatDisplayName(currentItem?.artist)}
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    <Box sx={{ width: "100%" }}>
+                        <SpotifySlider
+                            value={currentTime}
+                            max={duration}
+                            onChange={(v) =>
+                                usesYouTubePlayback ? handleYoutubeSeek(v) : handleAudioSeek(v)
+                            }
+                        />
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
+                            <Typography sx={{ fontSize: 11, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+                                {formatDuration(currentTime)}
+                            </Typography>
+                            <Typography sx={{ fontSize: 11, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+                                {formatDuration(duration)}
+                            </Typography>
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1, mb: 2 }}>
+                            <IconButton
+                                onClick={toggleShuffle}
+                                sx={{
+                                    color: shuffle ? SPOTIFY_GREEN : "text.secondary",
+                                    "&:hover": { color: shuffle ? "#fb923c" : "text.primary" },
+                                }}
+                            >
+                                <ShuffleIcon sx={{ fontSize: 20 }} />
+                            </IconButton>
+                            <IconButton
+                                onClick={previous}
+                                sx={{ color: "text.primary" }}
+                            >
+                                <SkipPreviousIcon sx={{ fontSize: 34 }} />
+                            </IconButton>
+                            <IconButton
+                                onClick={isPlaying ? pause : resume}
+                                disabled={!currentItem}
+                                sx={{
+                                    color: "white",
+                                    bgcolor: "#f97316",
+                                    width: 56,
+                                    height: 56,
+                                    "&:hover": { bgcolor: "#ea6a00" },
+                                    "&:disabled": { bgcolor: "action.selected" },
+                                }}
+                            >
+                                {isPlaying ? (
+                                    <PauseIcon sx={{ fontSize: 28 }} />
+                                ) : (
+                                    <PlayArrowIcon sx={{ fontSize: 28 }} />
+                                )}
+                            </IconButton>
+                            <IconButton
+                                onClick={next}
+                                sx={{ color: "text.primary" }}
+                            >
+                                <SkipNextIcon sx={{ fontSize: 34 }} />
+                            </IconButton>
+                            <IconButton
+                                onClick={toggleRepeat}
+                                sx={{
+                                    color: repeat !== "off" ? SPOTIFY_GREEN : "text.secondary",
+                                    "&:hover": { color: repeat !== "off" ? "#fb923c" : "text.primary" },
+                                }}
+                            >
+                                {repeat === "one" ? (
+                                    <RepeatOneIcon sx={{ fontSize: 20 }} />
+                                ) : (
+                                    <RepeatIcon sx={{ fontSize: 20 }} />
+                                )}
+                            </IconButton>
+                        </Box>
+                    </Box>
+                </Box>
+            )}
 
             {/* Main player bar */}
             {isCompact ? (

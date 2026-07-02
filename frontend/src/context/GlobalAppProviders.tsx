@@ -1,6 +1,3 @@
-import { MiniMessenger } from "@components/messenger/MiniMessenger";
-import { NotificationPermissionBanner } from "@components/messenger/NotificationPermissionBanner";
-import { BottomPlayer } from "@pages/music/components/BottomPlayer";
 import {
 	ConfirmContext,
 	type ConfirmFn,
@@ -16,13 +13,21 @@ import {
 } from "@mui/material";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SnackbarProvider, useSnackbar } from "notistack";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { lazy, type ReactNode, Suspense, useCallback, useRef, useState } from "react";
 import { MessageToastProvider } from "@/context/MessageToastContext";
 import { MessengerEmojiProvider } from "@/context/MessengerEmojiContext";
 import { MessengerPresenceProvider } from "@/context/MessengerPresenceContext";
 import { MessengerWebSocketProvider } from "@/context/MessengerWebSocketContext";
 import { GlobalCallProvider } from "@/features/calls";
 import { setNotifyFn } from "@/utils/snackbar";
+import { NotificationPermissionBanner } from "@components/messenger/NotificationPermissionBanner";
+
+const MiniMessenger = lazy(() =>
+	import("@components/messenger/MiniMessenger").then((m) => ({ default: m.MiniMessenger })),
+);
+const BottomPlayer = lazy(() =>
+	import("@pages/music/components/BottomPlayer").then((m) => ({ default: m.BottomPlayer })),
+);
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -123,8 +128,8 @@ export function GlobalAppProviders({ children }: { children: ReactNode }) {
 									<GlobalCallProvider>
 										<NotificationPermissionBanner />
 										{children}
-										<BottomPlayer />
-										<MiniMessenger />
+										<Suspense fallback={null}><BottomPlayer /></Suspense>
+										<Suspense fallback={null}><MiniMessenger /></Suspense>
 									</GlobalCallProvider>
 								</MessengerPresenceProvider>
 							</MessengerWebSocketProvider>
