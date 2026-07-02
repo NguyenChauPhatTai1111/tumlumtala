@@ -28,6 +28,7 @@ import {
     Menu,
     MenuItem,
     Portal,
+    Slide,
     Slider,
     Stack,
     Tooltip,
@@ -186,6 +187,7 @@ export const BottomPlayer = () => {
     const theme = useTheme();
     const isCompact = useMediaQuery(theme.breakpoints.down("md"));
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+    const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
     const hasBlockingError = useAppErrorStore((s) => s.hasBlockingError);
     const playerPaperRef = useRef<HTMLDivElement | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1133,8 +1135,18 @@ export const BottomPlayer = () => {
             />
 
             {/* Expanded "Now Playing" view */}
-            {expanded && (
-                <Portal>
+            <Portal>
+                <Slide
+                    direction="up"
+                    in={expanded}
+                    mountOnEnter
+                    unmountOnExit
+                    timeout={prefersReducedMotion ? 0 : { enter: 420, exit: 320 }}
+                    easing={{
+                        enter: "cubic-bezier(0.22, 1, 0.36, 1)",
+                        exit: "cubic-bezier(0.4, 0, 0.2, 1)",
+                    }}
+                >
                     <Box
                         role="dialog"
                         aria-modal="true"
@@ -1148,6 +1160,10 @@ export const BottomPlayer = () => {
                             flexDirection: "column",
                             px: { xs: 3, md: 6, lg: 10 },
                             py: { xs: 2, md: 3 },
+                            opacity: expanded ? 1 : 0,
+                            transition: prefersReducedMotion
+                                ? "none"
+                                : "opacity 280ms cubic-bezier(0.22, 1, 0.36, 1)",
                         }}
                     >
                         <Box
@@ -1538,11 +1554,28 @@ export const BottomPlayer = () => {
                                         <RepeatIcon sx={{ fontSize: 20 }} />
                                     )}
                                 </IconButton>
+                                {!isCompact && (
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            ml: 1,
+                                            pl: 1.5,
+                                            borderLeft: "1px solid",
+                                            borderColor: "divider",
+                                        }}
+                                    >
+                                        <VolumeCannon
+                                            volume={volume}
+                                            onVolumeChange={setVolume}
+                                        />
+                                    </Box>
+                                )}
                             </Box>
                         </Box>
                     </Box>
-                </Portal>
-            )}
+                </Slide>
+            </Portal>
 
             {/* Main player bar */}
             {isCompact ? (

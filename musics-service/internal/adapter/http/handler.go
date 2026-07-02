@@ -107,11 +107,13 @@ func (h *Handler) SearchYouTubeVideos(c *gin.Context) {
 	result, err := h.youtube.Search(c.Request.Context(), query, limit)
 	if err != nil {
 		status := http.StatusBadGateway
+		message := "Không thể tìm video YouTube"
 		if err == youtubeinfra.ErrNotConfigured {
 			status = http.StatusServiceUnavailable
+			message = "YouTube API chưa được cấu hình ở musics-service"
 		}
 		log.Printf("youtube search error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể tìm video YouTube", status))
+		responses.ResponseError(c, responses.NewError(message, status))
 		return
 	}
 	if result.CacheHit {
@@ -143,11 +145,13 @@ func (h *Handler) GetYouTubeVideo(c *gin.Context) {
 	video, cacheHit, err := h.youtube.GetVideo(c.Request.Context(), videoID)
 	if err != nil {
 		status := http.StatusBadGateway
+		message := "Không thể lấy video YouTube"
 		if err == youtubeinfra.ErrNotConfigured {
 			status = http.StatusServiceUnavailable
+			message = "YouTube API chưa được cấu hình ở musics-service"
 		}
 		log.Printf("youtube videos.list error: %v", err)
-		responses.ResponseError(c, responses.NewError("Không thể lấy video YouTube", status))
+		responses.ResponseError(c, responses.NewError(message, status))
 		return
 	}
 	if video == nil {
