@@ -17,7 +17,6 @@ import Replay10Icon from "@mui/icons-material/Replay10";
 import ShuffleIcon from "@mui/icons-material/Shuffle";
 import SkipNextIcon from "@mui/icons-material/SkipNext";
 import SkipPreviousIcon from "@mui/icons-material/SkipPrevious";
-import VolumeDownIcon from "@mui/icons-material/VolumeDown";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import {
@@ -44,6 +43,7 @@ import { usePlayerStore } from "@store/playerStore";
 import { useLikeMusicMutation } from "@pages/music/hooks/useMusicQueries";
 import { resolveSpotifyTrackPlayback } from "@services/musicService";
 import { TrackInfoButton } from "./TrackInfoDialog";
+import { VolumeCannon } from "./VolumeCannon";
 
 const SPOTIFY_GREEN = "#f97316";
 const PLAYBACK_POSITION_STORAGE_KEY = "music-player-position-v1";
@@ -818,15 +818,6 @@ export const BottomPlayer = () => {
     };
 
     if (!shouldShowPlayer || hasBlockingError) return null;
-
-    const volumeIcon =
-        volume === 0 ? (
-            <VolumeOffIcon sx={{ fontSize: 18 }} />
-        ) : volume < 0.5 ? (
-            <VolumeDownIcon sx={{ fontSize: 18 }} />
-        ) : (
-            <VolumeUpIcon sx={{ fontSize: 18 }} />
-        );
 
     return (
         <Box
@@ -1691,19 +1682,7 @@ export const BottomPlayer = () => {
                             gap: 0.5,
                         }}
                     >
-                        <Tooltip title={volume === 0 ? "Bật âm" : "Tắt âm"}>
-                            <IconButton
-                                size="small"
-                                onClick={() => setVolume((v) => (v === 0 ? 1 : 0))}
-                                sx={{
-                                    color: "text.secondary",
-                                    "&:hover": { color: "text.primary" },
-                                }}
-                            >
-                                {volumeIcon}
-                            </IconButton>
-                        </Tooltip>
-                        <SpotifySlider value={volume} max={1} onChange={setVolume} width={100} />
+                        <VolumeCannon volume={volume} onVolumeChange={setVolume} />
                         <Tooltip title="Đóng">
                             <IconButton
                                 size="small"
