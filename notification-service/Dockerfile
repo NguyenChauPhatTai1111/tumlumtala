@@ -1,11 +1,14 @@
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
+WORKDIR /app/notification-service
 
-COPY go.mod go.sum ./
+# The service module replaces github.com/tumlumtala/contracts with
+# ../contracts, so both modules must exist before dependencies are resolved.
+COPY contracts /app/contracts
+COPY notification-service/go.mod notification-service/go.sum ./
 RUN go mod download
 
-COPY . .
+COPY notification-service .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/notification-api ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/notification-worker ./cmd/worker
 

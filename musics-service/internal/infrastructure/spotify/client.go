@@ -2061,6 +2061,7 @@ func (c *Client) fetchPlaylistTracks(ctx context.Context, token, playlistID stri
 		"market": {c.market},
 		"limit":  {strconv.Itoa(limit)},
 		"offset": {strconv.Itoa(offset)},
+		"fields": {"total,items(track(id,name,duration_ms,artists(id,name),album(id,name,images(url,width)),external_urls))"},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.apiURL+"/playlists/"+playlistID+"/tracks?"+params.Encode(), nil)
@@ -2074,7 +2075,8 @@ func (c *Client) fetchPlaylistTracks(ctx context.Context, token, playlistID stri
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, 0, res.StatusCode, fmt.Errorf("Spotify PlaylistTracks trả về HTTP %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return nil, 0, res.StatusCode, fmt.Errorf("Spotify PlaylistTracks trả về HTTP %d: %s", res.StatusCode, bodyBytes)
 	}
 	var payload struct {
 		Total int `json:"total"`
@@ -2101,7 +2103,7 @@ func (c *Client) fetchPlaylistTracks(ctx context.Context, token, playlistID stri
 			} `json:"track"`
 		} `json:"items"`
 	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, 2<<20)).Decode(&payload); err != nil {
+	if err := json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(&payload); err != nil {
 		return nil, 0, res.StatusCode, err
 	}
 	tracks := make([]Track, 0, len(payload.Items))

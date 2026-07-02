@@ -2,8 +2,8 @@ services:
   notification-api:
     container_name: tumlumtala-notification-api
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: notification-service/Dockerfile
       target: api
     env_file:
       - .env
@@ -16,8 +16,8 @@ services:
   notification-worker:
     container_name: tumlumtala-notification-worker
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: notification-service/Dockerfile
       target: worker
     env_file:
       - .env
