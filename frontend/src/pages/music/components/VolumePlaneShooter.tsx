@@ -26,6 +26,7 @@ const MUZZLE_FLASH_MS = 90;
 const GUN_BOTTOM_OFFSET = 64; // gun pivot sits this far above the screen bottom
 const PLANE_COUNT_STORAGE_KEY = "music-plane-shooter-count";
 const SUPER_PLANE_CHANCE = 0.05; // 5% cơ hội xuất hiện máy bay vô cực
+const GRAVITY = 0.35;
 
 type Plane = {
     id: number;
@@ -572,12 +573,7 @@ export const VolumePlaneShooter = ({
                 b.vy += BULLET_GRAVITY * dt;
                 b.x += b.vx * dt;
                 b.y += b.vy * dt;
-                if (
-                    b.y > window.innerHeight + 40 ||
-                    b.x < -40 ||
-                    b.x > window.innerWidth + 40 ||
-                    b.y < -window.innerHeight
-                ) {
+                if (b.y > window.innerHeight + 40 || b.x < -500 || b.x > window.innerWidth + 500) {
                     bullets[bi] = null;
                     continue;
                 }
