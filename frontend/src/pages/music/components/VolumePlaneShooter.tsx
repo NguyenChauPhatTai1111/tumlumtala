@@ -1,7 +1,8 @@
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import { alpha, Box, IconButton, Typography } from "@mui/material";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useReducer, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { createPortal } from "react-dom";
 
 const OVERLAY_Z_INDEX = 3000;
@@ -93,6 +94,288 @@ const makePlane = (offscreen: boolean): Plane => {
 
 const planeTransform = (p: Plane) => `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
 
+// Memoized sprite: re-renders only when its slot gets a new plane (identity
+// change). Position updates never touch React — the physics loop writes
+// style.transform directly on the registered element.
+const PlaneSprite = memo(
+    ({
+        plane,
+        slot,
+        registerEl,
+    }: {
+        plane: Plane;
+        slot: number;
+        registerEl: (slot: number, el: HTMLDivElement | null) => void;
+    }) => {
+        const magnitude = Math.abs(plane.points);
+        const hue = Math.round(120 - (magnitude / PLANE_MAX_POINTS) * 120);
+        const body = plane.bomb ? "#475569" : `hsl(${hue}, 70%, 50%)`;
+        const bodyDark = plane.bomb ? "#293548" : `hsl(${hue}, 70%, 36%)`;
+        const chipBg = plane.bomb ? "#fbbf24" : plane.points > 0 ? "#4ade80" : "#f87171";
+        return (
+            <Box
+                ref={(el: HTMLDivElement | null) => registerEl(slot, el)}
+                style={{ transform: planeTransform(plane) }}
+                sx={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    pointerEvents: "none",
+                    willChange: "transform",
+                    // CSS flicker on the flame only — no SVG filter, no SMIL, so the
+                    // sprite never re-rasterizes beyond this tiny group.
+                    "& .flame": {
+                        animation: "planeFlameFlicker 0.22s ease-in-out infinite",
+                    },
+                    "@keyframes planeFlameFlicker": {
+                        "0%, 100%": { opacity: 1 },
+                        "50%": { opacity: 0.4 },
+                    },
+                }}
+            >
+                <Box
+                    component="svg"
+                    viewBox="0 0 76 34"
+                    sx={{
+                        width: 66,
+                        height: 30,
+                        overflow: "visible",
+                        transform: plane.dir === -1 ? "scaleX(-1)" : "none",
+                    }}
+                >
+                    {/* Jet exhaust flame */}
+                    <g className="flame">
+                        <path d="M11 15 L-3 11.5 L4.5 15 L-3 18.5 Z" fill="#fb923c" />
+                        <path d="M11 15 L1 13 L6 15 L1 17 Z" fill="#fde047" />
+                    </g>
+                    {/* Tail fin + stabilizer */}
+                    <path d="M12 13 L6 2 L15 3 L21 12 Z" fill={bodyDark} />
+                    <path d="M10 16 L3 23 L12 23 L18 16.5 Z" fill={bodyDark} />
+                    {/* Fuselage */}
+                    <ellipse cx="38" cy="15" rx="31" ry="7.5" fill={body} />
+                    {/* Nose cone */}
+                    <path d="M62 9.5 Q75 13 75.5 15 Q75 17 62 20.5 Z" fill="#fbbf24" />
+                    {/* Top highlight + belly shade */}
+                    <ellipse cx="36" cy="11.5" rx="27" ry="2.8" fill="#fff" opacity="0.22" />
+                    <ellipse cx="36" cy="19" rx="27" ry="2.6" fill="#000" opacity="0.14" />
+                    {/* Swept main wing */}
+                    <path d="M33 15 L18 28 L31 28 L45 16 Z" fill={bodyDark} />
+                    {/* Cockpit glass */}
+                    <path
+                        d="M44 8.6 Q50 5.2 56 9.6 Q50 11.4 44 10.8 Z"
+                        fill="#bae6fd"
+                        stroke="#0ea5e9"
+                        strokeWidth="0.8"
+                    />
+                    {/* Roundel */}
+                    <circle cx="27" cy="14.5" r="3.4" fill="#fff" opacity="0.85" />
+                    <circle cx="27" cy="14.5" r="1.7" fill={bodyDark} />
+                    {/* Bomb under the belly */}
+                    {plane.bomb && (
+                        <g>
+                            <ellipse cx="36" cy="28.5" rx="8" ry="3.6" fill="#111827" />
+                            <path d="M28 28.5 L23.5 25.6 L23.5 31.4 Z" fill="#374151" />
+                            <circle cx="43" cy="28.5" r="1.6" fill="#ef4444" />
+                            <ellipse cx="34" cy="27.3" rx="4" ry="1" fill="#fff" opacity="0.25" />
+                        </g>
+                    )}
+                </Box>
+                <Box
+                    component="span"
+                    sx={{
+                        mt: "3px",
+                        px: 0.6,
+                        borderRadius: 1,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        fontVariantNumeric: "tabular-nums",
+                        color: "#0b0b0b",
+                        bgcolor: chipBg,
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
+                    }}
+                >
+                    {plane.bomb ? "💣" : plane.points > 0 ? `+${plane.points}` : plane.points}
+                </Box>
+            </Box>
+        );
+    },
+);
+PlaneSprite.displayName = "PlaneSprite";
+
+// Fixed pool of bullet DOM nodes; the physics loop toggles/moves them. Memoized
+// so parent re-renders never reset the imperatively-set display/transform.
+const BulletPool = memo(
+    ({ registerEl }: { registerEl: (slot: number, el: HTMLDivElement | null) => void }) => (
+        <>
+            {Array.from({ length: BULLET_POOL_SIZE }, (_, i) => (
+                <Box
+                    key={i}
+                    ref={(el: HTMLDivElement | null) => registerEl(i, el)}
+                    style={{ display: "none" }}
+                    sx={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        width: BULLET_RADIUS * 2,
+                        height: BULLET_RADIUS * 2,
+                        borderRadius: "50%",
+                        background: "radial-gradient(circle at 35% 30%, #fff, #fbbf24 65%)",
+                        boxShadow: "0 0 8px #fbbf24",
+                        pointerEvents: "none",
+                        willChange: "transform",
+                    }}
+                />
+            ))}
+        </>
+    ),
+);
+BulletPool.displayName = "BulletPool";
+
+// The gun renders once; rotation/recoil/flash are driven imperatively through
+// the passed refs, so shots and reloads never re-render this subtree.
+const GunAssembly = memo(
+    ({
+        turretRef,
+        flashRef,
+    }: {
+        turretRef: RefObject<SVGSVGElement | null>;
+        flashRef: RefObject<SVGGElement | null>;
+    }) => (
+        <Box
+            sx={{
+                position: "absolute",
+                left: "50%",
+                top: `calc(100% - ${GUN_BOTTOM_OFFSET}px)`,
+                pointerEvents: "none",
+            }}
+        >
+            {/* Rotating turret: barrel + receiver + gloved hands, pivot at the mount */}
+            <Box
+                component="svg"
+                ref={turretRef}
+                viewBox="0 0 56 104"
+                style={{ transform: "translate(-50%, -88%)" }}
+                sx={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    width: 56,
+                    height: 104,
+                    overflow: "visible",
+                    transformOrigin: "50% 88%",
+                    willChange: "transform",
+                    filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.6))",
+                }}
+            >
+                {/* Muzzle flash — toggled imperatively */}
+                <g ref={flashRef} style={{ visibility: "hidden" }}>
+                    <polygon
+                        points="28,-22 32,-8 42,-12 34,-2 44,6 29,0 20,9 23,-2 12,-8 24,-8"
+                        fill="#fde047"
+                        opacity="0.95"
+                    />
+                    <circle cx="28" cy="-6" r="5.5" fill="#fff" />
+                </g>
+                {/* Muzzle brake */}
+                <rect x="20" y="0" width="16" height="12" rx="2.5" fill="#1f2937" />
+                <rect x="23" y="2" width="3" height="8" rx="1" fill="#0b0f19" />
+                <rect x="30" y="2" width="3" height="8" rx="1" fill="#0b0f19" />
+                {/* Barrel */}
+                <rect x="23" y="10" width="10" height="48" rx="3" fill="#4b5563" />
+                <rect x="24.5" y="10" width="2.5" height="48" rx="1" fill="#9ca3af" opacity="0.8" />
+                <rect x="30.5" y="10" width="1.5" height="48" fill="#111827" opacity="0.5" />
+                {/* Barrel ring + front sight */}
+                <rect x="19" y="30" width="18" height="7" rx="2.5" fill="#374151" />
+                <rect x="26.5" y="-5" width="3" height="6" rx="1" fill="#374151" />
+                {/* Receiver */}
+                <path d="M15 58 h26 l4 20 h-34 Z" fill="#374151" />
+                <path d="M15 58 h26 l1 5 h-28 Z" fill="#4b5563" />
+                <rect x="13" y="70" width="30" height="4" rx="2" fill="#f97316" />
+                <circle cx="28" cy="65" r="3" fill="#111827" />
+                {/* Gloved hands gripping both sides */}
+                <ellipse cx="9" cy="78" rx="7.5" ry="9" fill="#78350f" />
+                <ellipse cx="7.5" cy="74" rx="4" ry="3" fill="#92400e" />
+                <ellipse cx="47" cy="78" rx="7.5" ry="9" fill="#78350f" />
+                <ellipse cx="48.5" cy="74" rx="4" ry="3" fill="#92400e" />
+            </Box>
+            {/* Fixed mount under the turret */}
+            <Box
+                component="svg"
+                viewBox="0 0 72 34"
+                sx={{
+                    position: "absolute",
+                    left: 0,
+                    top: -8,
+                    width: 72,
+                    height: 34,
+                    transform: "translate(-50%, 0)",
+                }}
+            >
+                <ellipse cx="36" cy="26" rx="34" ry="8" fill="#111827" />
+                <ellipse cx="36" cy="22" rx="26" ry="7" fill="#1f2937" />
+                <circle cx="36" cy="18" r="10" fill="#111827" stroke="#4b5563" strokeWidth="1.5" />
+                <circle cx="36" cy="18" r="4" fill="#374151" />
+                <circle cx="16" cy="24" r="1.6" fill="#6b7280" />
+                <circle cx="56" cy="24" r="1.6" fill="#6b7280" />
+                <circle cx="36" cy="30" r="1.6" fill="#6b7280" />
+            </Box>
+        </Box>
+    ),
+);
+GunAssembly.displayName = "GunAssembly";
+
+// Crosshair renders once; pointermove writes its transform directly.
+const Crosshair = memo(({ elRef }: { elRef: RefObject<HTMLDivElement | null> }) => (
+    <Box
+        ref={elRef}
+        style={{
+            transform: `translate(${window.innerWidth / 2}px, ${window.innerHeight / 3}px) translate(-50%, -50%)`,
+        }}
+        sx={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: 34,
+            height: 34,
+            pointerEvents: "none",
+            willChange: "transform",
+            "&::before, &::after": {
+                content: '""',
+                position: "absolute",
+                bgcolor: "#f97316",
+            },
+            "&::before": {
+                left: "50%",
+                top: 0,
+                bottom: 0,
+                width: "1.5px",
+                transform: "translateX(-50%)",
+            },
+            "&::after": {
+                top: "50%",
+                left: 0,
+                right: 0,
+                height: "1.5px",
+                transform: "translateY(-50%)",
+            },
+        }}
+    >
+        <Box
+            sx={{
+                position: "absolute",
+                inset: 5,
+                borderRadius: "50%",
+                border: "1.5px solid #f97316",
+                boxShadow: "0 0 8px rgba(249, 115, 22, 0.45)",
+            }}
+        />
+    </Box>
+));
+Crosshair.displayName = "Crosshair";
+
 export const VolumePlaneShooter = ({
     volume,
     onVolumeChange,
@@ -103,8 +386,8 @@ export const VolumePlaneShooter = ({
     onClose: () => void;
 }) => {
     // Physics state lives in refs and is written straight to DOM transforms each
-    // frame — React only re-renders on events (hits, respawns, reloads), which is
-    // what keeps the game smooth.
+    // frame — React only re-renders on events (hits, respawns, reloads), and the
+    // memoized sprites keep even those renders cheap.
     const planesRef = useRef<Plane[]>([]);
     const planeElsRef = useRef<(HTMLDivElement | null)[]>([]);
     const bulletsRef = useRef<(Bullet | null)[]>(Array(BULLET_POOL_SIZE).fill(null));
@@ -120,8 +403,8 @@ export const VolumePlaneShooter = ({
     const reloadingRef = useRef(false);
     const reloadTimerRef = useRef<number | null>(null);
 
-    // Bumped whenever the plane list's identity changes so React repaints chips/colors.
-    const [planesVersion, setPlanesVersion] = useState(0);
+    // Bumped whenever a plane slot gets a new identity so React repaints its chip.
+    const [, bumpPlanes] = useReducer((c: number) => c + 1, 0);
     const [booms, setBooms] = useState<Boom[]>([]);
     const [ammo, setAmmo] = useState(MAG_SIZE);
     const [reloading, setReloading] = useState(false);
@@ -130,6 +413,14 @@ export const VolumePlaneShooter = ({
     useEffect(() => {
         volPctRef.current = Math.round(volume * 100);
     }, [volume]);
+
+    const registerPlaneEl = useCallback((slot: number, el: HTMLDivElement | null) => {
+        planeElsRef.current[slot] = el;
+    }, []);
+
+    const registerBulletEl = useCallback((slot: number, el: HTMLDivElement | null) => {
+        bulletElsRef.current[slot] = el;
+    }, []);
 
     const changePlaneCount = useCallback((delta: number) => {
         setPlaneCount((prev) => {
@@ -144,7 +435,7 @@ export const VolumePlaneShooter = ({
         const planes = planesRef.current;
         while (planes.length < planeCount) planes.push(makePlane(planes.length > 0));
         if (planes.length > planeCount) planes.length = planeCount;
-        setPlanesVersion((v) => v + 1);
+        bumpPlanes();
     }, [planeCount]);
 
     useEffect(
@@ -311,7 +602,7 @@ export const VolumePlaneShooter = ({
                 }
             }
 
-            if (respawned) setPlanesVersion((v) => v + 1);
+            if (respawned) bumpPlanes();
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
@@ -424,140 +715,12 @@ export const VolumePlaneShooter = ({
                 </IconButton>
             </Box>
 
-            {/* Planes — cartoon jets; positions are driven imperatively */}
-            {planesRef.current.map((p, i) => {
-                const magnitude = Math.abs(p.points);
-                const hue = Math.round(120 - (magnitude / PLANE_MAX_POINTS) * 120);
-                const body = p.bomb ? "#475569" : `hsl(${hue}, 70%, 50%)`;
-                const bodyDark = p.bomb ? "#293548" : `hsl(${hue}, 70%, 36%)`;
-                const chipBg = p.bomb ? "#fbbf24" : p.points > 0 ? "#4ade80" : "#f87171";
-                return (
-                    <Box
-                        key={p.id}
-                        ref={(el: HTMLDivElement | null) => {
-                            planeElsRef.current[i] = el;
-                        }}
-                        style={{ transform: planeTransform(p) }}
-                        sx={{
-                            position: "absolute",
-                            left: 0,
-                            top: 0,
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            pointerEvents: "none",
-                            willChange: "transform",
-                        }}
-                    >
-                        <Box
-                            component="svg"
-                            viewBox="0 0 76 34"
-                            sx={{
-                                width: 66,
-                                height: 30,
-                                overflow: "visible",
-                                transform: p.dir === -1 ? "scaleX(-1)" : "none",
-                                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.55))",
-                            }}
-                        >
-                            {/* Jet exhaust flame */}
-                            <path d="M11 15 L-3 11.5 L4.5 15 L-3 18.5 Z" fill="#fb923c">
-                                <animate
-                                    attributeName="opacity"
-                                    values="1;0.35;1"
-                                    dur="0.18s"
-                                    repeatCount="indefinite"
-                                />
-                            </path>
-                            <path d="M11 15 L1 13 L6 15 L1 17 Z" fill="#fde047">
-                                <animate
-                                    attributeName="opacity"
-                                    values="0.9;0.4;0.9"
-                                    dur="0.13s"
-                                    repeatCount="indefinite"
-                                />
-                            </path>
-                            {/* Tail fin + stabilizer */}
-                            <path d="M12 13 L6 2 L15 3 L21 12 Z" fill={bodyDark} />
-                            <path d="M10 16 L3 23 L12 23 L18 16.5 Z" fill={bodyDark} />
-                            {/* Fuselage */}
-                            <ellipse cx="38" cy="15" rx="31" ry="7.5" fill={body} />
-                            {/* Nose cone */}
-                            <path d="M62 9.5 Q75 13 75.5 15 Q75 17 62 20.5 Z" fill="#fbbf24" />
-                            {/* Top highlight + belly shade */}
-                            <ellipse cx="36" cy="11.5" rx="27" ry="2.8" fill="#fff" opacity="0.22" />
-                            <ellipse cx="36" cy="19" rx="27" ry="2.6" fill="#000" opacity="0.14" />
-                            {/* Swept main wing */}
-                            <path d="M33 15 L18 28 L31 28 L45 16 Z" fill={bodyDark} />
-                            {/* Cockpit glass */}
-                            <path
-                                d="M44 8.6 Q50 5.2 56 9.6 Q50 11.4 44 10.8 Z"
-                                fill="#bae6fd"
-                                stroke="#0ea5e9"
-                                strokeWidth="0.8"
-                            />
-                            {/* Roundel */}
-                            <circle cx="27" cy="14.5" r="3.4" fill="#fff" opacity="0.85" />
-                            <circle cx="27" cy="14.5" r="1.7" fill={bodyDark} />
-                            {/* Bomb under the belly */}
-                            {p.bomb && (
-                                <g>
-                                    <ellipse cx="36" cy="28.5" rx="8" ry="3.6" fill="#111827" />
-                                    <path d="M28 28.5 L23.5 25.6 L23.5 31.4 Z" fill="#374151" />
-                                    <circle cx="43" cy="28.5" r="1.6" fill="#ef4444" />
-                                    <ellipse
-                                        cx="34"
-                                        cy="27.3"
-                                        rx="4"
-                                        ry="1"
-                                        fill="#fff"
-                                        opacity="0.25"
-                                    />
-                                </g>
-                            )}
-                        </Box>
-                        <Box
-                            component="span"
-                            sx={{
-                                mt: "3px",
-                                px: 0.6,
-                                borderRadius: 1,
-                                fontSize: 11,
-                                fontWeight: 800,
-                                fontVariantNumeric: "tabular-nums",
-                                color: "#0b0b0b",
-                                bgcolor: chipBg,
-                                boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
-                            }}
-                        >
-                            {p.bomb ? "💣" : p.points > 0 ? `+${p.points}` : p.points}
-                        </Box>
-                    </Box>
-                );
-            })}
-
-            {/* Bullet pool — fixed DOM slots toggled/moved imperatively */}
-            {Array.from({ length: BULLET_POOL_SIZE }, (_, i) => (
-                <Box
-                    key={i}
-                    ref={(el: HTMLDivElement | null) => {
-                        bulletElsRef.current[i] = el;
-                    }}
-                    style={{ display: "none" }}
-                    sx={{
-                        position: "absolute",
-                        left: 0,
-                        top: 0,
-                        width: BULLET_RADIUS * 2,
-                        height: BULLET_RADIUS * 2,
-                        borderRadius: "50%",
-                        background: "radial-gradient(circle at 35% 30%, #fff, #fbbf24 65%)",
-                        boxShadow: "0 0 8px #fbbf24",
-                        pointerEvents: "none",
-                        willChange: "transform",
-                    }}
-                />
+            {/* Planes — memoized sprites; only a respawned slot re-renders */}
+            {planesRef.current.map((p, i) => (
+                <PlaneSprite key={p.id} plane={p} slot={i} registerEl={registerPlaneEl} />
             ))}
+
+            <BulletPool registerEl={registerBulletEl} />
 
             {/* Explosions + result labels */}
             {booms.map((bm) => (
@@ -669,132 +832,9 @@ export const VolumePlaneShooter = ({
                 )}
             </Box>
 
-            {/* First-person AA gun at the bottom center, tracking the crosshair */}
-            <Box
-                sx={{
-                    position: "absolute",
-                    left: "50%",
-                    top: `calc(100% - ${GUN_BOTTOM_OFFSET}px)`,
-                    pointerEvents: "none",
-                }}
-            >
-                {/* Rotating turret: barrel + receiver + gloved hands, pivot at the mount */}
-                <Box
-                    component="svg"
-                    ref={turretElRef}
-                    viewBox="0 0 56 104"
-                    style={{ transform: "translate(-50%, -88%)" }}
-                    sx={{
-                        position: "absolute",
-                        left: 0,
-                        top: 0,
-                        width: 56,
-                        height: 104,
-                        overflow: "visible",
-                        transformOrigin: "50% 88%",
-                        willChange: "transform",
-                        filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.6))",
-                    }}
-                >
-                    {/* Muzzle flash — toggled imperatively */}
-                    <g ref={flashElRef} style={{ visibility: "hidden" }}>
-                        <polygon
-                            points="28,-22 32,-8 42,-12 34,-2 44,6 29,0 20,9 23,-2 12,-8 24,-8"
-                            fill="#fde047"
-                            opacity="0.95"
-                        />
-                        <circle cx="28" cy="-6" r="5.5" fill="#fff" />
-                    </g>
-                    {/* Muzzle brake */}
-                    <rect x="20" y="0" width="16" height="12" rx="2.5" fill="#1f2937" />
-                    <rect x="23" y="2" width="3" height="8" rx="1" fill="#0b0f19" />
-                    <rect x="30" y="2" width="3" height="8" rx="1" fill="#0b0f19" />
-                    {/* Barrel */}
-                    <rect x="23" y="10" width="10" height="48" rx="3" fill="#4b5563" />
-                    <rect x="24.5" y="10" width="2.5" height="48" rx="1" fill="#9ca3af" opacity="0.8" />
-                    <rect x="30.5" y="10" width="1.5" height="48" fill="#111827" opacity="0.5" />
-                    {/* Barrel ring + front sight */}
-                    <rect x="19" y="30" width="18" height="7" rx="2.5" fill="#374151" />
-                    <rect x="26.5" y="-5" width="3" height="6" rx="1" fill="#374151" />
-                    {/* Receiver */}
-                    <path d="M15 58 h26 l4 20 h-34 Z" fill="#374151" />
-                    <path d="M15 58 h26 l1 5 h-28 Z" fill="#4b5563" />
-                    <rect x="13" y="70" width="30" height="4" rx="2" fill="#f97316" />
-                    <circle cx="28" cy="65" r="3" fill="#111827" />
-                    {/* Gloved hands gripping both sides */}
-                    <ellipse cx="9" cy="78" rx="7.5" ry="9" fill="#78350f" />
-                    <ellipse cx="7.5" cy="74" rx="4" ry="3" fill="#92400e" />
-                    <ellipse cx="47" cy="78" rx="7.5" ry="9" fill="#78350f" />
-                    <ellipse cx="48.5" cy="74" rx="4" ry="3" fill="#92400e" />
-                </Box>
-                {/* Fixed mount under the turret */}
-                <Box
-                    component="svg"
-                    viewBox="0 0 72 34"
-                    sx={{
-                        position: "absolute",
-                        left: 0,
-                        top: -8,
-                        width: 72,
-                        height: 34,
-                        transform: "translate(-50%, 0)",
-                    }}
-                >
-                    <ellipse cx="36" cy="26" rx="34" ry="8" fill="#111827" />
-                    <ellipse cx="36" cy="22" rx="26" ry="7" fill="#1f2937" />
-                    <circle cx="36" cy="18" r="10" fill="#111827" stroke="#4b5563" strokeWidth="1.5" />
-                    <circle cx="36" cy="18" r="4" fill="#374151" />
-                    <circle cx="16" cy="24" r="1.6" fill="#6b7280" />
-                    <circle cx="56" cy="24" r="1.6" fill="#6b7280" />
-                    <circle cx="36" cy="30" r="1.6" fill="#6b7280" />
-                </Box>
-            </Box>
+            <GunAssembly turretRef={turretElRef} flashRef={flashElRef} />
 
-            {/* Crosshair replaces the cursor — moved imperatively on pointermove */}
-            <Box
-                ref={crosshairElRef}
-                style={{
-                    transform: `translate(${mouseRef.current.x}px, ${mouseRef.current.y}px) translate(-50%, -50%)`,
-                }}
-                sx={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    width: 34,
-                    height: 34,
-                    pointerEvents: "none",
-                    willChange: "transform",
-                    "&::before, &::after": {
-                        content: '""',
-                        position: "absolute",
-                        bgcolor: "#f97316",
-                    },
-                    "&::before": {
-                        left: "50%",
-                        top: 0,
-                        bottom: 0,
-                        width: "1.5px",
-                        transform: "translateX(-50%)",
-                    },
-                    "&::after": {
-                        top: "50%",
-                        left: 0,
-                        right: 0,
-                        height: "1.5px",
-                        transform: "translateY(-50%)",
-                    },
-                }}
-            >
-                <Box
-                    sx={{
-                        position: "absolute",
-                        inset: 5,
-                        borderRadius: "50%",
-                        border: "1.5px solid #f97316",
-                        boxShadow: "0 0 8px rgba(249, 115, 22, 0.45)",
-                    }}
-                />
-            </Box>
+            <Crosshair elRef={crosshairElRef} />
         </Box>,
         document.body,
     );
