@@ -17,6 +17,11 @@ const FLIGHT_TIMEOUT_MS = 4000;
 const MARBLE_SIZE = 12;
 const RAIL_EDGE_TOLERANCE_PX = 6;
 const PORTAL_Z_INDEX = 2000;
+const RACKET_RESTITUTION = 0.55; // speed kept after the racket smacks the marble back
+const RACKET_SHOW_MS = 450;
+const ROLL_FRICTION = 340; // px/s² deceleration while rolling on the rail
+const ROLL_STOP_SPEED = 12; // px/s — below this the marble settles
+const ROLL_VOLUME_UPDATE_MS = 70; // throttle live volume updates while rolling
 
 type Phase = "idle" | "aiming" | "flying" | "impact";
 type Impact = { type: "hit"; pct: number; color: string } | { type: "miss" };
@@ -49,6 +54,24 @@ export const VolumeCannon = ({
     const [impact, setImpact] = useState<Impact | null>(null);
     const [streakRegion, setStreakRegion] = useState<(Point & { w: number; h: number }) | null>(
         null,
+    );
+    // The racket that smacks the marble back when it tries to fly past the rail's end.
+    const racketTimeoutRef = useRef<number | null>(null);
+    const racketIdRef = useRef(0);
+    const [racket, setRacket] = useState<(Point & { id: number }) | null>(null);
+
+    const showRacket = useCallback((x: number, y: number) => {
+        racketIdRef.current += 1;
+        setRacket({ x, y, id: racketIdRef.current });
+        if (racketTimeoutRef.current) window.clearTimeout(racketTimeoutRef.current);
+        racketTimeoutRef.current = window.setTimeout(() => setRacket(null), RACKET_SHOW_MS);
+    }, []);
+
+    useEffect(
+        () => () => {
+            if (racketTimeoutRef.current) window.clearTimeout(racketTimeoutRef.current);
+        },
+        [],
     );
 
     const setPhase = useCallback((next: Phase) => {
@@ -113,36 +136,94 @@ export const VolumeCannon = ({
                 return;
             }
             const railY = railRect.top + railRect.height / 2;
+            const railEndX = railRect.right;
+            const railPct = (x: number) =>
+                Math.min(Math.max((x - railRect.left) / railRect.width, 0), 1);
             const pos = { ...anchorRef.current };
             const vel = { ...velocity };
             const startedAt = performance.now();
             let lastTime = startedAt;
+            let rolling = false;
+            let fellOffRail = false;
+            let lastVolumeUpdate = 0;
             setPhase("flying");
             setMarble({ ...pos, color });
             setTrail([]);
             const tick = (now: number) => {
                 const dt = Math.min((now - lastTime) / 1000, 0.032);
                 lastTime = now;
+
+                if (rolling) {
+                    // Inertia keeps the marble rolling; friction bleeds it off.
+                    const dir = Math.sign(vel.x);
+                    vel.x = Math.max(Math.abs(vel.x) - ROLL_FRICTION * dt, 0) * dir;
+                    pos.x += vel.x * dt;
+                    pos.y = railY;
+
+                    if (pos.x >= railEndX) {
+                        pos.x = railEndX;
+                        vel.x = -Math.abs(vel.x) * RACKET_RESTITUTION;
+                        showRacket(railEndX, railY - MARBLE_SIZE / 2);
+                    }
+
+                    if (pos.x < railRect.left) {
+                        // Rolled past 0% — the marble drops off the rail edge.
+                        rolling = false;
+                        fellOffRail = true;
+                        vel.y = 0;
+                    } else if (Math.abs(vel.x) <= ROLL_STOP_SPEED) {
+                        setMarble({ x: pos.x, y: railY, color });
+                        finishShot({ type: "hit", pct: railPct(pos.x), color });
+                        return;
+                    } else {
+                        if (now - lastVolumeUpdate >= ROLL_VOLUME_UPDATE_MS) {
+                            lastVolumeUpdate = now;
+                            onVolumeChange(Math.round(railPct(pos.x) * 100) / 100);
+                        }
+                        setMarble({ ...pos, color });
+                        setTrail((t) => [...t.slice(-9), { x: pos.x, y: pos.y }]);
+                        rafRef.current = requestAnimationFrame(tick);
+                        return;
+                    }
+                }
+
                 vel.x += windRef.current * WIND_MAX_ACCEL * dt;
                 vel.y += GRAVITY * dt;
                 const prev = { ...pos };
                 pos.x += vel.x * dt;
                 pos.y += vel.y * dt;
 
+                // The rail's end is a no-fly line at any height: the racket smacks
+                // the marble back so it can never leave the bar on the right.
+                let bounced = false;
+                if (vel.x > 0 && prev.x <= railEndX && pos.x >= railEndX) {
+                    const f = pos.x === prev.x ? 0 : (railEndX - prev.x) / (pos.x - prev.x);
+                    const yCross = prev.y + (pos.y - prev.y) * f;
+                    if (yCross <= railY + MARBLE_SIZE / 2) {
+                        pos.x = railEndX - (pos.x - railEndX) * RACKET_RESTITUTION;
+                        vel.x = -vel.x * RACKET_RESTITUTION;
+                        bounced = true;
+                        showRacket(railEndX, yCross);
+                    }
+                }
+
                 // Falling across the rail line: did we land on the volume bar?
-                if (vel.y > 0 && prev.y <= railY && pos.y >= railY) {
+                if (!bounced && !fellOffRail && vel.y > 0 && prev.y <= railY && pos.y >= railY) {
                     const f = pos.y === prev.y ? 0 : (railY - prev.y) / (pos.y - prev.y);
                     const xHit = prev.x + (pos.x - prev.x) * f;
                     if (
                         xHit >= railRect.left - RAIL_EDGE_TOLERANCE_PX &&
                         xHit <= railRect.right + RAIL_EDGE_TOLERANCE_PX
                     ) {
-                        const pct = Math.min(
-                            Math.max((xHit - railRect.left) / railRect.width, 0),
-                            1,
-                        );
-                        setMarble({ x: xHit, y: railY, color });
-                        finishShot({ type: "hit", pct, color });
+                        // Land on the rail and keep the horizontal inertia to roll on.
+                        rolling = true;
+                        pos.x = Math.min(xHit, railEndX);
+                        pos.y = railY;
+                        vel.y = 0;
+                        onVolumeChange(Math.round(railPct(pos.x) * 100) / 100);
+                        setMarble({ x: pos.x, y: railY, color });
+                        setTrail((t) => [...t.slice(-9), { x: pos.x, y: pos.y }]);
+                        rafRef.current = requestAnimationFrame(tick);
                         return;
                     }
                 }
@@ -162,7 +243,7 @@ export const VolumeCannon = ({
             };
             rafRef.current = requestAnimationFrame(tick);
         },
-        [finishShot, setPhase],
+        [finishShot, onVolumeChange, setPhase, showRacket],
     );
 
     const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -342,7 +423,12 @@ export const VolumeCannon = ({
                             height: "100%",
                             borderRadius: 2,
                             bgcolor: "#f97316",
-                            transition: phase === "impact" ? "width 0.15s ease-out" : "none",
+                            transition:
+                                phase === "impact"
+                                    ? "width 0.15s ease-out"
+                                    : phase === "flying"
+                                      ? "width 0.09s linear"
+                                      : "none",
                         }}
                     />
                 </Box>
@@ -441,6 +527,63 @@ export const VolumeCannon = ({
             {/* Slingshot overlay — portal so the player bar's overflow:hidden doesn't clip anything */}
             {createPortal(
                 <>
+                    {/* Racket flash — swings in to smack the marble back onto the bar */}
+                    {racket && (
+                        <Box
+                            key={racket.id}
+                            sx={{
+                                position: "fixed",
+                                left: racket.x,
+                                top: racket.y,
+                                pointerEvents: "none",
+                                zIndex: PORTAL_Z_INDEX + 2,
+                                transformOrigin: "50% 85%",
+                                animation: `volumeRacketSwing ${RACKET_SHOW_MS}ms ease-out forwards`,
+                                "@keyframes volumeRacketSwing": {
+                                    "0%": {
+                                        opacity: 0,
+                                        transform: "translate(-50%, -60%) rotate(60deg)",
+                                    },
+                                    "25%": {
+                                        opacity: 1,
+                                        transform: "translate(-50%, -60%) rotate(-30deg)",
+                                    },
+                                    "60%": {
+                                        opacity: 1,
+                                        transform: "translate(-50%, -60%) rotate(-18deg)",
+                                    },
+                                    "100%": {
+                                        opacity: 0,
+                                        transform: "translate(-50%, -60%) rotate(-18deg)",
+                                    },
+                                },
+                            }}
+                        >
+                            {/* Racket head with strings */}
+                            <Box
+                                sx={{
+                                    width: 16,
+                                    height: 20,
+                                    borderRadius: "50%",
+                                    border: "2.5px solid #a16207",
+                                    background:
+                                        "repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,255,255,0.55) 2px 3px), repeating-linear-gradient(90deg, transparent 0 2px, rgba(255,255,255,0.55) 2px 3px)",
+                                    boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                                }}
+                            />
+                            {/* Handle */}
+                            <Box
+                                sx={{
+                                    width: 3.5,
+                                    height: 11,
+                                    mx: "auto",
+                                    mt: "-1px",
+                                    borderRadius: 1,
+                                    bgcolor: "#a16207",
+                                }}
+                            />
+                        </Box>
+                    )}
                     {showStreaks && streakRegion && (
                         <Box
                             sx={{
